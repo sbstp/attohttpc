@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Simon <git@sbstp.ca>"]
 
 [dependencies]
+failure = "0.1"
 http = "0.1"
 url = "1"
