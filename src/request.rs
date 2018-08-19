@@ -1,4 +1,4 @@
-mod parse;
+pub mod parse;
 
 use std::convert::From;
 use std::fmt::Display;

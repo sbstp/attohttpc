@@ -10,6 +10,8 @@ mod error;
 mod request;
 mod tls;
 
+pub use error::{HttpError, HttpResult};
+pub use request::parse::ResponseReader;
 pub use request::Request;
 pub mod header {
     pub use http::header::*;
