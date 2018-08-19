@@ -3,8 +3,6 @@ use std::result;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
-use http;
-
 #[derive(Fail, Debug)]
 pub enum HttpError {
     #[fail(display = "{}", _0)]
@@ -18,6 +16,9 @@ pub enum HttpError {
 
     #[fail(display = "{}", _0)]
     Http(http::Error),
+
+    #[fail(display = "{}", _0)]
+    Tls(native_tls::Error),
 
     #[fail(display = "invalid url")]
     InvalidUrl,
@@ -49,5 +50,6 @@ impl_from!(io::Error, Io);
 impl_from!(Utf8Error, Utf8);
 impl_from!(FromUtf8Error, FromUtf8);
 impl_from!(http::Error, Http);
+impl_from!(native_tls::Error, Tls);
 
 pub type HttpResult<T = ()> = result::Result<T, HttpError>;

@@ -1,19 +1,20 @@
+mod parse;
+
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
-use std::net::TcpStream;
 use std::str;
 
 use http::{
-    self,
-    header::{AsHeaderName, HeaderName, HeaderValue, IntoHeaderName, HOST},
+    header::{HeaderValue, IntoHeaderName, HOST},
     status::StatusCode,
     HeaderMap, HttpTryFrom, Method, Version,
 };
 use url::Url;
 
-use error::{HttpError, HttpResult};
-use parse::{self, ResponseReader};
+use crate::error::{HttpError, HttpResult};
+use crate::tls::MaybeTls;
+use parse::ResponseReader;
 
 pub trait HttpTryInto<T> {
     fn try_into(self) -> Result<T, http::Error>;
@@ -54,6 +55,7 @@ pub struct Request {
     url: Url,
     method: Method,
     headers: HeaderMap,
+    redirect: bool,
 }
 
 impl Request {
@@ -63,7 +65,12 @@ impl Request {
             url,
             method: Method::GET,
             headers: HeaderMap::new(),
+            redirect: true,
         }
+    }
+
+    pub fn redirect(&mut self, redirect: bool) {
+        self.redirect = redirect;
     }
 
     pub fn method(&mut self, method: Method) {
@@ -95,49 +102,92 @@ impl Request {
         header_append(&mut self.headers, header, value)
     }
 
-    pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
-        let mut sock = {
-            let host = self.url.host_str().ok_or(HttpError::InvalidUrl)?;
-            let port = self
-                .url
-                .port_or_known_default()
-                .ok_or(HttpError::InvalidUrl)?;
-            TcpStream::connect((host, port))?
-        };
+    fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
+        let host = url.host_str().ok_or(HttpError::InvalidUrl)?;
+        let port = url.port_or_known_default().ok_or(HttpError::InvalidUrl)?;
 
-        self.write_request(&mut sock)?;
-        let resp = parse::read_response(sock)?;
-        Ok(resp)
+        debug!("trying to connect to {}:{}", host, port);
+
+        Ok(match url.scheme() {
+            "http" => MaybeTls::connect(host, port)?,
+            "https" => MaybeTls::connect_tls(host, port)?,
+            _ => return Err(HttpError::InvalidUrl),
+        })
     }
 
-    fn write_request<W>(&mut self, writer: W) -> HttpResult
+    fn base_redirect_url(&self, location: &str, previous_url: &Url) -> HttpResult<Url> {
+        Ok(match Url::parse(location) {
+            Ok(url) => url,
+            Err(url::ParseError::RelativeUrlWithoutBase) => previous_url
+                .join(location)
+                .map_err(|_| HttpError::InvalidUrl)?,
+            Err(_) => Err(HttpError::InvalidUrl)?,
+        })
+    }
+
+    pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+        let mut url = self.url.clone();
+        loop {
+            let mut sock = self.connect(&url)?;
+            self.write_request(&mut sock, &url)?;
+            let (status, headers, resp) = parse::read_response(sock)?;
+
+            debug!("status code {}", status.as_u16());
+
+            if !self.redirect || !status.is_redirection() {
+                return Ok((status, headers, resp));
+            }
+
+            // Handle redirect
+            let location = headers
+                .get(http::header::LOCATION)
+                .ok_or(HttpError::InvalidResponse)?;
+            let location = location.to_str().map_err(|_| HttpError::InvalidResponse)?;
+            let new_url = self.base_redirect_url(location, &url)?;
+            url = new_url;
+
+            debug!("redirected to {} giving url {}", location, url,);
+        }
+    }
+
+    fn write_request<W>(&mut self, writer: W, url: &Url) -> HttpResult
     where
         W: Write,
     {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
 
-        if let Some(query) = self.url.query() {
+        if let Some(query) = url.query() {
+            debug!(
+                "{} {}?{} {:?}",
+                self.method.as_str(),
+                url.path(),
+                query,
+                version,
+            );
+
             write!(
                 writer,
                 "{} {}?{} {:?}\r\n",
                 self.method.as_str(),
-                self.url.path(),
+                url.path(),
                 query,
                 version,
             )?;
         } else {
+            debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
+
             write!(
                 writer,
                 "{} {} {:?}\r\n",
                 self.method.as_str(),
-                self.url.path(),
+                url.path(),
                 version,
             )?;
         }
 
         header_insert(&mut self.headers, "connection", "close")?;
-        if let Some(domain) = self.url.domain() {
+        if let Some(domain) = url.domain() {
             header_insert(&mut self.headers, HOST, domain)?;
         }
 

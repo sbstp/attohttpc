@@ -1,17 +1,16 @@
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
 use std::str;
 
 use http::{
-    self,
     header::{HeaderName, HeaderValue},
     HeaderMap, StatusCode,
 };
 
-use error::{HttpError, HttpResult};
+use crate::error::{HttpError, HttpResult};
+use crate::tls::MaybeTls;
 
 pub struct ResponseReader {
-    inner: BufReader<TcpStream>,
+    inner: BufReader<MaybeTls>,
 }
 
 impl ResponseReader {
@@ -87,7 +86,7 @@ fn trim_byte_right(byte: u8, mut buf: &[u8]) -> &[u8] {
     buf
 }
 
-pub fn read_response(reader: TcpStream) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+pub fn read_response(reader: MaybeTls) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
     let (status, headers) = read_response_head(&mut reader)?;
     Ok((status, headers, ResponseReader { inner: reader }))
@@ -134,7 +133,7 @@ where
             .position(|&c| c == b':')
             .ok_or(HttpError::InvalidResponse)?;
         let header = &trimmed[..col_1];
-        let value = trim_byte_left(b' ', &trimmed[col_1 + 1..]);
+        let value = trim_byte(b' ', &trimmed[col_1 + 1..]);
 
         headers.append(
             HeaderName::from_bytes(header).map_err(http::Error::from)?,
