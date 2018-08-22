@@ -1,6 +1,6 @@
 use std::env;
 
-use tinyhttp::Request;
+use lynx::Request;
 
 fn main() {
     env_logger::init();

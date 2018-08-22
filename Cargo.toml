@@ -1,10 +1,11 @@
 cargo-features = ["edition"]
 
 [package]
-name = "tinyhttp"
+name = "lynx"
 version = "0.1.0"
-authors = ["Simon <git@sbstp.ca>"]
+authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
+license = "MPL-2.0"
 
 [dependencies]
 encoding_rs = "0.8"
