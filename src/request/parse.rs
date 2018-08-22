@@ -40,7 +40,8 @@ impl ResponseReader {
 
     pub fn string(self) -> HttpResult<String> {
         let buf = self.bytes()?;
-        Ok(String::from_utf8(buf)?)
+        Ok(String::from_utf8(buf)
+            .map_err(|_| HttpError::DecodingError("cannot convert to utf-8"))?)
     }
 }
 
@@ -108,16 +109,17 @@ where
         let sp_1 = trimmed
             .iter()
             .position(|&c| c == b' ')
-            .ok_or(HttpError::InvalidResponse)?;
+            .ok_or(HttpError::InvalidResponse("invalid status line"))?;
         let rest = &trimmed[sp_1 + 1..];
         let sp_2 = rest
             .iter()
             .position(|&c| c == b' ')
-            .ok_or(HttpError::InvalidResponse)?;
+            .ok_or(HttpError::InvalidResponse("invalid status line"))?;
 
-        str::from_utf8(&rest[..sp_2])?
+        str::from_utf8(&rest[..sp_2])
+            .map_err(|_| HttpError::InvalidResponse("cannot decode code"))?
             .parse()
-            .map_err(http::Error::from)?
+            .map_err(|_| HttpError::InvalidResponse("invalid status code"))?
     };
 
     // headers
@@ -131,7 +133,7 @@ where
         let col_1 = trimmed
             .iter()
             .position(|&c| c == b':')
-            .ok_or(HttpError::InvalidResponse)?;
+            .ok_or(HttpError::InvalidResponse("parse header no colon"))?;
         let header = &trimmed[..col_1];
         let value = trim_byte(b' ', &trimmed[col_1 + 1..]);
 

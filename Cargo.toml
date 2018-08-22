@@ -7,7 +7,6 @@ authors = ["Simon <git@sbstp.ca>"]
 edition = "2018"
 
 [dependencies]
-failure = "0.1"
 http = "0.1"
 log = "0.4"
 native-tls = "0.2.1"
@@ -15,3 +14,10 @@ url = "1"
 
 [dev-dependencies]
 env_logger = "0.5"
+
+[profile.dev]
+debug = false
+
+[profile.release]
+debug = false
+lto = true

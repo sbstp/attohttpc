@@ -103,15 +103,19 @@ impl Request {
     }
 
     fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
-        let host = url.host_str().ok_or(HttpError::InvalidUrl)?;
-        let port = url.port_or_known_default().ok_or(HttpError::InvalidUrl)?;
+        let host = url
+            .host_str()
+            .ok_or(HttpError::InvalidUrl("url has no host"))?;
+        let port = url
+            .port_or_known_default()
+            .ok_or(HttpError::InvalidUrl("url has no port"))?;
 
         debug!("trying to connect to {}:{}", host, port);
 
         Ok(match url.scheme() {
             "http" => MaybeTls::connect(host, port)?,
             "https" => MaybeTls::connect_tls(host, port)?,
-            _ => return Err(HttpError::InvalidUrl),
+            _ => return Err(HttpError::InvalidUrl("url contains unsupported scheme")),
         })
     }
 
@@ -120,8 +124,8 @@ impl Request {
             Ok(url) => url,
             Err(url::ParseError::RelativeUrlWithoutBase) => previous_url
                 .join(location)
-                .map_err(|_| HttpError::InvalidUrl)?,
-            Err(_) => Err(HttpError::InvalidUrl)?,
+                .map_err(|_| HttpError::InvalidUrl("cannot join location with new url"))?,
+            Err(_) => Err(HttpError::InvalidUrl("invalid redirection url"))?,
         })
     }
 
@@ -139,10 +143,16 @@ impl Request {
             }
 
             // Handle redirect
-            let location = headers
-                .get(http::header::LOCATION)
-                .ok_or(HttpError::InvalidResponse)?;
-            let location = location.to_str().map_err(|_| HttpError::InvalidResponse)?;
+            let location =
+                headers
+                    .get(http::header::LOCATION)
+                    .ok_or(HttpError::InvalidResponse(
+                        "redirect has no location header",
+                    ))?;
+            let location = location
+                .to_str()
+                .map_err(|_| HttpError::InvalidResponse("location to str error"))?;
+
             let new_url = self.base_redirect_url(location, &url)?;
             url = new_url;
 
