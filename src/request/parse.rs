@@ -1,5 +1,8 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::str;
+
+use encoding_rs::{CoderResult, Decoder, Encoding};
+use http::header::CONTENT_TYPE;
 
 use http::{
     header::{HeaderName, HeaderValue},
@@ -11,9 +14,11 @@ use crate::tls::MaybeTls;
 
 pub struct ResponseReader {
     inner: BufReader<MaybeTls>,
+    encoding: &'static Encoding,
 }
 
 impl ResponseReader {
+    /// Write the response to any object that implements `Write`.
     pub fn write_to<W>(mut self, mut writer: W) -> HttpResult<usize>
     where
         W: Write,
@@ -32,16 +37,71 @@ impl ResponseReader {
         Ok(count)
     }
 
+    /// Read the response to a `Vec` of bytes.
     pub fn bytes(self) -> HttpResult<Vec<u8>> {
         let mut buf = Vec::new();
         self.write_to(&mut buf)?;
         Ok(buf)
     }
 
+    /// Read the response to a `String`.
+    ///
+    /// If the response headers contain charset information, that charset will be used to decode the body.
+    /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
+    /// will be used.
     pub fn string(self) -> HttpResult<String> {
-        let buf = self.bytes()?;
-        Ok(String::from_utf8(buf)
-            .map_err(|_| HttpError::DecodingError("cannot convert to utf-8"))?)
+        let encoding = self.encoding;
+        self.decode(encoding)
+    }
+
+    /// Read the response to a `String`, decoding with the given `Encoding`.
+    ///
+    /// This will ignore the encoding from the response headers and the default encoding, if any.
+    pub fn decode(self, encoding: &'static Encoding) -> HttpResult<String> {
+        let mut decoder = StreamDecoder::new(encoding);
+        self.write_to(&mut decoder)?;
+        Ok(decoder.take())
+    }
+}
+
+struct StreamDecoder {
+    output: String,
+    decoder: Decoder,
+}
+
+impl StreamDecoder {
+    fn new(encoding: &'static Encoding) -> StreamDecoder {
+        StreamDecoder {
+            output: String::with_capacity(1024),
+            decoder: encoding.new_decoder(),
+        }
+    }
+
+    fn take(mut self) -> String {
+        self.decoder.decode_to_string(&[], &mut self.output, true);
+        self.output
+    }
+}
+
+impl Write for StreamDecoder {
+    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
+        let len = buf.len();
+        while buf.len() > 0 {
+            match self.decoder.decode_to_string(&buf, &mut self.output, false) {
+                (CoderResult::InputEmpty, written, _) => {
+                    buf = &buf[written..];
+                }
+                (CoderResult::OutputFull, written, _) => {
+                    buf = &buf[written..];
+                    self.output.reserve(self.output.capacity());
+                }
+            }
+        }
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -87,10 +147,39 @@ fn trim_byte_right(byte: u8, mut buf: &[u8]) -> &[u8] {
     buf
 }
 
-pub fn read_response(reader: MaybeTls) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+fn get_charset(
+    headers: &HeaderMap,
+    default_encoding: Option<&'static Encoding>,
+) -> &'static Encoding {
+    if let Some(value) = headers.get(CONTENT_TYPE) {
+        let bytes = value.as_bytes();
+        if let Some(scol) = bytes.iter().position(|&b| b == b';') {
+            let rhs = trim_byte(b' ', &bytes[scol + 1..]);
+            if rhs.starts_with(b"charset=") {
+                if let Some(enc) = Encoding::for_label(&rhs[8..]) {
+                    return enc;
+                }
+            }
+        }
+    }
+    default_encoding.unwrap_or(encoding_rs::WINDOWS_1252)
+}
+
+pub fn read_response(
+    reader: MaybeTls,
+    default_encoding: Option<&'static Encoding>,
+) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
     let (status, headers) = read_response_head(&mut reader)?;
-    Ok((status, headers, ResponseReader { inner: reader }))
+    let encoding = get_charset(&headers, default_encoding);
+    Ok((
+        status,
+        headers,
+        ResponseReader {
+            inner: reader,
+            encoding,
+        },
+    ))
 }
 
 fn read_response_head<R>(mut reader: R) -> HttpResult<(StatusCode, HeaderMap)>
@@ -172,6 +261,58 @@ fn test_trim_byte_right() {
     assert_eq!(trim_byte_right(b' ', b"hello  "), b"hello");
     assert_eq!(trim_byte_right(b' ', b"hello"), b"hello");
     assert_eq!(trim_byte_right(b' ', b""), b"");
+}
+
+#[test]
+fn test_get_charset_from_header() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_bytes(&b"text/html; charset=UTF-8"[..]).unwrap(),
+    );
+    assert_eq!(get_charset(&headers, None), encoding_rs::UTF_8);
+}
+
+#[test]
+fn test_get_charset_from_default() {
+    let headers = HeaderMap::new();
+    assert_eq!(
+        get_charset(&headers, Some(encoding_rs::UTF_8)),
+        encoding_rs::UTF_8
+    );
+}
+
+#[test]
+fn test_get_charset_standard() {
+    let headers = HeaderMap::new();
+    assert_eq!(get_charset(&headers, None), encoding_rs::WINDOWS_1252);
+}
+
+#[test]
+fn test_stream_decoder_utf8() {
+    let mut decoder = StreamDecoder::new(encoding_rs::UTF_8);
+    decoder.write_all("québec".as_bytes()).unwrap();
+    assert_eq!(decoder.take(), "québec");
+}
+
+#[test]
+fn test_stream_decoder_latin1() {
+    let mut decoder = StreamDecoder::new(encoding_rs::WINDOWS_1252);
+    decoder.write_all(&[201]).unwrap();
+    assert_eq!(decoder.take(), "É");
+}
+
+#[test]
+fn test_stream_decoder_large_buffer() {
+    let mut decoder = StreamDecoder::new(encoding_rs::WINDOWS_1252);
+    let mut buf = vec![];
+    for _ in 0..10_000 {
+        buf.push(201);
+    }
+    decoder.write_all(&buf).unwrap();
+    for c in decoder.take().chars() {
+        assert_eq!(c, 'É');
+    }
 }
 
 #[test]

@@ -5,6 +5,7 @@ use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
 use std::str;
 
+use encoding_rs::Encoding;
 use http::{
     header::{HeaderValue, IntoHeaderName, HOST},
     status::StatusCode,
@@ -56,6 +57,7 @@ pub struct Request {
     method: Method,
     headers: HeaderMap,
     redirect: bool,
+    default_encoding: Option<&'static Encoding>,
 }
 
 impl Request {
@@ -66,11 +68,8 @@ impl Request {
             method: Method::GET,
             headers: HeaderMap::new(),
             redirect: true,
+            default_encoding: None,
         }
-    }
-
-    pub fn redirect(&mut self, redirect: bool) {
-        self.redirect = redirect;
     }
 
     pub fn method(&mut self, method: Method) {
@@ -100,6 +99,14 @@ impl Request {
         V: HttpTryInto<HeaderValue>,
     {
         header_append(&mut self.headers, header, value)
+    }
+
+    pub fn redirect(&mut self, redirect: bool) {
+        self.redirect = redirect;
+    }
+
+    pub fn default_encoding(&mut self, default_encoding: Option<&'static Encoding>) {
+        self.default_encoding = default_encoding;
     }
 
     fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
@@ -134,7 +141,7 @@ impl Request {
         loop {
             let mut sock = self.connect(&url)?;
             self.write_request(&mut sock, &url)?;
-            let (status, headers, resp) = parse::read_response(sock)?;
+            let (status, headers, resp) = parse::read_response(sock, self.default_encoding)?;
 
             debug!("status code {}", status.as_u16());
 
