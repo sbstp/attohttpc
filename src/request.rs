@@ -7,7 +7,7 @@ use std::str;
 
 use encoding_rs::Encoding;
 use http::{
-    header::{HeaderValue, IntoHeaderName, HOST},
+    header::{HeaderValue, IntoHeaderName, ACCEPT_ENCODING, CONNECTION, HOST},
     status::StatusCode,
     HeaderMap, HttpTryFrom, Method, Version,
 };
@@ -58,6 +58,7 @@ pub struct Request {
     headers: HeaderMap,
     redirect: bool,
     default_encoding: Option<&'static Encoding>,
+    allow_compression: bool,
 }
 
 impl Request {
@@ -69,6 +70,7 @@ impl Request {
             headers: HeaderMap::new(),
             redirect: true,
             default_encoding: None,
+            allow_compression: true,
         }
     }
 
@@ -107,6 +109,10 @@ impl Request {
 
     pub fn default_encoding(&mut self, default_encoding: Option<&'static Encoding>) {
         self.default_encoding = default_encoding;
+    }
+
+    pub fn allow_compression(&mut self, allow_compression: bool) {
+        self.allow_compression = allow_compression;
     }
 
     fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
@@ -203,9 +209,12 @@ impl Request {
             )?;
         }
 
-        header_insert(&mut self.headers, "connection", "close")?;
+        header_insert(&mut self.headers, CONNECTION, "close")?;
         if let Some(domain) = url.domain() {
             header_insert(&mut self.headers, HOST, domain)?;
+        }
+        if self.allow_compression {
+            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
 
         for (key, value) in self.headers.iter() {

@@ -10,6 +10,7 @@ license = "MPL-2.0"
 [dependencies]
 encoding_rs = "0.8"
 http = "0.1"
+libflate = "0.1"
 log = "0.4"
 native-tls = "0.2.1"
 url = "1"

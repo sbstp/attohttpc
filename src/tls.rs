@@ -1,3 +1,5 @@
+#[cfg(test)]
+use std::io::Cursor;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
@@ -8,6 +10,8 @@ use crate::error::HttpResult;
 pub enum MaybeTls {
     Normal(TcpStream),
     Tls(TlsStream<TcpStream>),
+    #[cfg(test)]
+    Mock(Cursor<Vec<u8>>),
 }
 
 impl MaybeTls {
@@ -26,6 +30,11 @@ impl MaybeTls {
         };
         Ok(MaybeTls::Tls(tls_stream))
     }
+
+    #[cfg(test)]
+    pub fn mock(bytes: Vec<u8>) -> MaybeTls {
+        MaybeTls::Mock(Cursor::new(bytes))
+    }
 }
 
 impl Read for MaybeTls {
@@ -34,6 +43,8 @@ impl Read for MaybeTls {
         match self {
             MaybeTls::Normal(s) => s.read(buf),
             MaybeTls::Tls(s) => s.read(buf),
+            #[cfg(test)]
+            MaybeTls::Mock(s) => s.read(buf),
         }
     }
 }
@@ -44,6 +55,8 @@ impl Write for MaybeTls {
         match self {
             MaybeTls::Normal(s) => s.write(buf),
             MaybeTls::Tls(s) => s.write(buf),
+            #[cfg(test)]
+            _ => Ok(0),
         }
     }
 
@@ -52,6 +65,8 @@ impl Write for MaybeTls {
         match self {
             MaybeTls::Normal(s) => s.flush(),
             MaybeTls::Tls(s) => s.flush(),
+            #[cfg(test)]
+            _ => Ok(()),
         }
     }
 }

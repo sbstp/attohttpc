@@ -18,11 +18,11 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Automatic redirection
 * Streaming response body
 * Text encoding support
+* Gzip, deflate support
 
 ## Feature being worked on
 * File upload, form data
 * Transfer-Encoding: chunked
-* Gzip, deflate support
 * Thorough test suite
 * Connection: keep-alive
 * `serde` support behind a feature flag

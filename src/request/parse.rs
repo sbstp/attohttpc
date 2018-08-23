@@ -2,18 +2,39 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::str;
 
 use encoding_rs::{CoderResult, Decoder, Encoding};
-use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 
 use http::{
     header::{HeaderName, HeaderValue},
     HeaderMap, StatusCode,
 };
+use libflate::{deflate, gzip};
 
 use crate::error::{HttpError, HttpResult};
 use crate::tls::MaybeTls;
 
+enum MaybeCompressed {
+    Plain(BufReader<MaybeTls>),
+    // TODO: perhaps fix this as there's double buffering between the BufReader and the Decoder.
+    // Issue is that the BufReader contains some data that we can't put back in the socket. We'd have
+    // to drain the BufRead into the Decoder somehow.
+    Deflate(deflate::Decoder<BufReader<MaybeTls>>),
+    Gzip(gzip::Decoder<BufReader<MaybeTls>>),
+}
+
+impl Read for MaybeCompressed {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            MaybeCompressed::Plain(r) => r.read(buf),
+            MaybeCompressed::Deflate(r) => r.read(buf),
+            MaybeCompressed::Gzip(r) => r.read(buf),
+        }
+    }
+}
+
 pub struct ResponseReader {
-    inner: BufReader<MaybeTls>,
+    inner: MaybeCompressed,
     encoding: &'static Encoding,
 }
 
@@ -165,6 +186,17 @@ fn get_charset(
     default_encoding.unwrap_or(encoding_rs::WINDOWS_1252)
 }
 
+fn get_content_encoding_stream(
+    headers: &HeaderMap,
+    reader: BufReader<MaybeTls>,
+) -> HttpResult<MaybeCompressed> {
+    Ok(match headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
+        Some(b"deflate") => MaybeCompressed::Deflate(deflate::Decoder::new(reader)),
+        Some(b"gzip") => MaybeCompressed::Gzip(gzip::Decoder::new(reader)?),
+        _ => MaybeCompressed::Plain(reader),
+    })
+}
+
 pub fn read_response(
     reader: MaybeTls,
     default_encoding: Option<&'static Encoding>,
@@ -172,11 +204,12 @@ pub fn read_response(
     let mut reader = BufReader::new(reader);
     let (status, headers) = read_response_head(&mut reader)?;
     let encoding = get_charset(&headers, default_encoding);
+    let stream = get_content_encoding_stream(&headers, reader)?;
     Ok((
         status,
         headers,
         ResponseReader {
-            inner: reader,
+            inner: stream,
             encoding,
         },
     ))
@@ -313,6 +346,43 @@ fn test_stream_decoder_large_buffer() {
     for c in decoder.take().chars() {
         assert_eq!(c, 'É');
     }
+}
+
+#[test]
+fn test_stream_plain() {
+    let mut buff: Vec<u8> = Vec::new();
+    buff.extend(b"HTTP/1.1 200 OK\r\n\r\n");
+    buff.extend(b"Hello world!!!!!!!!");
+
+    let sock = MaybeTls::mock(buff);
+    let (_, _, response) = read_response(sock, None).unwrap();
+    assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+}
+
+#[test]
+fn test_stream_deflate() {
+    let mut buff: Vec<u8> = Vec::new();
+    buff.extend(b"HTTP/1.1 200 OK\r\nContent-Encoding: deflate\r\n\r\n".iter());
+    let mut enc = deflate::Encoder::new(&mut buff);
+    enc.write_all(b"Hello world!!!!!!!!").unwrap();
+    enc.finish();
+
+    let sock = MaybeTls::mock(buff);
+    let (_, _, response) = read_response(sock, None).unwrap();
+    assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+}
+
+#[test]
+fn test_stream_gzip() {
+    let mut buff: Vec<u8> = Vec::new();
+    buff.extend(b"HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\n".iter());
+    let mut enc = gzip::Encoder::new(&mut buff).unwrap();
+    enc.write_all(b"Hello world!!!!!!!!").unwrap();
+    enc.finish();
+
+    let sock = MaybeTls::mock(buff);
+    let (_, _, response) = read_response(sock, None).unwrap();
+    assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
 }
 
 #[test]
