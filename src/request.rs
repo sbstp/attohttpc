@@ -5,7 +5,6 @@ use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
 use std::str;
 
-use encoding_rs::Encoding;
 use http::{
     header::{HeaderValue, IntoHeaderName, ACCEPT_ENCODING, CONNECTION, HOST},
     status::StatusCode,
@@ -13,6 +12,7 @@ use http::{
 };
 use url::Url;
 
+use crate::charsets::Charset;
 use crate::error::{HttpError, HttpResult};
 use crate::tls::MaybeTls;
 use parse::ResponseReader;
@@ -56,28 +56,74 @@ pub struct Request {
     url: Url,
     method: Method,
     headers: HeaderMap,
-    redirect: bool,
-    default_encoding: Option<&'static Encoding>,
+    default_charset: Option<Charset>,
+    follow_redirects: bool,
     allow_compression: bool,
 }
 
 impl Request {
-    pub fn new(base_url: &str) -> Request {
+    /// Create a new `Request` with the base URL and the given method.
+    pub fn new(base_url: &str, method: Method) -> Request {
         let url = Url::parse(base_url).expect("invalid url");
+
+        match method {
+            Method::CONNECT => panic!("CONNECT is not yet supported"),
+            _ => {}
+        }
+
         Request {
             url,
-            method: Method::GET,
+            method: method,
             headers: HeaderMap::new(),
-            redirect: true,
-            default_encoding: None,
+            default_charset: None,
+            follow_redirects: true,
             allow_compression: true,
         }
     }
 
-    pub fn method(&mut self, method: Method) {
-        self.method = method;
+    /// Create a new `Request` with the GET method.
+    pub fn get(base_url: &str) -> Request {
+        Request::new(base_url, Method::GET)
     }
 
+    /// Create a new `Request` with the POST method.
+    pub fn post(base_url: &str) -> Request {
+        Request::new(base_url, Method::POST)
+    }
+
+    /// Create a new `Request` with the PUT method.
+    pub fn put(base_url: &str) -> Request {
+        Request::new(base_url, Method::PUT)
+    }
+
+    /// Create a new `Request` with the DELETE method.
+    pub fn delete(base_url: &str) -> Request {
+        Request::new(base_url, Method::DELETE)
+    }
+
+    /// Create a new `Request` with the HEAD method.
+    pub fn head(base_url: &str) -> Request {
+        Request::new(base_url, Method::HEAD)
+    }
+
+    /// Create a new `Request` with the OPTIONS method.
+    pub fn options(base_url: &str) -> Request {
+        Request::new(base_url, Method::OPTIONS)
+    }
+
+    /// Create a new `Request` with the PATCH method.
+    pub fn patch(base_url: &str) -> Request {
+        Request::new(base_url, Method::PATCH)
+    }
+
+    /// Create a new `Request` with the TRACE method.
+    pub fn trace(base_url: &str) -> Request {
+        Request::new(base_url, Method::TRACE)
+    }
+
+    /// Associate a query string parameter to the given value.
+    ///
+    /// The same key can be used multiple times.
     pub fn param<V>(&mut self, key: &str, value: V)
     where
         V: Display,
@@ -87,6 +133,10 @@ impl Request {
             .append_pair(key, &format!("{}", value));
     }
 
+    /// Modify a header for this `Request`.
+    ///
+    /// If the header is already present, the value will be replaced. If you wish to append a new header,
+    /// use `header_append`.
     pub fn header<H, V>(&mut self, header: H, value: V) -> HttpResult
     where
         H: IntoHeaderName,
@@ -95,6 +145,9 @@ impl Request {
         header_insert(&mut self.headers, header, value)
     }
 
+    /// Append a new header to this `Request`.
+    ///
+    /// The new header is always appended to the `Request`, even if the header already exists.
     pub fn header_append<H, V>(&mut self, header: H, value: V) -> HttpResult
     where
         H: IntoHeaderName,
@@ -103,14 +156,25 @@ impl Request {
         header_append(&mut self.headers, header, value)
     }
 
-    pub fn redirect(&mut self, redirect: bool) {
-        self.redirect = redirect;
+    /// Set the default charset to use while parsing the response of this `Request`.
+    ///
+    /// If the response does not say which charset it uses, this charset will be used to decode the request.
+    /// This value defaults to `None`, in which case ISO-8859-1 is used.
+    pub fn default_charset(&mut self, default_charset: Option<Charset>) {
+        self.default_charset = default_charset;
     }
 
-    pub fn default_encoding(&mut self, default_encoding: Option<&'static Encoding>) {
-        self.default_encoding = default_encoding;
+    /// Sets if this `Request` should follow redirects, 3xx codes.
+    ///
+    /// This value defaults to true.
+    pub fn follow_redirects(&mut self, follow_redirects: bool) {
+        self.follow_redirects = follow_redirects;
     }
 
+    /// Sets if this `Request` will announce that it accepts compression.
+    ///
+    /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
+    /// compression, the server might choose not to compress the content.
     pub fn allow_compression(&mut self, allow_compression: bool) {
         self.allow_compression = allow_compression;
     }
@@ -142,16 +206,19 @@ impl Request {
         })
     }
 
+    /// Send this `Request` to the server.
+    ///
+    /// This method consumes the object so that it cannot be used after sending the request.
     pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
         let mut url = self.url.clone();
         loop {
             let mut sock = self.connect(&url)?;
             self.write_request(&mut sock, &url)?;
-            let (status, headers, resp) = parse::read_response(sock, self.default_encoding)?;
+            let (status, headers, resp) = parse::read_response(sock, self.default_charset)?;
 
             debug!("status code {}", status.as_u16());
 
-            if !self.redirect || !status.is_redirection() {
+            if !self.follow_redirects || !status.is_redirection() {
                 return Ok((status, headers, resp));
             }
 

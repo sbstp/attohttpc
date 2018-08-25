@@ -13,7 +13,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 
 ## Current feature set
 * Query parameters
-* Requuest headers
+* Request headers
 * Tls
 * Automatic redirection
 * Streaming response body

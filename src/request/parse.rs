@@ -10,6 +10,7 @@ use http::{
 };
 use libflate::{deflate, gzip};
 
+use crate::charsets::{self, Charset};
 use crate::error::{HttpError, HttpResult};
 use crate::tls::MaybeTls;
 
@@ -35,7 +36,7 @@ impl Read for MaybeCompressed {
 
 pub struct ResponseReader {
     inner: MaybeCompressed,
-    encoding: &'static Encoding,
+    charset: Charset,
 }
 
 impl ResponseReader {
@@ -71,15 +72,15 @@ impl ResponseReader {
     /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
     /// will be used.
     pub fn string(self) -> HttpResult<String> {
-        let encoding = self.encoding;
-        self.decode(encoding)
+        let charset = self.charset;
+        self.string_with(charset)
     }
 
     /// Read the response to a `String`, decoding with the given `Encoding`.
     ///
     /// This will ignore the encoding from the response headers and the default encoding, if any.
-    pub fn decode(self, encoding: &'static Encoding) -> HttpResult<String> {
-        let mut decoder = StreamDecoder::new(encoding);
+    pub fn string_with(self, charset: Charset) -> HttpResult<String> {
+        let mut decoder = StreamDecoder::new(charset);
         self.write_to(&mut decoder)?;
         Ok(decoder.take())
     }
@@ -91,10 +92,10 @@ struct StreamDecoder {
 }
 
 impl StreamDecoder {
-    fn new(encoding: &'static Encoding) -> StreamDecoder {
+    fn new(charset: Charset) -> StreamDecoder {
         StreamDecoder {
             output: String::with_capacity(1024),
-            decoder: encoding.new_decoder(),
+            decoder: charset.new_decoder(),
         }
     }
 
@@ -168,10 +169,7 @@ fn trim_byte_right(byte: u8, mut buf: &[u8]) -> &[u8] {
     buf
 }
 
-fn get_charset(
-    headers: &HeaderMap,
-    default_encoding: Option<&'static Encoding>,
-) -> &'static Encoding {
+fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset {
     if let Some(value) = headers.get(CONTENT_TYPE) {
         let bytes = value.as_bytes();
         if let Some(scol) = bytes.iter().position(|&b| b == b';') {
@@ -183,7 +181,7 @@ fn get_charset(
             }
         }
     }
-    default_encoding.unwrap_or(encoding_rs::WINDOWS_1252)
+    default_charset.unwrap_or(charsets::WINDOWS_1252)
 }
 
 fn get_content_encoding_stream(
@@ -199,18 +197,18 @@ fn get_content_encoding_stream(
 
 pub fn read_response(
     reader: MaybeTls,
-    default_encoding: Option<&'static Encoding>,
+    default_charset: Option<Charset>,
 ) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
     let (status, headers) = read_response_head(&mut reader)?;
-    let encoding = get_charset(&headers, default_encoding);
+    let charset = get_charset(&headers, default_charset);
     let stream = get_content_encoding_stream(&headers, reader)?;
     Ok((
         status,
         headers,
         ResponseReader {
             inner: stream,
-            encoding,
+            charset,
         },
     ))
 }
@@ -303,41 +301,41 @@ fn test_get_charset_from_header() {
         CONTENT_TYPE,
         HeaderValue::from_bytes(&b"text/html; charset=UTF-8"[..]).unwrap(),
     );
-    assert_eq!(get_charset(&headers, None), encoding_rs::UTF_8);
+    assert_eq!(get_charset(&headers, None), charsets::UTF_8);
 }
 
 #[test]
 fn test_get_charset_from_default() {
     let headers = HeaderMap::new();
     assert_eq!(
-        get_charset(&headers, Some(encoding_rs::UTF_8)),
-        encoding_rs::UTF_8
+        get_charset(&headers, Some(charsets::UTF_8)),
+        charsets::UTF_8
     );
 }
 
 #[test]
 fn test_get_charset_standard() {
     let headers = HeaderMap::new();
-    assert_eq!(get_charset(&headers, None), encoding_rs::WINDOWS_1252);
+    assert_eq!(get_charset(&headers, None), charsets::WINDOWS_1252);
 }
 
 #[test]
 fn test_stream_decoder_utf8() {
-    let mut decoder = StreamDecoder::new(encoding_rs::UTF_8);
+    let mut decoder = StreamDecoder::new(charsets::UTF_8);
     decoder.write_all("québec".as_bytes()).unwrap();
     assert_eq!(decoder.take(), "québec");
 }
 
 #[test]
 fn test_stream_decoder_latin1() {
-    let mut decoder = StreamDecoder::new(encoding_rs::WINDOWS_1252);
+    let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
     decoder.write_all(&[201]).unwrap();
     assert_eq!(decoder.take(), "É");
 }
 
 #[test]
 fn test_stream_decoder_large_buffer() {
-    let mut decoder = StreamDecoder::new(encoding_rs::WINDOWS_1252);
+    let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
     let mut buf = vec![];
     for _ in 0..10_000 {
         buf.push(201);
