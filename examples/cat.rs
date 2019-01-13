@@ -11,7 +11,7 @@ fn main() {
         .nth(1)
         .expect("missing url");
 
-    let mut r = Request::new(&url);
+    let r = Request::get(&url);
 
     let (status, headers, reader) = r.send().unwrap();
     println!("{:?} {:#?}", status, headers);
