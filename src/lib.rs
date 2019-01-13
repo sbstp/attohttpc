@@ -1,7 +1,3 @@
-#![feature(nll)]
-#![feature(uniform_paths)]
-//#![warn(missing_docs)]
-
 #[macro_use]
 extern crate log;
 
@@ -14,6 +10,7 @@ pub use crate::charsets::Charset;
 pub use crate::error::{HttpError, HttpResult};
 pub use crate::request::parse::ResponseReader;
 pub use crate::request::Request;
+pub use http::StatusCode;
 pub mod header {
     pub use http::header::*;
 }
