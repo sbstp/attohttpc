@@ -56,6 +56,7 @@ pub struct Request {
     url: Url,
     method: Method,
     headers: HeaderMap,
+    body: Vec<u8>,
     default_charset: Option<Charset>,
     follow_redirects: bool,
     allow_compression: bool,
@@ -75,6 +76,7 @@ impl Request {
             url,
             method: method,
             headers: HeaderMap::new(),
+            body: Vec::new(),
             default_charset: None,
             follow_redirects: true,
             allow_compression: true,
@@ -154,6 +156,10 @@ impl Request {
         V: HttpTryInto<HeaderValue>,
     {
         header_append(&mut self.headers, header, value)
+    }
+
+    pub fn body(&mut self, body: impl AsRef<[u8]>) {
+        self.body = body.as_ref().to_owned();
     }
 
     /// Set the default charset to use while parsing the response of this `Request`.
@@ -288,6 +294,12 @@ impl Request {
             write!(writer, "{}: ", key.as_str())?;
             writer.write_all(value.as_bytes())?;
             write!(writer, "\r\n")?;
+        }
+
+        if !self.body.is_empty() && self.method != Method::TRACE {
+            debug!("writing out body of length {}", self.body.len());
+            write!(writer, "Content-Length: {}\r\n\r\n", self.body.len())?;
+            writer.write_all(&self.body)?;
         }
 
         write!(writer, "\r\n")?;
