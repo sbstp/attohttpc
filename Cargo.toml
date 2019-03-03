@@ -5,6 +5,13 @@ authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
 
+description = "Small and lightweight HTTP client"
+documentation = "https://docs.rs/lynx"
+homepage = "https://github.com/sbstp/lynx"
+repository = "https://github.com/sbstp/lynx"
+
+keywords = ["http", "client", "tls"]
+
 [dependencies]
 encoding_rs = "0.8"
 http = "0.1"
