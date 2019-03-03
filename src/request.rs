@@ -130,9 +130,7 @@ impl Request {
     where
         V: Display,
     {
-        self.url
-            .query_pairs_mut()
-            .append_pair(key, &format!("{}", value));
+        self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
     }
 
     /// Modify a header for this `Request`.
@@ -186,9 +184,7 @@ impl Request {
     }
 
     fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
-        let host = url
-            .host_str()
-            .ok_or(HttpError::InvalidUrl("url has no host"))?;
+        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
         let port = url
             .port_or_known_default()
             .ok_or(HttpError::InvalidUrl("url has no port"))?;
@@ -229,12 +225,9 @@ impl Request {
             }
 
             // Handle redirect
-            let location =
-                headers
-                    .get(http::header::LOCATION)
-                    .ok_or(HttpError::InvalidResponse(
-                        "redirect has no location header",
-                    ))?;
+            let location = headers
+                .get(http::header::LOCATION)
+                .ok_or(HttpError::InvalidResponse("redirect has no location header"))?;
             let location = location
                 .to_str()
                 .map_err(|_| HttpError::InvalidResponse("location to str error"))?;
@@ -254,13 +247,7 @@ impl Request {
         let version = Version::HTTP_11;
 
         if let Some(query) = url.query() {
-            debug!(
-                "{} {}?{} {:?}",
-                self.method.as_str(),
-                url.path(),
-                query,
-                version,
-            );
+            debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version,);
 
             write!(
                 writer,
@@ -273,19 +260,18 @@ impl Request {
         } else {
             debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
 
-            write!(
-                writer,
-                "{} {} {:?}\r\n",
-                self.method.as_str(),
-                url.path(),
-                version,
-            )?;
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version,)?;
+        }
+
+        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
+        if let Some(port) = url.port() {
+            header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
+        } else {
+            header_insert(&mut self.headers, HOST, host)?;
         }
 
         header_insert(&mut self.headers, CONNECTION, "close")?;
-        if let Some(domain) = url.domain() {
-            header_insert(&mut self.headers, HOST, domain)?;
-        }
+
         if self.allow_compression {
             header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
