@@ -1,15 +1,15 @@
 [package]
 name = "lynx"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
 
+readme = "README.md"
 description = "Small and lightweight HTTP client"
 documentation = "https://docs.rs/lynx"
 homepage = "https://github.com/sbstp/lynx"
 repository = "https://github.com/sbstp/lynx"
-
 keywords = ["http", "client", "tls"]
 
 [dependencies]
