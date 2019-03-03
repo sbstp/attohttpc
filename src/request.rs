@@ -193,6 +193,7 @@ impl Request {
 
         Ok(match url.scheme() {
             "http" => MaybeTls::connect(host, port)?,
+            #[cfg(feature = "tls")]
             "https" => MaybeTls::connect_tls(host, port)?,
             _ => return Err(HttpError::InvalidUrl("url contains unsupported scheme")),
         })

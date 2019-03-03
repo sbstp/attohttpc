@@ -3,12 +3,14 @@ use std::io::Cursor;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
+#[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 
 use crate::error::HttpResult;
 
 pub enum MaybeTls {
     Normal(TcpStream),
+    #[cfg(feature = "tls")]
     Tls(TlsStream<TcpStream>),
     #[cfg(test)]
     Mock(Cursor<Vec<u8>>),
@@ -20,6 +22,7 @@ impl MaybeTls {
         Ok(MaybeTls::Normal(stream))
     }
 
+    #[cfg(feature = "tls")]
     pub fn connect_tls(host: &str, port: u16) -> HttpResult<MaybeTls> {
         let connector = TlsConnector::new()?;
         let stream = TcpStream::connect((host, port))?;
@@ -42,6 +45,7 @@ impl Read for MaybeTls {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             MaybeTls::Normal(s) => s.read(buf),
+            #[cfg(feature = "tls")]
             MaybeTls::Tls(s) => s.read(buf),
             #[cfg(test)]
             MaybeTls::Mock(s) => s.read(buf),
@@ -54,6 +58,7 @@ impl Write for MaybeTls {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             MaybeTls::Normal(s) => s.write(buf),
+            #[cfg(feature = "tls")]
             MaybeTls::Tls(s) => s.write(buf),
             #[cfg(test)]
             _ => Ok(0),
@@ -64,6 +69,7 @@ impl Write for MaybeTls {
     fn flush(&mut self) -> io::Result<()> {
         match self {
             MaybeTls::Normal(s) => s.flush(),
+            #[cfg(feature = "tls")]
             MaybeTls::Tls(s) => s.flush(),
             #[cfg(test)]
             _ => Ok(()),

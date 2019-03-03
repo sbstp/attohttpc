@@ -17,8 +17,12 @@ encoding_rs = "0.8"
 http = "0.1"
 libflate = "0.1"
 log = "0.4"
-native-tls = "0.2.1"
+native-tls = { version = "0.2.1", optional = true }
 url = "1"
+
+[features]
+default = ["tls"]
+tls = ["native-tls"]
 
 [dev-dependencies]
 env_logger = "0.5"
