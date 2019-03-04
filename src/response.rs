@@ -1,45 +1,73 @@
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::str;
 
-use encoding_rs::{CoderResult, Decoder, Encoding};
-use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
-
+#[cfg(feature = "charsets")]
+use encoding_rs::Encoding;
+#[cfg(feature = "compress")]
+use http::header::CONTENT_ENCODING;
+#[cfg(feature = "charsets")]
+use http::header::CONTENT_TYPE;
 use http::{
     header::{HeaderName, HeaderValue},
     HeaderMap, StatusCode,
 };
+#[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
+#[cfg(feature = "charsets")]
 use crate::charsets::{self, Charset};
 use crate::error::{HttpError, HttpResult};
-use crate::tls::MaybeTls;
+use crate::request::Request;
+#[cfg(feature = "charsets")]
+use crate::streams::StreamDecoder;
+use crate::streams::{BaseStream, CompressedRead};
 
-enum MaybeCompressed {
-    Plain(BufReader<MaybeTls>),
-    // TODO: perhaps fix this as there's double buffering between the BufReader and the Decoder.
-    // Issue is that the BufReader contains some data that we can't put back in the socket. We'd have
-    // to drain the BufRead into the Decoder somehow.
-    Deflate(deflate::Decoder<BufReader<MaybeTls>>),
-    Gzip(gzip::Decoder<BufReader<MaybeTls>>),
-}
-
-impl Read for MaybeCompressed {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self {
-            MaybeCompressed::Plain(r) => r.read(buf),
-            MaybeCompressed::Deflate(r) => r.read(buf),
-            MaybeCompressed::Gzip(r) => r.read(buf),
+#[cfg(feature = "charsets")]
+fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset {
+    if let Some(value) = headers.get(CONTENT_TYPE) {
+        let bytes = value.as_bytes();
+        if let Some(scol) = bytes.iter().position(|&b| b == b';') {
+            let rhs = trim_byte(b' ', &bytes[scol + 1..]);
+            if rhs.starts_with(b"charset=") {
+                if let Some(enc) = Encoding::for_label(&rhs[8..]) {
+                    return enc;
+                }
+            }
         }
     }
+    default_charset.unwrap_or(charsets::WINDOWS_1252)
+}
+
+#[cfg(not(feature = "compress"))]
+fn get_content_encoding_stream(_: &HeaderMap, reader: BufReader<BaseStream>) -> HttpResult<CompressedRead> {
+    Ok(CompressedRead::Plain(reader))
+}
+
+#[cfg(feature = "compress")]
+fn get_content_encoding_stream(headers: &HeaderMap, reader: BufReader<BaseStream>) -> HttpResult<CompressedRead> {
+    Ok(match headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
+        Some(b"deflate") => CompressedRead::Deflate(deflate::Decoder::new(reader)),
+        Some(b"gzip") => CompressedRead::Gzip(gzip::Decoder::new(reader)?),
+        _ => CompressedRead::Plain(reader),
+    })
 }
 
 pub struct ResponseReader {
-    inner: MaybeCompressed,
+    inner: CompressedRead,
+    #[cfg(feature = "charsets")]
     charset: Charset,
 }
 
 impl ResponseReader {
+    #[allow(unused_variables)]
+    fn new(headers: &HeaderMap, request: &Request, reader: BufReader<BaseStream>) -> HttpResult<ResponseReader> {
+        Ok(ResponseReader {
+            inner: get_content_encoding_stream(&headers, reader)?,
+            #[cfg(feature = "charsets")]
+            charset: get_charset(&headers, request.default_charset),
+        })
+    }
+
     /// Write the response to any object that implements `Write`.
     pub fn write_to<W>(mut self, mut writer: W) -> HttpResult<usize>
     where
@@ -68,9 +96,20 @@ impl ResponseReader {
 
     /// Read the response to a `String`.
     ///
+    /// The the UTF-8 codec is assumed. Use the `charsets` featured to get more options.
+    #[cfg(not(feature = "charsets"))]
+    pub fn string(mut self) -> HttpResult<String> {
+        let mut contents = String::new();
+        self.inner.read_to_string(&mut contents)?;
+        Ok(contents)
+    }
+
+    /// Read the response to a `String`.
+    ///
     /// If the response headers contain charset information, that charset will be used to decode the body.
     /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
     /// will be used.
+    #[cfg(feature = "charsets")]
     pub fn string(self) -> HttpResult<String> {
         let charset = self.charset;
         self.string_with(charset)
@@ -79,51 +118,11 @@ impl ResponseReader {
     /// Read the response to a `String`, decoding with the given `Encoding`.
     ///
     /// This will ignore the encoding from the response headers and the default encoding, if any.
+    #[cfg(feature = "charsets")]
     pub fn string_with(self, charset: Charset) -> HttpResult<String> {
         let mut decoder = StreamDecoder::new(charset);
         self.write_to(&mut decoder)?;
         Ok(decoder.take())
-    }
-}
-
-struct StreamDecoder {
-    output: String,
-    decoder: Decoder,
-}
-
-impl StreamDecoder {
-    fn new(charset: Charset) -> StreamDecoder {
-        StreamDecoder {
-            output: String::with_capacity(1024),
-            decoder: charset.new_decoder(),
-        }
-    }
-
-    fn take(mut self) -> String {
-        self.decoder.decode_to_string(&[], &mut self.output, true);
-        self.output
-    }
-}
-
-impl Write for StreamDecoder {
-    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
-        let len = buf.len();
-        while buf.len() > 0 {
-            match self.decoder.decode_to_string(&buf, &mut self.output, false) {
-                (CoderResult::InputEmpty, written, _) => {
-                    buf = &buf[written..];
-                }
-                (CoderResult::OutputFull, written, _) => {
-                    buf = &buf[written..];
-                    self.output.reserve(self.output.capacity());
-                }
-            }
-        }
-        Ok(len)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 
@@ -169,48 +168,11 @@ fn trim_byte_right(byte: u8, mut buf: &[u8]) -> &[u8] {
     buf
 }
 
-fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset {
-    if let Some(value) = headers.get(CONTENT_TYPE) {
-        let bytes = value.as_bytes();
-        if let Some(scol) = bytes.iter().position(|&b| b == b';') {
-            let rhs = trim_byte(b' ', &bytes[scol + 1..]);
-            if rhs.starts_with(b"charset=") {
-                if let Some(enc) = Encoding::for_label(&rhs[8..]) {
-                    return enc;
-                }
-            }
-        }
-    }
-    default_charset.unwrap_or(charsets::WINDOWS_1252)
-}
-
-fn get_content_encoding_stream(
-    headers: &HeaderMap,
-    reader: BufReader<MaybeTls>,
-) -> HttpResult<MaybeCompressed> {
-    Ok(match headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
-        Some(b"deflate") => MaybeCompressed::Deflate(deflate::Decoder::new(reader)),
-        Some(b"gzip") => MaybeCompressed::Gzip(gzip::Decoder::new(reader)?),
-        _ => MaybeCompressed::Plain(reader),
-    })
-}
-
-pub fn read_response(
-    reader: MaybeTls,
-    default_charset: Option<Charset>,
-) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+pub fn read_response(reader: BaseStream, request: &Request) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
     let (status, headers) = read_response_head(&mut reader)?;
-    let charset = get_charset(&headers, default_charset);
-    let stream = get_content_encoding_stream(&headers, reader)?;
-    Ok((
-        status,
-        headers,
-        ResponseReader {
-            inner: stream,
-            charset,
-        },
-    ))
+    let resp_reader = ResponseReader::new(&headers, request, reader)?;
+    Ok((status, headers, resp_reader))
 }
 
 fn read_response_head<R>(mut reader: R) -> HttpResult<(StatusCode, HeaderMap)>
@@ -307,10 +269,7 @@ fn test_get_charset_from_header() {
 #[test]
 fn test_get_charset_from_default() {
     let headers = HeaderMap::new();
-    assert_eq!(
-        get_charset(&headers, Some(charsets::UTF_8)),
-        charsets::UTF_8
-    );
+    assert_eq!(get_charset(&headers, Some(charsets::UTF_8)), charsets::UTF_8);
 }
 
 #[test]
@@ -320,40 +279,15 @@ fn test_get_charset_standard() {
 }
 
 #[test]
-fn test_stream_decoder_utf8() {
-    let mut decoder = StreamDecoder::new(charsets::UTF_8);
-    decoder.write_all("québec".as_bytes()).unwrap();
-    assert_eq!(decoder.take(), "québec");
-}
-
-#[test]
-fn test_stream_decoder_latin1() {
-    let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
-    decoder.write_all(&[201]).unwrap();
-    assert_eq!(decoder.take(), "É");
-}
-
-#[test]
-fn test_stream_decoder_large_buffer() {
-    let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
-    let mut buf = vec![];
-    for _ in 0..10_000 {
-        buf.push(201);
-    }
-    decoder.write_all(&buf).unwrap();
-    for c in decoder.take().chars() {
-        assert_eq!(c, 'É');
-    }
-}
-
-#[test]
 fn test_stream_plain() {
     let mut buff: Vec<u8> = Vec::new();
     buff.extend(b"HTTP/1.1 200 OK\r\n\r\n");
     buff.extend(b"Hello world!!!!!!!!");
 
-    let sock = MaybeTls::mock(buff);
-    let (_, _, response) = read_response(sock, None).unwrap();
+    let req = Request::get("http://google.ca");
+
+    let sock = BaseStream::mock(buff);
+    let (_, _, response) = read_response(sock, &req).unwrap();
     assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
 }
 
@@ -365,8 +299,10 @@ fn test_stream_deflate() {
     enc.write_all(b"Hello world!!!!!!!!").unwrap();
     enc.finish();
 
-    let sock = MaybeTls::mock(buff);
-    let (_, _, response) = read_response(sock, None).unwrap();
+    let req = Request::get("http://google.ca");
+
+    let sock = BaseStream::mock(buff);
+    let (_, _, response) = read_response(sock, &req).unwrap();
     assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
 }
 
@@ -378,8 +314,11 @@ fn test_stream_gzip() {
     enc.write_all(b"Hello world!!!!!!!!").unwrap();
     enc.finish();
 
-    let sock = MaybeTls::mock(buff);
-    let (_, _, response) = read_response(sock, None).unwrap();
+    let req = Request::get("http://google.ca");
+
+    let sock = BaseStream::mock(buff);
+    let (_, _, response) = read_response(sock, &req).unwrap();
+
     assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
 }
 

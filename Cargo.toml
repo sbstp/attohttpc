@@ -13,12 +13,21 @@ repository = "https://github.com/sbstp/lynx"
 keywords = ["http", "client", "tls"]
 
 [dependencies]
-encoding_rs = "0.8"
 http = "0.1"
-libflate = "0.1"
 log = "0.4"
-native-tls = "0.2.1"
 url = "1"
+encoding_rs = { version = "0.8", optional = true }
+libflate = { version = "0.1", optional = true }
+native-tls = { version = "0.2", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"
+
+[features]
+compress = ["libflate"]
+charsets = ["encoding_rs"]
+tls = ["native-tls"]
+default = ["compress", "charsets", "tls"]
+
+[package.metadata.docs.rs]
+all-features = true

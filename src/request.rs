@@ -1,21 +1,22 @@
-pub mod parse;
-
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
 use std::str;
 
+#[cfg(feature = "compress")]
+use http::header::ACCEPT_ENCODING;
 use http::{
-    header::{HeaderValue, IntoHeaderName, ACCEPT_ENCODING, CONNECTION, HOST},
+    header::{HeaderValue, IntoHeaderName, CONNECTION, CONTENT_LENGTH, HOST},
     status::StatusCode,
     HeaderMap, HttpTryFrom, Method, Version,
 };
 use url::Url;
 
+#[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{HttpError, HttpResult};
-use crate::tls::MaybeTls;
-use parse::ResponseReader;
+use crate::response::{self, ResponseReader};
+use crate::streams::BaseStream;
 
 pub trait HttpTryInto<T> {
     fn try_into(self) -> Result<T, http::Error>;
@@ -57,8 +58,10 @@ pub struct Request {
     method: Method,
     headers: HeaderMap,
     body: Vec<u8>,
-    default_charset: Option<Charset>,
     follow_redirects: bool,
+    #[cfg(feature = "charsets")]
+    pub(crate) default_charset: Option<Charset>,
+    #[cfg(feature = "compress")]
     allow_compression: bool,
 }
 
@@ -77,8 +80,10 @@ impl Request {
             method: method,
             headers: HeaderMap::new(),
             body: Vec::new(),
-            default_charset: None,
             follow_redirects: true,
+            #[cfg(feature = "charsets")]
+            default_charset: None,
+            #[cfg(feature = "compress")]
             allow_compression: true,
         }
     }
@@ -160,14 +165,6 @@ impl Request {
         self.body = body.as_ref().to_owned();
     }
 
-    /// Set the default charset to use while parsing the response of this `Request`.
-    ///
-    /// If the response does not say which charset it uses, this charset will be used to decode the request.
-    /// This value defaults to `None`, in which case ISO-8859-1 is used.
-    pub fn default_charset(&mut self, default_charset: Option<Charset>) {
-        self.default_charset = default_charset;
-    }
-
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
@@ -175,27 +172,22 @@ impl Request {
         self.follow_redirects = follow_redirects;
     }
 
+    /// Set the default charset to use while parsing the response of this `Request`.
+    ///
+    /// If the response does not say which charset it uses, this charset will be used to decode the request.
+    /// This value defaults to `None`, in which case ISO-8859-1 is used.
+    #[cfg(feature = "charsets")]
+    pub fn default_charset(&mut self, default_charset: Option<Charset>) {
+        self.default_charset = default_charset;
+    }
+
     /// Sets if this `Request` will announce that it accepts compression.
     ///
     /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
     /// compression, the server might choose not to compress the content.
+    #[cfg(feature = "compress")]
     pub fn allow_compression(&mut self, allow_compression: bool) {
         self.allow_compression = allow_compression;
-    }
-
-    fn connect(&self, url: &Url) -> HttpResult<MaybeTls> {
-        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
-        let port = url
-            .port_or_known_default()
-            .ok_or(HttpError::InvalidUrl("url has no port"))?;
-
-        debug!("trying to connect to {}:{}", host, port);
-
-        Ok(match url.scheme() {
-            "http" => MaybeTls::connect(host, port)?,
-            "https" => MaybeTls::connect_tls(host, port)?,
-            _ => return Err(HttpError::InvalidUrl("url contains unsupported scheme")),
-        })
     }
 
     fn base_redirect_url(&self, location: &str, previous_url: &Url) -> HttpResult<Url> {
@@ -214,9 +206,9 @@ impl Request {
     pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
         let mut url = self.url.clone();
         loop {
-            let mut sock = self.connect(&url)?;
-            self.write_request(&mut sock, &url)?;
-            let (status, headers, resp) = parse::read_response(sock, self.default_charset)?;
+            let mut stream = BaseStream::connect(&url)?;
+            self.write_request(&mut stream, &url)?;
+            let (status, headers, resp) = response::read_response(stream, &self)?;
 
             debug!("status code {}", status.as_u16());
 
@@ -245,6 +237,7 @@ impl Request {
     {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
+        let has_body = !self.body.is_empty() && self.method != Method::TRACE;
 
         if let Some(query) = url.query() {
             debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version,);
@@ -263,6 +256,8 @@ impl Request {
             write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version,)?;
         }
 
+        header_insert(&mut self.headers, CONNECTION, "close")?;
+
         let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
         if let Some(port) = url.port() {
             header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
@@ -270,27 +265,47 @@ impl Request {
             header_insert(&mut self.headers, HOST, host)?;
         }
 
-        header_insert(&mut self.headers, CONNECTION, "close")?;
-
-        if self.allow_compression {
-            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
+        if has_body {
+            header_insert(&mut self.headers, CONTENT_LENGTH, format!("{}", self.body.len()))?;
         }
 
+        self.compression_header()?;
+
+        self.write_headers(&mut writer)?;
+
+        if has_body {
+            debug!("writing out body of length {}", self.body.len());
+            writer.write_all(&self.body)?;
+        }
+
+        writer.flush()?;
+
+        Ok(())
+    }
+
+    fn write_headers<W>(&self, writer: &mut W) -> HttpResult
+    where
+        W: Write,
+    {
         for (key, value) in self.headers.iter() {
             write!(writer, "{}: ", key.as_str())?;
             writer.write_all(value.as_bytes())?;
             write!(writer, "\r\n")?;
         }
-
-        if !self.body.is_empty() && self.method != Method::TRACE {
-            debug!("writing out body of length {}", self.body.len());
-            write!(writer, "Content-Length: {}\r\n\r\n", self.body.len())?;
-            writer.write_all(&self.body)?;
-        }
-
         write!(writer, "\r\n")?;
-        writer.flush()?;
+        Ok(())
+    }
 
+    #[cfg(feature = "compress")]
+    fn compression_header(&mut self) -> HttpResult {
+        if self.allow_compression {
+            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "compress"))]
+    fn compression_header(&mut self) -> HttpResult {
         Ok(())
     }
 }
