@@ -52,6 +52,7 @@ fn get_content_encoding_stream(headers: &HeaderMap, reader: BufReader<BaseStream
     })
 }
 
+/// The `ResponseReader` is used to read the body of a reponse.
 pub struct ResponseReader {
     inner: CompressedRead,
     #[cfg(feature = "charsets")]

@@ -53,6 +53,10 @@ where
     Ok(())
 }
 
+/// `Request` is the main way of performing requests.
+///
+/// Use one of its contructors to create a request and then use the `send` method
+/// to send the `Request` and get the status, headers and response.
 pub struct Request {
     url: Url,
     method: Method,
@@ -161,6 +165,9 @@ impl Request {
         header_append(&mut self.headers, header, value)
     }
 
+    /// Set the body of this request.
+    ///
+    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
     pub fn body(&mut self, body: impl AsRef<[u8]>) {
         self.body = body.as_ref().to_owned();
     }

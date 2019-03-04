@@ -4,6 +4,7 @@ use std::io;
 use std::result;
 
 #[derive(Debug)]
+/// Common errors that can occur during HTTP requests.
 pub enum HttpError {
     /// IO Error
     Io(io::Error),
@@ -73,4 +74,5 @@ impl_from!(http::Error, Http);
 #[cfg(feature = "tls")]
 impl_from!(native_tls::Error, Tls);
 
+/// Wrapper for the `Result` type with an `HttpError`.
 pub type HttpResult<T = ()> = result::Result<T, HttpError>;
