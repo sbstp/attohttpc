@@ -13,6 +13,8 @@ use http::{
 };
 #[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
+#[cfg(feature = "json")]
+use serde::de::DeserializeOwned;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::{self, Charset};
@@ -124,6 +126,17 @@ impl ResponseReader {
         let mut decoder = StreamDecoder::new(charset);
         self.write_to(&mut decoder)?;
         Ok(decoder.take())
+    }
+
+    /// Parse the response as a JSON object and return it.
+    #[cfg(feature = "json")]
+    pub fn json<T>(self) -> HttpResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        let text = self.string()?;
+        let obj = serde_json::from_str(&text)?;
+        Ok(obj)
     }
 }
 

@@ -19,6 +19,9 @@ pub enum HttpError {
     InvalidResponse(&'static str),
     /// Decoding error happened while trying to decode text.
     DecodingError(&'static str),
+    /// JSON decoding/encoding error.
+    #[cfg(feature = "json")]
+    Json(serde_json::Error),
 }
 
 impl Display for HttpError {
@@ -31,6 +34,8 @@ impl Display for HttpError {
             HttpError::InvalidUrl(s) => write!(w, "InvalidUrl({})", s),
             HttpError::InvalidResponse(s) => write!(w, "InvalidResponse({})", s),
             HttpError::DecodingError(s) => write!(w, "DecodingError({})", s),
+            #[cfg(feature = "json")]
+            HttpError::Json(e) => write!(w, "JsonError({})", e),
         }
     }
 }
@@ -42,9 +47,11 @@ impl Error for HttpError {
             HttpError::Http(e) => e.description(),
             #[cfg(feature = "tls")]
             HttpError::Tls(e) => e.description(),
-            HttpError::InvalidUrl(_) => "invalid URL",
-            HttpError::InvalidResponse(_) => "invalid response",
-            HttpError::DecodingError(_) => "decoding error",
+            HttpError::InvalidUrl(s) => s,
+            HttpError::InvalidResponse(s) => s,
+            HttpError::DecodingError(s) => s,
+            #[cfg(feature = "json")]
+            HttpError::Json(e) => e.description(),
         }
     }
 
@@ -54,6 +61,8 @@ impl Error for HttpError {
             HttpError::Http(e) => Some(e),
             #[cfg(feature = "tls")]
             HttpError::Tls(e) => Some(e),
+            #[cfg(feature = "json")]
+            HttpError::Json(e) => Some(e),
             _ => None,
         }
     }
@@ -73,6 +82,8 @@ impl_from!(io::Error, Io);
 impl_from!(http::Error, Http);
 #[cfg(feature = "tls")]
 impl_from!(native_tls::Error, Tls);
+#[cfg(feature = "json")]
+impl_from!(serde_json::Error, Json);
 
 /// Wrapper for the `Result` type with an `HttpError`.
 pub type HttpResult<T = ()> = result::Result<T, HttpError>;
