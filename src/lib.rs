@@ -7,6 +7,7 @@ extern crate log;
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
+mod chunked;
 mod error;
 mod request;
 mod response;
