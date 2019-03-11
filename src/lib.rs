@@ -1,4 +1,5 @@
 #![deny(missing_docs)]
+#![allow(dead_code)]
 //! Check out the [repository](https://github.com/sbstp/lynx) for more general information
 //! and examples about this crate.
 
@@ -7,8 +8,8 @@ extern crate log;
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
-mod chunked;
 mod error;
+mod parsing;
 mod request;
 mod response;
 mod streams;
