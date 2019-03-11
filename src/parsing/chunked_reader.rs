@@ -1,8 +1,9 @@
 use std::cmp;
 use std::io::{self, Read};
+use std::str;
 use std::u64;
 
-use crate::parsing::ExpandingBufReader;
+use crate::parsing::{error, ExpandingBufReader};
 
 pub struct ChunkedReader<R>
 where
@@ -28,6 +29,14 @@ where
     }
 }
 
+fn parse_chunk_size(line: &[u8]) -> io::Result<u64> {
+    line.iter()
+        .position(|&b| b == b';')
+        .map_or_else(|| str::from_utf8(line), |idx| str::from_utf8(&line[..idx]))
+        .map_err(|_| error("cannot decode chunk size as utf-8"))
+        .and_then(|line| u64::from_str_radix(line, 16).map_err(|_| error("cannot decode chunk size as hex")))
+}
+
 impl<R> Read for ChunkedReader<R>
 where
     R: Read,
@@ -36,7 +45,7 @@ where
         if self.is_waiting {
             // If we're waiting for a new chunk, we read a line and parse the number as hexadecimal.
             self.read = 0;
-            self.length = self.inner.read_line_hex()?;
+            self.length = parse_chunk_size(self.inner.read_line()?)?;
             // If the chunk's length is 0, we've received the EOF chunk.
             if self.length == 0 {
                 // Read CRLF
