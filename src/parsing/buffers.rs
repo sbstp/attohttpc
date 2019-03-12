@@ -112,6 +112,7 @@ where
     /// Consumes the line feed characters. The returned slice is
     /// chomped and does not contain the line feed characters.
     pub fn read_line(&mut self) -> io::Result<&[u8]> {
+        self.advance();
         loop {
             let next = self.next()?;
             if next == b'\n' {
@@ -255,6 +256,18 @@ fn test_read_line_small_chunks() {
     assert_eq!(reader.buff.len(), 14);
     assert_eq!(reader.pos, 14);
     assert_eq!(reader.mark, 14);
+}
+
+#[test]
+fn test_read_line_marks_start() {
+    let mut reader = ExpandingBufReader::with_chunk_size(&b"abcdline1\r\n"[..], 10);
+    reader.next().unwrap();
+    reader.next().unwrap();
+    reader.next().unwrap();
+    reader.next().unwrap();
+    assert_eq!(reader.read_line().unwrap(), b"line1");
+    assert_eq!(reader.buff.len(), 7);
+    assert_eq!(reader.buff.capacity(), 10); // make sure the buffer did not allocate twice
 }
 
 #[test]
