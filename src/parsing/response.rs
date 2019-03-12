@@ -8,7 +8,9 @@ use http::{
 
 use crate::error::{HttpError, HttpResult};
 use crate::parsing::buffers::trim_byte;
-use crate::parsing::ExpandingBufReader;
+use crate::parsing::{BodyReader, CompressedReader, ExpandingBufReader, ResponseReader};
+use crate::request::Request;
+use crate::streams::BaseStream;
 
 pub fn parse_response_head<R>(reader: &mut ExpandingBufReader<R>) -> HttpResult<(StatusCode, HeaderMap)>
 where
@@ -51,4 +53,24 @@ where
     }
 
     Ok((status, headers))
+}
+
+pub fn parse_response(reader: BaseStream, request: &Request) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+    let mut reader = ExpandingBufReader::new(reader);
+    let (status, headers) = parse_response_head(&mut reader)?;
+    let body_reader = BodyReader::new(&headers, reader)?;
+    let compressed_reader = CompressedReader::new(&headers, body_reader)?;
+    let response_reader = ResponseReader::new(&headers, request, compressed_reader);
+    Ok((status, headers, response_reader))
+}
+
+#[test]
+fn test_read_request_head() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Type: text/plain\r\n\r\nhello";
+    let mut reader = ExpandingBufReader::new(&response[..]);
+    let (status, headers) = parse_response_head(&mut reader).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.len(), 2);
+    assert_eq!(headers[http::header::CONTENT_LENGTH], "5");
+    assert_eq!(headers[http::header::CONTENT_TYPE], "text/plain");
 }
