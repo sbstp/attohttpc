@@ -1,13 +1,9 @@
-use std::env;
-
 use lynx::Request;
 
 fn main() {
     env_logger::init();
 
-    let url: String = env::args().collect::<Vec<_>>().into_iter().nth(1).expect("missing url");
-
-    let r = Request::get(&url);
+    let r = Request::get("https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore");
 
     let (status, headers, reader) = r.send().unwrap();
     println!("{:?} {:#?}", status, headers);
