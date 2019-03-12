@@ -1,0 +1,8 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+script:
+  - cargo test --verbose --all-features
+  - cargo test --verbose --no-default-features
