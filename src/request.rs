@@ -15,7 +15,7 @@ use url::Url;
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{HttpError, HttpResult};
-use crate::response::{self, ResponseReader};
+use crate::parsing::{parse_response, ResponseReader};
 use crate::streams::BaseStream;
 
 pub trait HttpTryInto<T> {
@@ -215,7 +215,7 @@ impl Request {
         loop {
             let mut stream = BaseStream::connect(&url)?;
             self.write_request(&mut stream, &url)?;
-            let (status, headers, resp) = response::read_response(stream, &self)?;
+            let (status, headers, resp) = parse_response(stream, &self)?;
 
             debug!("status code {}", status.as_u16());
 
