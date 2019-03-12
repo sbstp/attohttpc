@@ -1,10 +1,14 @@
 use std::io::{self, Read};
 
-use http::header::{HeaderMap, CONTENT_ENCODING};
+use http::header::HeaderMap;
+#[cfg(feature = "compress")]
+use http::header::CONTENT_ENCODING;
 #[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
-use crate::error::{HttpError, HttpResult};
+#[cfg(feature = "compress")]
+use crate::error::HttpError;
+use crate::error::HttpResult;
 use crate::parsing::body_reader::BodyReader;
 
 pub enum CompressedReader {
@@ -30,7 +34,7 @@ impl CompressedReader {
     }
 
     #[cfg(not(feature = "compress"))]
-    pub fn new(headers: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(_: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
         Ok(CompressedReader::Plain(reader))
     }
 }
@@ -98,6 +102,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "compress")]
     fn test_stream_gzip() {
         let mut payload = Vec::new();
         let mut enc = gzip::Encoder::new(&mut payload).unwrap();

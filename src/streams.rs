@@ -138,6 +138,7 @@ impl Write for StreamDecoder {
 }
 
 #[cfg(test)]
+#[cfg(feature = "charsets")]
 mod tests {
     use super::StreamDecoder;
     use crate::charsets;

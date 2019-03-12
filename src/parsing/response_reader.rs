@@ -2,15 +2,20 @@ use std::io::{self, Read, Write};
 
 #[cfg(feature = "charsets")]
 use encoding_rs::Encoding;
-use http::header::{HeaderMap, CONTENT_TYPE};
+use http::header::HeaderMap;
+#[cfg(feature = "charsets")]
+use http::header::CONTENT_TYPE;
 #[cfg(feature = "json")]
 use serde::de::DeserializeOwned;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::{self, Charset};
 use crate::error::HttpResult;
-use crate::parsing::{buffers::trim_byte, CompressedReader};
+#[cfg(feature = "charsets")]
+use crate::parsing::buffers::trim_byte;
+use crate::parsing::CompressedReader;
 use crate::request::Request;
+#[cfg(feature = "charsets")]
 use crate::streams::StreamDecoder;
 
 #[cfg(feature = "charsets")]
@@ -117,6 +122,7 @@ impl Read for ResponseReader {
 }
 
 #[cfg(test)]
+#[cfg(feature = "charsets")]
 mod tests {
     use http::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 
