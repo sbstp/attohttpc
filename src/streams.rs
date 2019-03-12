@@ -1,12 +1,10 @@
 #[cfg(test)]
 use std::io::Cursor;
-use std::io::{self, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
 #[cfg(feature = "charsets")]
 use encoding_rs::{self, CoderResult};
-#[cfg(feature = "compress")]
-use libflate::{deflate, gzip};
 #[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
@@ -91,27 +89,6 @@ impl Write for BaseStream {
             BaseStream::Tls(s) => s.flush(),
             #[cfg(test)]
             _ => Ok(()),
-        }
-    }
-}
-
-pub enum CompressedRead {
-    Plain(BufReader<BaseStream>),
-    #[cfg(feature = "compress")]
-    Deflate(deflate::Decoder<BufReader<BaseStream>>),
-    #[cfg(feature = "compress")]
-    Gzip(gzip::Decoder<BufReader<BaseStream>>),
-}
-
-impl Read for CompressedRead {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self {
-            CompressedRead::Plain(s) => s.read(buf),
-            #[cfg(feature = "compress")]
-            CompressedRead::Deflate(s) => s.read(buf),
-            #[cfg(feature = "compress")]
-            CompressedRead::Gzip(s) => s.read(buf),
         }
     }
 }

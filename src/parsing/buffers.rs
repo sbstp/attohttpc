@@ -98,14 +98,6 @@ where
         Ok(b)
     }
 
-    /// Access the data from the start cursor to the read cursor.
-    #[inline]
-    fn slice(&mut self) -> &[u8] {
-        let start = self.mark;
-        self.advance();
-        &self.buff[start..self.pos]
-    }
-
     /// Access the data from the start cursor to the read cursor skipping `skip` bytes at the end.
     #[inline]
     fn slice_off(&mut self, skip: usize) -> &[u8] {
@@ -263,14 +255,6 @@ fn test_read_line_small_chunks() {
     assert_eq!(reader.buff.len(), 14);
     assert_eq!(reader.pos, 14);
     assert_eq!(reader.mark, 14);
-}
-
-#[test]
-fn test_slice() {
-    let mut reader = ExpandingBufReader::new(&b"hello"[..]);
-    reader.next().unwrap();
-    reader.next().unwrap();
-    assert_eq!(reader.slice(), b"he");
 }
 
 #[test]

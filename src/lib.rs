@@ -1,5 +1,4 @@
 #![deny(missing_docs)]
-#![allow(dead_code)]
 //! Check out the [repository](https://github.com/sbstp/lynx) for more general information
 //! and examples about this crate.
 
