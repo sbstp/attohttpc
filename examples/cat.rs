@@ -5,11 +5,7 @@ use lynx::Request;
 fn main() {
     env_logger::init();
 
-    let url: String = env::args()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .nth(1)
-        .expect("missing url");
+    let url: String = env::args().collect::<Vec<_>>().into_iter().nth(1).expect("missing url");
 
     let r = Request::get(&url);
 

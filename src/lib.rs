@@ -15,8 +15,8 @@ mod streams;
 #[cfg(feature = "charsets")]
 pub use crate::charsets::Charset;
 pub use crate::error::{HttpError, HttpResult};
-pub use crate::request::Request;
 pub use crate::parsing::ResponseReader;
+pub use crate::request::Request;
 pub use http::StatusCode;
 pub mod header {
     //! This module is a re-export of the `http` crate's `header` module.
