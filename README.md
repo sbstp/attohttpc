@@ -19,10 +19,10 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Streaming response body
 * Text encoding support
 * Gzip, deflate support
+* Transfer-Encoding: chunked
 
 ## Feature being worked on
 * File upload, form data
-* Transfer-Encoding: chunked
 * Thorough test suite
 * Connection: keep-alive
 * `serde` support behind a feature flag
