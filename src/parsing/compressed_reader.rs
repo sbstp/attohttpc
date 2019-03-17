@@ -140,4 +140,24 @@ mod tests {
 
         assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
     }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_no_body_with_gzip() {
+        let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
+
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let sock = BaseStream::mock(buf.to_vec());
+        assert!(parse_response(sock, &req).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_no_body_with_gzip_head() {
+        let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
+
+        let req = PreparedRequest::new(Method::HEAD, "http://google.ca");
+        let sock = BaseStream::mock(buf.to_vec());
+        assert!(parse_response(sock, &req).is_ok());
+    }
 }
