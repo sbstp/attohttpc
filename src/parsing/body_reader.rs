@@ -9,18 +9,7 @@ use crate::streams::BaseStream;
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
     Length(LengthReader<BufReader<BaseStream>>),
-    NoBody,
-}
-
-impl BodyReader {
-    #[inline]
-    #[cfg(feature = "compress")]
-    pub fn is_no_body(&self) -> bool {
-        match self {
-            BodyReader::NoBody => true,
-            _ => false,
-        }
-    }
+    Close(BufReader<BaseStream>),
 }
 
 impl Read for BodyReader {
@@ -29,7 +18,7 @@ impl Read for BodyReader {
         match self {
             BodyReader::Chunked(r) => r.read(buf),
             BodyReader::Length(r) => r.read(buf),
-            BodyReader::NoBody => Ok(0),
+            BodyReader::Close(r) => r.read(buf),
         }
     }
 }
@@ -48,8 +37,8 @@ impl BodyReader {
                 .map_err(|_| HttpError::InvalidResponse("invalid content length: not a number"))?;
             Ok(BodyReader::Length(LengthReader::new(reader, val)))
         } else {
-            debug!("creating a no-body body reader");
-            Ok(BodyReader::NoBody)
+            debug!("creating close reader");
+            Ok(BodyReader::Close(reader))
         }
     }
 }

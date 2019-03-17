@@ -63,7 +63,7 @@ pub fn parse_response(
     let mut reader = BufReader::new(reader);
     let (status, headers) = parse_response_head(&mut reader)?;
     let body_reader = BodyReader::new(&headers, reader)?;
-    let compressed_reader = CompressedReader::new(&headers, body_reader)?;
+    let compressed_reader = CompressedReader::new(&headers, request, body_reader)?;
     let response_reader = ResponseReader::new(&headers, request, compressed_reader);
     Ok((status, headers, response_reader))
 }

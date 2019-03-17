@@ -32,6 +32,7 @@ where
         let count = cmp::min(buf.len() as u64, remaining) as usize;
         let n = self.inner.read(&mut buf[..count])?;
         self.read += n as u64;
+        debug!("read {} bytes", n);
         Ok(n)
     }
 }

@@ -6,12 +6,15 @@ use http::header::HeaderMap;
 #[cfg(feature = "compress")]
 use http::header::CONTENT_ENCODING;
 #[cfg(feature = "compress")]
+use http::Method;
+#[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
 #[cfg(feature = "compress")]
 use crate::error::HttpError;
 use crate::error::HttpResult;
 use crate::parsing::body_reader::BodyReader;
+use crate::request::PreparedRequest;
 
 pub enum CompressedReader {
     Plain(BodyReader),
@@ -25,12 +28,13 @@ pub enum CompressedReader {
 
 impl CompressedReader {
     #[cfg(feature = "compress")]
-    pub fn new(headers: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
         // If there is no body, we must not try to create a compressed reader because gzip tries to read
         // the gzip header and the NoBody reader returns EOF.
-        if !reader.is_no_body() {
+        if request.method() != Method::HEAD {
             if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
                 debug!("creating compressed reader from content encoding");
+                // TODO: there might still be a bug because the gzip decoder checks for data eargerly
                 return match content_encoding {
                     b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader)))),
                     b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?)),
@@ -44,7 +48,7 @@ impl CompressedReader {
     }
 
     #[cfg(not(feature = "compress"))]
-    pub fn new(_: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(_: &HeaderMap, _: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
         Ok(CompressedReader::Plain(reader))
     }
 }
