@@ -113,7 +113,7 @@ impl RequestBuilder {
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
-    pub fn param<V>(&mut self, key: &str, value: V) -> &mut RequestBuilder
+    pub fn param<V>(mut self, key: &str, value: V) -> RequestBuilder
     where
         V: Display,
     {
@@ -124,13 +124,13 @@ impl RequestBuilder {
     /// Associated a list of pairs to query parameters.
     ///
     /// The same key can be used multiple times.
-    pub fn params<'p, I, V>(&mut self, pairs: I) -> &mut RequestBuilder
+    pub fn params<'p, I, V>(mut self, pairs: I) -> RequestBuilder
     where
         I: Into<&'p [(&'p str, V)]>,
         V: Display + 'p,
     {
-        for (key, val) in pairs.into() {
-            self.param(key, val);
+        for (key, value) in pairs.into() {
+            self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
         }
         self
     }
@@ -139,7 +139,7 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn header<H, V>(&mut self, header: H, value: V) -> &mut RequestBuilder
+    pub fn header<H, V>(self, header: H, value: V) -> RequestBuilder
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -151,7 +151,7 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn header_append<H, V>(&mut self, header: H, value: V) -> &mut RequestBuilder
+    pub fn header_append<H, V>(self, header: H, value: V) -> RequestBuilder
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -163,7 +163,7 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn try_header<H, V>(&mut self, header: H, value: V) -> HttpResult<&mut RequestBuilder>
+    pub fn try_header<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -175,7 +175,7 @@ impl RequestBuilder {
     /// Append a new header to this `Request`.
     ///
     /// The new header is always appended to the `Request`, even if the header already exists.
-    pub fn try_header_append<H, V>(&mut self, header: H, value: V) -> HttpResult<&mut RequestBuilder>
+    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -187,7 +187,7 @@ impl RequestBuilder {
     /// Set the body of this request.
     ///
     /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
-    pub fn body(&mut self, body: impl AsRef<[u8]>) -> &mut RequestBuilder {
+    pub fn body(mut self, body: impl AsRef<[u8]>) -> RequestBuilder {
         self.body = body.as_ref().to_owned();
         self
     }
@@ -195,7 +195,7 @@ impl RequestBuilder {
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
-    pub fn follow_redirects(&mut self, follow_redirects: bool) -> &mut RequestBuilder {
+    pub fn follow_redirects(mut self, follow_redirects: bool) -> RequestBuilder {
         self.follow_redirects = follow_redirects;
         self
     }
@@ -205,7 +205,7 @@ impl RequestBuilder {
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
     #[cfg(feature = "charsets")]
-    pub fn default_charset(&mut self, default_charset: Option<Charset>) -> &mut RequestBuilder {
+    pub fn default_charset(mut self, default_charset: Option<Charset>) -> RequestBuilder {
         self.default_charset = default_charset;
         self
     }
@@ -215,7 +215,7 @@ impl RequestBuilder {
     /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "compress")]
-    pub fn allow_compression(&mut self, allow_compression: bool) -> &mut RequestBuilder {
+    pub fn allow_compression(mut self, allow_compression: bool) -> RequestBuilder {
         self.allow_compression = allow_compression;
         self
     }
@@ -225,7 +225,7 @@ impl RequestBuilder {
     /// # Panics
     /// Will panic if an error occurs trying to prepare the request. It shouldn't happen.
     pub fn prepare(self) -> PreparedRequest {
-        self.try_prepare().expect("oh")
+        self.try_prepare().expect("failed to prepare request")
     }
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
@@ -241,7 +241,7 @@ impl RequestBuilder {
         };
 
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
-        prepped.set_host(&prepped.url.clone())?; // TODO: avoid clone
+        prepped.set_host(&prepped.url.clone())?;
         if prepped.has_body() {
             header_insert(&mut prepped.headers, CONTENT_LENGTH, format!("{}", prepped.body.len()))?;
         }

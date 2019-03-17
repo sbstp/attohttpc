@@ -1,8 +1,10 @@
-fn main() {
+use lynx::HttpResult;
+
+fn main() -> HttpResult {
     env_logger::init();
 
-    let r = lynx::head("http://httpbin.org");
-
-    let (status, headers, reader) = r.send().unwrap();
+    let (status, headers, reader) = lynx::head("http://httpbin.org").send()?;
     println!("{:?} {:#?}", status, headers);
+
+    Ok(())
 }

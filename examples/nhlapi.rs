@@ -1,9 +1,13 @@
-fn main() {
+use lynx::HttpResult;
+
+fn main() -> HttpResult {
     env_logger::init();
 
-    let r = lynx::get("https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore");
+    let (status, headers, reader) =
+        lynx::get("https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore").send()?;
+    println!("Headers:\n{:?} {:#?}", status, headers);
+    println!();
+    println!("Body:\n{}", reader.string()?);
 
-    let (status, headers, reader) = r.send().unwrap();
-    println!("{:?} {:#?}", status, headers);
-    println!("{}", reader.string().unwrap());
+    Ok(())
 }

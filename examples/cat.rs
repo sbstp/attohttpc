@@ -1,13 +1,16 @@
 use std::env;
 
-fn main() {
+use lynx::HttpResult;
+
+fn main() -> HttpResult {
     env_logger::init();
 
     let url: String = env::args().collect::<Vec<_>>().into_iter().nth(1).expect("missing url");
 
-    let r = lynx::get(&url);
+    let (status, headers, reader) = lynx::get(&url).send()?;
+    println!("Headers:\n{:?} {:#?}", status, headers);
+    println!();
+    println!("Body:\n{}", reader.string()?);
 
-    let (status, headers, reader) = r.send().unwrap();
-    println!("{:?} {:#?}", status, headers);
-    println!("{}", reader.string().unwrap());
+    Ok(())
 }
