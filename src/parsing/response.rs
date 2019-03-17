@@ -9,7 +9,7 @@ use http::{
 use crate::error::{HttpError, HttpResult};
 use crate::parsing::buffers::trim_byte;
 use crate::parsing::{BodyReader, CompressedReader, ExpandingBufReader, ResponseReader};
-use crate::request::Request;
+use crate::request::PreparedRequest;
 use crate::streams::BaseStream;
 
 pub fn parse_response_head<R>(reader: &mut ExpandingBufReader<R>) -> HttpResult<(StatusCode, HeaderMap)>
@@ -55,7 +55,10 @@ where
     Ok((status, headers))
 }
 
-pub fn parse_response(reader: BaseStream, request: &Request) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+pub fn parse_response(
+    reader: BaseStream,
+    request: &PreparedRequest,
+) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = ExpandingBufReader::new(reader);
     let (status, headers) = parse_response_head(&mut reader)?;
     let body_reader = BodyReader::new(&headers, reader)?;

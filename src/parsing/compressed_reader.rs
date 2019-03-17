@@ -56,12 +56,13 @@ impl Read for CompressedReader {
 mod tests {
     use std::io::prelude::*;
 
+    use http::Method;
     #[cfg(feature = "compress")]
     use libflate::{deflate, gzip};
 
     use crate::parsing::response::parse_response;
     use crate::streams::BaseStream;
-    use crate::Request;
+    use crate::PreparedRequest;
 
     #[test]
     fn test_stream_plain() {
@@ -71,7 +72,7 @@ mod tests {
         let _ = write!(buf, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", payload.len());
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
@@ -94,7 +95,7 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
@@ -117,7 +118,7 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();

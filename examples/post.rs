@@ -1,9 +1,7 @@
-use lynx::Request;
-
 fn main() {
     env_logger::init();
 
-    let mut r = Request::post("https://httpbin.org/post");
+    let mut r = lynx::post("https://httpbin.org/post");
     r.body("Hello world!");
 
     let (status, headers, reader) = r.send().unwrap();
