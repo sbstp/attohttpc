@@ -22,30 +22,14 @@ pub fn trim_byte(byte: u8, buf: &[u8]) -> &[u8] {
     trim_byte_left(byte, trim_byte_right(byte, buf))
 }
 
-pub fn trim_byte_left(byte: u8, mut buf: &[u8]) -> &[u8] {
-    while let Some(b) = buf.first().map(|&b| b) {
-        if b == byte {
-            unsafe {
-                buf = &buf.get_unchecked(1..);
-            }
-        } else {
-            break;
-        }
-    }
-    buf
+pub fn trim_byte_left(byte: u8, buf: &[u8]) -> &[u8] {
+    let n = buf.iter().take_while(|b| **b == byte).count();
+    &buf[n..]
 }
 
-pub fn trim_byte_right(byte: u8, mut buf: &[u8]) -> &[u8] {
-    while let Some(b) = buf.last().map(|&b| b) {
-        if b == byte {
-            unsafe {
-                buf = &buf.get_unchecked(..buf.len() - 1);
-            }
-        } else {
-            break;
-        }
-    }
-    buf
+pub fn trim_byte_right(byte: u8, buf: &[u8]) -> &[u8] {
+    let n = buf.iter().rev().take_while(|b| **b == byte).count();
+    &buf[..buf.len() - n]
 }
 
 #[test]
