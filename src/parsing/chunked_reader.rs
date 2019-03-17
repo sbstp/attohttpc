@@ -1,33 +1,10 @@
 use std::cmp;
-use std::io::{self, Read};
+use std::io::{self, BufReader, Read};
 use std::str;
 use std::u64;
 
-use crate::parsing::{error, ExpandingBufReader};
-
-pub struct ChunkedReader<R>
-where
-    R: Read,
-{
-    inner: ExpandingBufReader<R>,
-    is_waiting: bool, // is waiting for new chunk
-    read: u64,        // bytes read in the chunk
-    length: u64,      // chunk length
-}
-
-impl<R> ChunkedReader<R>
-where
-    R: Read,
-{
-    pub fn new(reader: ExpandingBufReader<R>) -> ChunkedReader<R> {
-        ChunkedReader {
-            inner: reader,
-            is_waiting: true,
-            read: 0,
-            length: 0,
-        }
-    }
-}
+use crate::parsing::buffers;
+use crate::parsing::error;
 
 fn parse_chunk_size(line: &[u8]) -> io::Result<u64> {
     line.iter()
@@ -37,25 +14,76 @@ fn parse_chunk_size(line: &[u8]) -> io::Result<u64> {
         .and_then(|line| u64::from_str_radix(line, 16).map_err(|_| error("cannot decode chunk size as hex")))
 }
 
+pub struct ChunkedReader<R>
+where
+    R: Read,
+{
+    inner: BufReader<R>,
+    is_expecting_chunk: bool, // is waiting for new chunk
+    read: u64,                // bytes read in the chunk
+    length: u64,              // chunk length
+    line: Vec<u8>,
+}
+
+impl<R> ChunkedReader<R>
+where
+    R: Read,
+{
+    pub fn new(reader: BufReader<R>) -> ChunkedReader<R> {
+        ChunkedReader {
+            inner: reader,
+            is_expecting_chunk: true,
+            read: 0,
+            length: 0,
+            line: Vec::new(),
+        }
+    }
+
+    #[inline]
+    fn remaining(&self) -> u64 {
+        self.length - self.read
+    }
+
+    #[inline]
+    fn read_line(&mut self) -> io::Result<usize> {
+        buffers::read_line(&mut self.inner, &mut self.line)
+    }
+
+    fn read_chunk_size(&mut self) -> io::Result<u64> {
+        self.read_line()?;
+        if self.line.is_empty() {
+            return Err(io::ErrorKind::UnexpectedEof.into());
+        }
+        parse_chunk_size(&self.line)
+    }
+
+    fn read_empty_line(&mut self) -> io::Result<()> {
+        let n = self.read_line()?;
+        if n == 0 || !self.line.is_empty() {
+            Err(error("invalid chunk, error in chunked encoding"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl<R> Read for ChunkedReader<R>
 where
     R: Read,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        debug!("read called");
-        if self.is_waiting {
+        if self.is_expecting_chunk {
             debug!("waiting, parsing new chunk size");
             // If we're waiting for a new chunk, we read a line and parse the number as hexadecimal.
             self.read = 0;
-            self.length = parse_chunk_size(self.inner.read_line()?)?;
+            self.length = self.read_chunk_size()?;
             // If the chunk's length is 0, we've received the EOF chunk.
             if self.length == 0 {
                 debug!("received EOF chunk");
                 // Read CRLF
-                let buf = self.inner.read_line()?;
-                debug_assert!(buf.len() == 0);
+                self.read_empty_line()?;
             }
-            self.is_waiting = false;
+            self.is_expecting_chunk = false;
         }
 
         // If we have a length of 0 for a chunk, we've reached EOF.
@@ -64,12 +92,11 @@ where
         }
 
         // We read the smallest amount between the given buffer's length and the remaining bytes' length.
-        let remaining = self.length - self.read;
-        let count = cmp::min(remaining, buf.len() as u64) as usize;
+        let count = cmp::min(self.remaining(), buf.len() as u64) as usize;
 
         debug!(
             "before read, remaining={}, count={}, buflen={}",
-            remaining,
+            self.remaining(),
             count,
             buf.len()
         );
@@ -86,12 +113,12 @@ where
         }
 
         // Check if we've read the entire chunk.
-        if self.read == self.length {
+        if self.remaining() == 0 {
             debug!("chunk is finished, expect chunk size in next read call");
-            // Read CRLF and expect a chunk in the next read.
-            let buf = self.inner.read_line()?;
-            debug_assert!(buf.len() == 0);
-            self.is_waiting = true;
+            // Read CRLF
+            self.read_empty_line()?;
+            // Expect a chunk in the next read.
+            self.is_expecting_chunk = true;
         }
 
         Ok(n)
@@ -101,7 +128,7 @@ where
 #[test]
 fn test_read_works() {
     let msg = b"4\r\nwiki\r\n5\r\npedia\r\nE\r\n in\r\n\r\nchunks.\r\n0\r\n\r\n";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     reader.read_to_string(&mut s).unwrap();
     assert_eq!(s, "wikipedia in\r\n\r\nchunks.");
@@ -110,7 +137,7 @@ fn test_read_works() {
 #[test]
 fn test_read_empty() {
     let msg = b"0\r\n\r\n";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     reader.read_to_string(&mut s).unwrap();
     assert_eq!(s, "");
@@ -119,7 +146,7 @@ fn test_read_empty() {
 #[test]
 fn test_read_invalid_empty() {
     let msg = b"";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     assert!(reader.read_to_string(&mut s).is_err());
 }
@@ -127,7 +154,7 @@ fn test_read_invalid_empty() {
 #[test]
 fn test_read_invalid_chunk() {
     let msg = b"4\r\nwik";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     assert_eq!(
         reader.read_to_string(&mut s).err().unwrap().kind(),
@@ -138,21 +165,21 @@ fn test_read_invalid_chunk() {
 #[test]
 fn test_read_invalid_no_terminating_chunk() {
     let msg = b"4\r\nwiki";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     assert_eq!(
         reader.read_to_string(&mut s).err().unwrap().kind(),
-        io::ErrorKind::UnexpectedEof
+        io::ErrorKind::Other
     );
 }
 
 #[test]
 fn test_read_invalid_bad_terminating_chunk() {
     let msg = b"4\r\nwiki\r\n0\r\n";
-    let mut reader = ChunkedReader::new(ExpandingBufReader::new(&msg[..]));
+    let mut reader = ChunkedReader::new(BufReader::new(&msg[..]));
     let mut s = String::new();
     assert_eq!(
         reader.read_to_string(&mut s).err().unwrap().kind(),
-        io::ErrorKind::UnexpectedEof
+        io::ErrorKind::Other
     );
 }
