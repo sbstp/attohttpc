@@ -25,6 +25,7 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let remaining = self.length - self.read;
+        debug!("remaining={} buflen={}", remaining, buf.len());
         if remaining == 0 {
             return Ok(0);
         }

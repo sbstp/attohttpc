@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, BufReader, Read};
 
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
@@ -14,23 +14,31 @@ use crate::parsing::body_reader::BodyReader;
 pub enum CompressedReader {
     Plain(BodyReader),
     #[cfg(feature = "compress")]
-    Deflate(deflate::Decoder<BodyReader>),
+    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
+    Deflate(deflate::Decoder<BufReader<BodyReader>>),
     #[cfg(feature = "compress")]
-    Gzip(gzip::Decoder<BodyReader>),
+    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
+    Gzip(gzip::Decoder<BufReader<BodyReader>>),
 }
 
 impl CompressedReader {
     #[cfg(feature = "compress")]
     pub fn new(headers: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
-        if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
-            match content_encoding {
-                b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(reader))),
-                b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(reader)?)),
-                _ => Err(HttpError::InvalidResponse("invalid Content-Encoding header")),
+        // If there is no body, we must not try to create a compressed reader because gzip tries to read
+        // the gzip header and the NoBody reader returns EOF.
+        if !reader.is_no_body() {
+            if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
+                debug!("creating compressed reader from content encoding");
+                return match content_encoding {
+                    b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader)))),
+                    b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?)),
+                    b"identity" => Ok(CompressedReader::Plain(reader)),
+                    _ => Err(HttpError::InvalidResponse("invalid Content-Encoding header")),
+                };
             }
-        } else {
-            Ok(CompressedReader::Plain(reader))
         }
+        debug!("creating plain reader");
+        return Ok(CompressedReader::Plain(reader));
     }
 
     #[cfg(not(feature = "compress"))]
@@ -42,6 +50,7 @@ impl CompressedReader {
 impl Read for CompressedReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // TODO: gzip does not read until EOF, leaving some data in the buffer.
         match self {
             CompressedReader::Plain(s) => s.read(buf),
             #[cfg(feature = "compress")]

@@ -37,17 +37,20 @@ where
         debug_assert!(self.pos == self.buff.len());
 
         if self.mark > 0 {
+            debug!("mark position greater than 0, reclaiming space");
             // Any data before the mark position can be overwritten. Before growing the internal
             // buffer, we try to move all the protected data to the front of the buffer, overwriting
             // everything before the last slice.
             let protected = self.pos - self.mark;
 
             if protected == 0 {
+                debug!("no bytes are protected, full clear");
                 // If there are no protected bytes in the buffer, we can simply clear it.
                 self.buff.clear();
                 self.mark = 0;
                 self.pos = 0;
             } else {
+                debug!("{} bytes protected, partial clear", protected);
                 // If there are protected bytes left in the buffer we must move them to the front.
                 unsafe {
                     ptr::copy(self.buff[self.mark..].as_ptr(), self.buff[0..].as_mut_ptr(), protected);
@@ -60,6 +63,7 @@ where
         }
 
         if self.pos >= self.buff.capacity() {
+            debug!("growing buffer");
             // If the read position and the buffer's capacity are the same,
             // the buffer is full. We must grow it.
             self.buff.reserve(self.chunk_size);
@@ -71,6 +75,7 @@ where
             self.buff.set_len(self.buff.capacity());
             let n = self.inner.read(&mut self.buff[self.pos..])?;
             self.buff.set_len(len + n);
+            debug!("read {} bytes from stream", n);
             if n == 0 {
                 return Err(io::ErrorKind::UnexpectedEof.into());
             }
@@ -91,6 +96,7 @@ where
     /// internal buffer can possibly be grown.
     fn next(&mut self) -> io::Result<u8> {
         if self.pos >= self.buff.len() {
+            debug!("end of buffer, need more data");
             self.fill()?;
         }
         let b = self.buff[self.pos];

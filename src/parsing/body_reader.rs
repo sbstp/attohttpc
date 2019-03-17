@@ -9,6 +9,17 @@ use crate::streams::BaseStream;
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
     Length(LengthReader<ExpandingBufReader<BaseStream>>),
+    NoBody,
+}
+
+impl BodyReader {
+    #[inline]
+    pub fn is_no_body(&self) -> bool {
+        match self {
+            BodyReader::NoBody => true,
+            _ => false,
+        }
+    }
 }
 
 impl Read for BodyReader {
@@ -17,6 +28,7 @@ impl Read for BodyReader {
         match self {
             BodyReader::Chunked(r) => r.read(buf),
             BodyReader::Length(r) => r.read(buf),
+            BodyReader::NoBody => Ok(0),
         }
     }
 }
@@ -24,8 +36,10 @@ impl Read for BodyReader {
 impl BodyReader {
     pub fn new(headers: &HeaderMap, reader: ExpandingBufReader<BaseStream>) -> HttpResult<BodyReader> {
         if headers.get(TRANSFER_ENCODING).map(|v| v.as_bytes()) == Some(b"chunked") {
+            debug!("creating a chunked body reader");
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))
         } else if let Some(val) = headers.get(CONTENT_LENGTH) {
+            debug!("creating a length body reader");
             let val = val
                 .to_str()
                 .map_err(|_| HttpError::InvalidResponse("invalid content length: not a string"))?;
@@ -33,9 +47,8 @@ impl BodyReader {
                 .map_err(|_| HttpError::InvalidResponse("invalid content length: not a number"))?;
             Ok(BodyReader::Length(LengthReader::new(reader, val)))
         } else {
-            Err(HttpError::InvalidResponse(
-                "no content-length or chunked transfer encoding",
-            ))
+            debug!("creating a no-body body reader");
+            Ok(BodyReader::NoBody)
         }
     }
 }

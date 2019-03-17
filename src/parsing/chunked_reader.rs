@@ -42,12 +42,15 @@ where
     R: Read,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        debug!("read called");
         if self.is_waiting {
+            debug!("waiting, parsing new chunk size");
             // If we're waiting for a new chunk, we read a line and parse the number as hexadecimal.
             self.read = 0;
             self.length = parse_chunk_size(self.inner.read_line()?)?;
             // If the chunk's length is 0, we've received the EOF chunk.
             if self.length == 0 {
+                debug!("received EOF chunk");
                 // Read CRLF
                 let buf = self.inner.read_line()?;
                 debug_assert!(buf.len() == 0);
@@ -63,8 +66,18 @@ where
         // We read the smallest amount between the given buffer's length and the remaining bytes' length.
         let remaining = self.length - self.read;
         let count = cmp::min(remaining, buf.len() as u64) as usize;
+
+        debug!(
+            "before read, remaining={}, count={}, buflen={}",
+            remaining,
+            count,
+            buf.len()
+        );
+
         let n = self.inner.read(&mut buf[..count])?;
         self.read += n as u64;
+
+        debug!("read {} bytes", n);
 
         // Check for an unexpected EOF
         if n == 0 {
@@ -74,6 +87,7 @@ where
 
         // Check if we've read the entire chunk.
         if self.read == self.length {
+            debug!("chunk is finished, expect chunk size in next read call");
             // Read CRLF and expect a chunk in the next read.
             let buf = self.inner.read_line()?;
             debug_assert!(buf.len() == 0);
