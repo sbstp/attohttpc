@@ -14,6 +14,7 @@ pub enum BodyReader {
 
 impl BodyReader {
     #[inline]
+    #[cfg(feature = "compress")]
     pub fn is_no_body(&self) -> bool {
         match self {
             BodyReader::NoBody => true,

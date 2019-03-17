@@ -51,7 +51,7 @@ impl ResponseReader {
     }
 
     #[cfg(not(feature = "charsets"))]
-    pub(crate) fn new(_: &HeaderMap, _: &Request, reader: CompressedReader) -> ResponseReader {
+    pub(crate) fn new(_: &HeaderMap, _: &PreparedRequest, reader: CompressedReader) -> ResponseReader {
         ResponseReader { inner: reader }
     }
 

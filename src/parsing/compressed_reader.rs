@@ -1,4 +1,6 @@
-use std::io::{self, BufReader, Read};
+#[cfg(feature = "compress")]
+use std::io::BufReader;
+use std::io::{self, Read};
 
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]

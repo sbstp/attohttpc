@@ -238,18 +238,15 @@ impl RequestBuilder {
             follow_redirects: self.follow_redirects,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
+            #[cfg(feature = "compress")]
+            allow_compression: self.allow_compression,
         };
 
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
         prepped.set_host(&prepped.url.clone())?;
+        prepped.set_compression()?;
         if prepped.has_body() {
             header_insert(&mut prepped.headers, CONTENT_LENGTH, format!("{}", prepped.body.len()))?;
-        }
-
-        if cfg!(feature = "compress") {
-            if self.allow_compression {
-                header_insert(&mut prepped.headers, ACCEPT_ENCODING, "gzip, deflate")?;
-            }
         }
 
         Ok(prepped)
@@ -270,6 +267,8 @@ pub struct PreparedRequest {
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
+    #[cfg(feature = "compress")]
+    allow_compression: bool,
 }
 
 impl PreparedRequest {
@@ -286,6 +285,8 @@ impl PreparedRequest {
             follow_redirects: true,
             #[cfg(feature = "charsets")]
             default_charset: None,
+            #[cfg(feature = "compress")]
+            allow_compression: true,
         }
     }
 
@@ -295,6 +296,19 @@ impl PreparedRequest {
             header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
         } else {
             header_insert(&mut self.headers, HOST, host)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "compress"))]
+    fn set_compression(&mut self) -> HttpResult {
+        Ok(())
+    }
+
+    #[cfg(feature = "compress")]
+    fn set_compression(&mut self) -> HttpResult {
+        if self.allow_compression {
+            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
         Ok(())
     }
