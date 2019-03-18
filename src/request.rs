@@ -398,6 +398,13 @@ impl PreparedRequest {
         &self.headers
     }
 
+    /// Get the body of the request.
+    ///
+    /// If no body was provided, the slice will be empty.
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+
     /// Send this request and wait for the result.
     pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
         let mut url = self.url.clone();
