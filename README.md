@@ -11,6 +11,16 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * HTTP/1.1, eventually HTTP/2.0
 * Use quality crates from the ecosystem (`http`, `url`, `encoding_rs`), not reinventing the wheel.
 
+# Usage
+See the `examples/` folder in the repository for more use cases.
+```rust
+let (status, headers, body) = lynx::post("https://my-api.com/do/something").json(&request)?.send()?;
+if status.is_success() {
+    let response = body.json()?;
+    // ...
+}
+```
+
 ## Current feature set
 * Query parameters
 * Request headers
@@ -20,12 +30,12 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Text encoding support
 * Gzip, deflate support
 * Transfer-Encoding: chunked
+* `serde` support behind a feature flag
 
 ## Feature being worked on
 * File upload, form data
 * Thorough test suite
 * Connection: keep-alive
-* `serde` support behind a feature flag
 
 ## License
 This project is licensed under the `MPL-2.0`.
