@@ -192,6 +192,13 @@ impl RequestBuilder {
         self
     }
 
+    /// Set the body of this request to be the given JSON.
+    #[cfg(feature = "json")]
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> HttpResult<RequestBuilder> {
+        self.body = serde_json::to_vec(value)?;
+        Ok(self)
+    }
+
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
