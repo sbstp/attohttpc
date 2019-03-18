@@ -29,8 +29,33 @@ env_logger = "0.5"
 compress = ["libflate"]
 charsets = ["encoding_rs"]
 tls = ["native-tls"]
-default = ["compress", "charsets", "tls", "json"]
 json = ["serde", "serde_json"]
+default = ["compress", "charsets", "tls", "json"]
 
 [package.metadata.docs.rs]
 all-features = true
+
+[[example]]
+name = "cat"
+path = "examples/cat.rs"
+required-features = ["default"]
+
+[[example]]
+name = "imdb"
+path = "examples/imdb.rs"
+required-features = ["tls"]
+
+[[example]]
+name = "nhlapi"
+path = "examples/nhlapi.rs"
+required-features = ["tls"]
+
+[[example]]
+name = "post_json"
+path = "examples/post_json.rs"
+required-features = ["json"]
+
+[[example]]
+name = "post"
+path = "examples/post.rs"
+required-features = ["tls"]

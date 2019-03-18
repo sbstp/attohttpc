@@ -1,12 +1,12 @@
-use lynx::Request;
+use lynx::HttpResult;
 
-fn main() {
+fn main() -> HttpResult {
     env_logger::init();
 
-    let mut r = Request::post("https://httpbin.org/post");
-    r.body("Hello world!");
+    let (status, headers, reader) = lynx::post("https://httpbin.org/post").body("hello, world!").send()?;
+    println!("Headers:\n{:?} {:#?}", status, headers);
+    println!();
+    println!("Body:\n{}", reader.string()?);
 
-    let (status, headers, reader) = r.send().unwrap();
-    println!("{:?} {:#?}", status, headers);
-    println!("{}", reader.string().unwrap());
+    Ok(())
 }

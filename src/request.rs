@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
@@ -57,7 +58,7 @@ where
 ///
 /// Use one of its contructors to create a request and then use the `send` method
 /// to send the `Request` and get the status, headers and response.
-pub struct Request {
+pub struct RequestBuilder {
     url: Url,
     method: Method,
     headers: HeaderMap,
@@ -69,17 +70,34 @@ pub struct Request {
     allow_compression: bool,
 }
 
-impl Request {
+impl RequestBuilder {
     /// Create a new `Request` with the base URL and the given method.
-    pub fn new(base_url: &str, method: Method) -> Request {
-        let url = Url::parse(base_url).expect("invalid url");
+    ///
+    /// # Panics
+    /// Panics if the base url is invalid or if the method is CONNECT.
+    pub fn new<U>(method: Method, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::try_new(method, base_url).expect("invalid url or method")
+    }
+
+    /// Try to create a new `RequestBuilder`.
+    ///
+    /// If the base URL is invalid, an error is returned.
+    /// If the method is CONNECT, an error is also returned. CONNECT is not yet supported.
+    pub fn try_new<U>(method: Method, base_url: U) -> HttpResult<RequestBuilder>
+    where
+        U: AsRef<str>,
+    {
+        let url = Url::parse(base_url.as_ref()).map_err(|_| HttpError::InvalidUrl("invalid base url"))?;
 
         match method {
-            Method::CONNECT => panic!("CONNECT is not yet supported"),
+            Method::CONNECT => return Err(HttpError::Other("CONNECT is not supported")),
             _ => {}
         }
 
-        Request {
+        Ok(RequestBuilder {
             url,
             method: method,
             headers: HeaderMap::new(),
@@ -89,94 +107,104 @@ impl Request {
             default_charset: None,
             #[cfg(feature = "compress")]
             allow_compression: true,
-        }
-    }
-
-    /// Create a new `Request` with the GET method.
-    pub fn get(base_url: &str) -> Request {
-        Request::new(base_url, Method::GET)
-    }
-
-    /// Create a new `Request` with the POST method.
-    pub fn post(base_url: &str) -> Request {
-        Request::new(base_url, Method::POST)
-    }
-
-    /// Create a new `Request` with the PUT method.
-    pub fn put(base_url: &str) -> Request {
-        Request::new(base_url, Method::PUT)
-    }
-
-    /// Create a new `Request` with the DELETE method.
-    pub fn delete(base_url: &str) -> Request {
-        Request::new(base_url, Method::DELETE)
-    }
-
-    /// Create a new `Request` with the HEAD method.
-    pub fn head(base_url: &str) -> Request {
-        Request::new(base_url, Method::HEAD)
-    }
-
-    /// Create a new `Request` with the OPTIONS method.
-    pub fn options(base_url: &str) -> Request {
-        Request::new(base_url, Method::OPTIONS)
-    }
-
-    /// Create a new `Request` with the PATCH method.
-    pub fn patch(base_url: &str) -> Request {
-        Request::new(base_url, Method::PATCH)
-    }
-
-    /// Create a new `Request` with the TRACE method.
-    pub fn trace(base_url: &str) -> Request {
-        Request::new(base_url, Method::TRACE)
+        })
     }
 
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
-    pub fn param<V>(&mut self, key: &str, value: V)
+    pub fn param<V>(mut self, key: &str, value: V) -> RequestBuilder
     where
         V: Display,
     {
         self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
+        self
+    }
+
+    /// Associated a list of pairs to query parameters.
+    ///
+    /// The same key can be used multiple times.
+    pub fn params<'p, I, V>(mut self, pairs: I) -> RequestBuilder
+    where
+        I: Into<&'p [(&'p str, V)]>,
+        V: Display + 'p,
+    {
+        for (key, value) in pairs.into() {
+            self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
+        }
+        self
     }
 
     /// Modify a header for this `Request`.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn header<H, V>(&mut self, header: H, value: V) -> HttpResult
+    pub fn header<H, V>(self, header: H, value: V) -> RequestBuilder
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
     {
-        header_insert(&mut self.headers, header, value)
+        self.try_header(header, value).expect("invalid header value")
+    }
+
+    /// Modify a header for this `Request`.
+    ///
+    /// If the header is already present, the value will be replaced. If you wish to append a new header,
+    /// use `header_append`.
+    pub fn header_append<H, V>(self, header: H, value: V) -> RequestBuilder
+    where
+        H: IntoHeaderName,
+        V: HttpTryInto<HeaderValue>,
+    {
+        self.try_header_append(header, value).expect("invalid header value")
+    }
+
+    /// Modify a header for this `Request`.
+    ///
+    /// If the header is already present, the value will be replaced. If you wish to append a new header,
+    /// use `header_append`.
+    pub fn try_header<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
+    where
+        H: IntoHeaderName,
+        V: HttpTryInto<HeaderValue>,
+    {
+        header_insert(&mut self.headers, header, value)?;
+        Ok(self)
     }
 
     /// Append a new header to this `Request`.
     ///
     /// The new header is always appended to the `Request`, even if the header already exists.
-    pub fn header_append<H, V>(&mut self, header: H, value: V) -> HttpResult
+    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
     {
-        header_append(&mut self.headers, header, value)
+        header_append(&mut self.headers, header, value)?;
+        Ok(self)
     }
 
     /// Set the body of this request.
     ///
     /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
-    pub fn body(&mut self, body: impl AsRef<[u8]>) {
+    pub fn body(mut self, body: impl AsRef<[u8]>) -> RequestBuilder {
         self.body = body.as_ref().to_owned();
+        self
+    }
+
+    /// Set the body of this request to be the given JSON.
+    #[cfg(feature = "json")]
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> HttpResult<RequestBuilder> {
+        self.body = serde_json::to_vec(value)?;
+        Ok(self)
     }
 
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
-    pub fn follow_redirects(&mut self, follow_redirects: bool) {
+    pub fn follow_redirects(mut self, follow_redirects: bool) -> RequestBuilder {
         self.follow_redirects = follow_redirects;
+        self
     }
 
     /// Set the default charset to use while parsing the response of this `Request`.
@@ -184,8 +212,9 @@ impl Request {
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
     #[cfg(feature = "charsets")]
-    pub fn default_charset(&mut self, default_charset: Option<Charset>) {
+    pub fn default_charset(mut self, default_charset: Option<Charset>) -> RequestBuilder {
         self.default_charset = default_charset;
+        self
     }
 
     /// Sets if this `Request` will announce that it accepts compression.
@@ -193,8 +222,106 @@ impl Request {
     /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "compress")]
-    pub fn allow_compression(&mut self, allow_compression: bool) {
+    pub fn allow_compression(mut self, allow_compression: bool) -> RequestBuilder {
         self.allow_compression = allow_compression;
+        self
+    }
+
+    /// Create a `PreparedRequest` from this `RequestBuilder`.
+    ///
+    /// # Panics
+    /// Will panic if an error occurs trying to prepare the request. It shouldn't happen.
+    pub fn prepare(self) -> PreparedRequest {
+        self.try_prepare().expect("failed to prepare request")
+    }
+
+    /// Create a `PreparedRequest` from this `RequestBuilder`.
+    pub fn try_prepare(self) -> HttpResult<PreparedRequest> {
+        let mut prepped = PreparedRequest {
+            url: self.url,
+            method: self.method,
+            headers: self.headers,
+            body: self.body,
+            follow_redirects: self.follow_redirects,
+            #[cfg(feature = "charsets")]
+            default_charset: self.default_charset,
+            #[cfg(feature = "compress")]
+            allow_compression: self.allow_compression,
+        };
+
+        header_insert(&mut prepped.headers, CONNECTION, "close")?;
+        prepped.set_host(&prepped.url.clone())?;
+        prepped.set_compression()?;
+        if prepped.has_body() {
+            header_insert(&mut prepped.headers, CONTENT_LENGTH, format!("{}", prepped.body.len()))?;
+        }
+
+        Ok(prepped)
+    }
+
+    /// Send this request directly.
+    pub fn send(self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+        self.try_prepare()?.send()
+    }
+}
+
+/// Represents a request that's ready to be sent. You can inspect this object for information about the request.
+pub struct PreparedRequest {
+    url: Url,
+    method: Method,
+    headers: HeaderMap,
+    body: Vec<u8>,
+    follow_redirects: bool,
+    #[cfg(feature = "charsets")]
+    pub(crate) default_charset: Option<Charset>,
+    #[cfg(feature = "compress")]
+    allow_compression: bool,
+}
+
+impl PreparedRequest {
+    #[cfg(test)]
+    pub(crate) fn new<U>(method: Method, base_url: U) -> PreparedRequest
+    where
+        U: AsRef<str>,
+    {
+        PreparedRequest {
+            url: Url::parse(base_url.as_ref()).unwrap(),
+            method: method,
+            headers: HeaderMap::new(),
+            body: vec![],
+            follow_redirects: true,
+            #[cfg(feature = "charsets")]
+            default_charset: None,
+            #[cfg(feature = "compress")]
+            allow_compression: true,
+        }
+    }
+
+    fn set_host(&mut self, url: &Url) -> HttpResult {
+        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
+        if let Some(port) = url.port() {
+            header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
+        } else {
+            header_insert(&mut self.headers, HOST, host)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "compress"))]
+    fn set_compression(&mut self) -> HttpResult {
+        Ok(())
+    }
+
+    #[cfg(feature = "compress")]
+    fn set_compression(&mut self) -> HttpResult {
+        if self.allow_compression {
+            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
+        }
+        Ok(())
+    }
+
+    fn has_body(&self) -> bool {
+        !self.body.is_empty() && self.method != Method::TRACE
     }
 
     fn base_redirect_url(&self, location: &str, previous_url: &Url) -> HttpResult<Url> {
@@ -207,9 +334,78 @@ impl Request {
         })
     }
 
-    /// Send this `Request` to the server.
+    fn write_headers<W>(&self, writer: &mut W) -> HttpResult
+    where
+        W: Write,
+    {
+        for (key, value) in self.headers.iter() {
+            write!(writer, "{}: ", key.as_str())?;
+            writer.write_all(value.as_bytes())?;
+            write!(writer, "\r\n")?;
+        }
+        write!(writer, "\r\n")?;
+        Ok(())
+    }
+
+    fn write_request<W>(&mut self, writer: W, url: &Url) -> HttpResult
+    where
+        W: Write,
+    {
+        let mut writer = BufWriter::new(writer);
+        let version = Version::HTTP_11;
+
+        if let Some(query) = url.query() {
+            debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
+
+            write!(
+                writer,
+                "{} {}?{} {:?}\r\n",
+                self.method.as_str(),
+                url.path(),
+                query,
+                version,
+            )?;
+        } else {
+            debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
+
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version)?;
+        }
+
+        self.write_headers(&mut writer)?;
+
+        if self.has_body() {
+            debug!("writing out body of length {}", self.body.len());
+            writer.write_all(&self.body)?;
+        }
+
+        writer.flush()?;
+
+        Ok(())
+    }
+
+    /// Get the URL of this request.
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+
+    /// Get the method of this request.
+    pub fn method(&self) -> &Method {
+        &self.method
+    }
+
+    /// Get the headers of this request.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    /// Get the body of the request.
     ///
-    /// This method consumes the object so that it cannot be used after sending the request.
+    /// If no body was provided, the slice will be empty.
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+
+    /// Send this request and wait for the result.
     pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
         let mut url = self.url.clone();
         loop {
@@ -231,88 +427,10 @@ impl Request {
                 .to_str()
                 .map_err(|_| HttpError::InvalidResponse("location to str error"))?;
 
-            let new_url = self.base_redirect_url(location, &url)?;
-            url = new_url;
+            url = self.base_redirect_url(location, &url)?;
+            self.set_host(&url)?;
 
             debug!("redirected to {} giving url {}", location, url,);
         }
-    }
-
-    fn write_request<W>(&mut self, writer: W, url: &Url) -> HttpResult
-    where
-        W: Write,
-    {
-        let mut writer = BufWriter::new(writer);
-        let version = Version::HTTP_11;
-        let has_body = !self.body.is_empty() && self.method != Method::TRACE;
-
-        if let Some(query) = url.query() {
-            debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version,);
-
-            write!(
-                writer,
-                "{} {}?{} {:?}\r\n",
-                self.method.as_str(),
-                url.path(),
-                query,
-                version,
-            )?;
-        } else {
-            debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
-
-            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version,)?;
-        }
-
-        header_insert(&mut self.headers, CONNECTION, "close")?;
-
-        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
-        if let Some(port) = url.port() {
-            header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
-        } else {
-            header_insert(&mut self.headers, HOST, host)?;
-        }
-
-        if has_body {
-            header_insert(&mut self.headers, CONTENT_LENGTH, format!("{}", self.body.len()))?;
-        }
-
-        self.compression_header()?;
-
-        self.write_headers(&mut writer)?;
-
-        if has_body {
-            debug!("writing out body of length {}", self.body.len());
-            writer.write_all(&self.body)?;
-        }
-
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    fn write_headers<W>(&self, writer: &mut W) -> HttpResult
-    where
-        W: Write,
-    {
-        for (key, value) in self.headers.iter() {
-            write!(writer, "{}: ", key.as_str())?;
-            writer.write_all(value.as_bytes())?;
-            write!(writer, "\r\n")?;
-        }
-        write!(writer, "\r\n")?;
-        Ok(())
-    }
-
-    #[cfg(feature = "compress")]
-    fn compression_header(&mut self) -> HttpResult {
-        if self.allow_compression {
-            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
-        }
-        Ok(())
-    }
-
-    #[cfg(not(feature = "compress"))]
-    fn compression_header(&mut self) -> HttpResult {
-        Ok(())
     }
 }

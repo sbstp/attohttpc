@@ -19,6 +19,8 @@ pub enum HttpError {
     InvalidResponse(&'static str),
     /// Decoding error happened while trying to decode text.
     DecodingError(&'static str),
+    /// Other errors.
+    Other(&'static str),
     /// JSON decoding/encoding error.
     #[cfg(feature = "json")]
     Json(serde_json::Error),
@@ -34,6 +36,7 @@ impl Display for HttpError {
             HttpError::InvalidUrl(s) => write!(w, "InvalidUrl({})", s),
             HttpError::InvalidResponse(s) => write!(w, "InvalidResponse({})", s),
             HttpError::DecodingError(s) => write!(w, "DecodingError({})", s),
+            HttpError::Other(s) => write!(w, "Other({}", s),
             #[cfg(feature = "json")]
             HttpError::Json(e) => write!(w, "JsonError({})", e),
         }
@@ -50,6 +53,7 @@ impl Error for HttpError {
             HttpError::InvalidUrl(s) => s,
             HttpError::InvalidResponse(s) => s,
             HttpError::DecodingError(s) => s,
+            HttpError::Other(s) => s,
             #[cfg(feature = "json")]
             HttpError::Json(e) => e.description(),
         }

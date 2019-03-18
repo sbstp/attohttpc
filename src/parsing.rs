@@ -13,7 +13,6 @@ pub fn error(msg: &str) -> io::Error {
 }
 
 pub use self::body_reader::BodyReader;
-pub use self::buffers::ExpandingBufReader;
 pub use self::chunked_reader::ChunkedReader;
 pub use self::compressed_reader::CompressedReader;
 pub use self::length_reader::LengthReader;

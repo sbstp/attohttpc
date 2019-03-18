@@ -14,7 +14,7 @@ use crate::error::HttpResult;
 #[cfg(feature = "charsets")]
 use crate::parsing::buffers::trim_byte;
 use crate::parsing::CompressedReader;
-use crate::request::Request;
+use crate::request::PreparedRequest;
 #[cfg(feature = "charsets")]
 use crate::streams::StreamDecoder;
 
@@ -43,7 +43,7 @@ pub struct ResponseReader {
 
 impl ResponseReader {
     #[cfg(feature = "charsets")]
-    pub(crate) fn new(headers: &HeaderMap, request: &Request, reader: CompressedReader) -> ResponseReader {
+    pub(crate) fn new(headers: &HeaderMap, request: &PreparedRequest, reader: CompressedReader) -> ResponseReader {
         ResponseReader {
             inner: reader,
             charset: get_charset(&headers, request.default_charset),
@@ -51,7 +51,7 @@ impl ResponseReader {
     }
 
     #[cfg(not(feature = "charsets"))]
-    pub(crate) fn new(_: &HeaderMap, _: &Request, reader: CompressedReader) -> ResponseReader {
+    pub(crate) fn new(_: &HeaderMap, _: &PreparedRequest, reader: CompressedReader) -> ResponseReader {
         ResponseReader { inner: reader }
     }
 

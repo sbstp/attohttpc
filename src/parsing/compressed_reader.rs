@@ -1,8 +1,12 @@
+#[cfg(feature = "compress")]
+use std::io::BufReader;
 use std::io::{self, Read};
 
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
 use http::header::CONTENT_ENCODING;
+#[cfg(feature = "compress")]
+use http::Method;
 #[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
@@ -10,31 +14,41 @@ use libflate::{deflate, gzip};
 use crate::error::HttpError;
 use crate::error::HttpResult;
 use crate::parsing::body_reader::BodyReader;
+use crate::request::PreparedRequest;
 
 pub enum CompressedReader {
     Plain(BodyReader),
     #[cfg(feature = "compress")]
-    Deflate(deflate::Decoder<BodyReader>),
+    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
+    Deflate(deflate::Decoder<BufReader<BodyReader>>),
     #[cfg(feature = "compress")]
-    Gzip(gzip::Decoder<BodyReader>),
+    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
+    Gzip(gzip::Decoder<BufReader<BodyReader>>),
 }
 
 impl CompressedReader {
     #[cfg(feature = "compress")]
-    pub fn new(headers: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
-        if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
-            match content_encoding {
-                b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(reader))),
-                b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(reader)?)),
-                _ => Err(HttpError::InvalidResponse("invalid Content-Encoding header")),
+    pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
+        // If there is no body, we must not try to create a compressed reader because gzip tries to read
+        // the gzip header and the NoBody reader returns EOF.
+        if request.method() != Method::HEAD {
+            if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
+                debug!("creating compressed reader from content encoding");
+                // TODO: there might still be a bug because the gzip decoder checks for data eargerly
+                return match content_encoding {
+                    b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader)))),
+                    b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?)),
+                    b"identity" => Ok(CompressedReader::Plain(reader)),
+                    _ => Err(HttpError::InvalidResponse("invalid Content-Encoding header")),
+                };
             }
-        } else {
-            Ok(CompressedReader::Plain(reader))
         }
+        debug!("creating plain reader");
+        return Ok(CompressedReader::Plain(reader));
     }
 
     #[cfg(not(feature = "compress"))]
-    pub fn new(_: &HeaderMap, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(_: &HeaderMap, _: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
         Ok(CompressedReader::Plain(reader))
     }
 }
@@ -42,6 +56,7 @@ impl CompressedReader {
 impl Read for CompressedReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // TODO: gzip does not read until EOF, leaving some data in the buffer.
         match self {
             CompressedReader::Plain(s) => s.read(buf),
             #[cfg(feature = "compress")]
@@ -56,12 +71,13 @@ impl Read for CompressedReader {
 mod tests {
     use std::io::prelude::*;
 
+    use http::Method;
     #[cfg(feature = "compress")]
     use libflate::{deflate, gzip};
 
     use crate::parsing::response::parse_response;
     use crate::streams::BaseStream;
-    use crate::Request;
+    use crate::PreparedRequest;
 
     #[test]
     fn test_stream_plain() {
@@ -71,7 +87,7 @@ mod tests {
         let _ = write!(buf, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", payload.len());
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
@@ -94,7 +110,7 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
@@ -117,11 +133,31 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = Request::get("http://google.ca");
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
 
         assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_no_body_with_gzip() {
+        let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
+
+        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let sock = BaseStream::mock(buf.to_vec());
+        assert!(parse_response(sock, &req).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_no_body_with_gzip_head() {
+        let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
+
+        let req = PreparedRequest::new(Method::HEAD, "http://google.ca");
+        let sock = BaseStream::mock(buf.to_vec());
+        assert!(parse_response(sock, &req).is_ok());
     }
 }

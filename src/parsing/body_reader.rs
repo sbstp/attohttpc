@@ -1,14 +1,15 @@
-use std::io::{self, Read};
+use std::io::{self, BufReader, Read};
 
 use http::header::{HeaderMap, CONTENT_LENGTH, TRANSFER_ENCODING};
 
 use crate::error::{HttpError, HttpResult};
-use crate::parsing::{ChunkedReader, ExpandingBufReader, LengthReader};
+use crate::parsing::{ChunkedReader, LengthReader};
 use crate::streams::BaseStream;
 
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
-    Length(LengthReader<ExpandingBufReader<BaseStream>>),
+    Length(LengthReader<BufReader<BaseStream>>),
+    Close(BufReader<BaseStream>),
 }
 
 impl Read for BodyReader {
@@ -17,15 +18,18 @@ impl Read for BodyReader {
         match self {
             BodyReader::Chunked(r) => r.read(buf),
             BodyReader::Length(r) => r.read(buf),
+            BodyReader::Close(r) => r.read(buf),
         }
     }
 }
 
 impl BodyReader {
-    pub fn new(headers: &HeaderMap, reader: ExpandingBufReader<BaseStream>) -> HttpResult<BodyReader> {
+    pub fn new(headers: &HeaderMap, reader: BufReader<BaseStream>) -> HttpResult<BodyReader> {
         if headers.get(TRANSFER_ENCODING).map(|v| v.as_bytes()) == Some(b"chunked") {
+            debug!("creating a chunked body reader");
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))
         } else if let Some(val) = headers.get(CONTENT_LENGTH) {
+            debug!("creating a length body reader");
             let val = val
                 .to_str()
                 .map_err(|_| HttpError::InvalidResponse("invalid content length: not a string"))?;
@@ -33,9 +37,8 @@ impl BodyReader {
                 .map_err(|_| HttpError::InvalidResponse("invalid content length: not a number"))?;
             Ok(BodyReader::Length(LengthReader::new(reader, val)))
         } else {
-            Err(HttpError::InvalidResponse(
-                "no content-length or chunked transfer encoding",
-            ))
+            debug!("creating close reader");
+            Ok(BodyReader::Close(reader))
         }
     }
 }

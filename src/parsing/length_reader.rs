@@ -25,12 +25,14 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let remaining = self.length - self.read;
+        debug!("remaining={} buflen={}", remaining, buf.len());
         if remaining == 0 {
             return Ok(0);
         }
         let count = cmp::min(buf.len() as u64, remaining) as usize;
         let n = self.inner.read(&mut buf[..count])?;
         self.read += n as u64;
+        debug!("read {} bytes", n);
         Ok(n)
     }
 }
