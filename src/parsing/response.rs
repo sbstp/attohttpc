@@ -2,7 +2,7 @@ use std::io::{BufReader, Read};
 use std::str;
 
 use http::{
-    header::{HeaderName, HeaderValue},
+    header::{HeaderName, HeaderValue, TRANSFER_ENCODING},
     HeaderMap, StatusCode,
 };
 
@@ -61,10 +61,14 @@ pub fn parse_response(
     request: &PreparedRequest,
 ) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
-    let (status, headers) = parse_response_head(&mut reader)?;
+    let (status, mut headers) = parse_response_head(&mut reader)?;
     let body_reader = BodyReader::new(&headers, reader)?;
     let compressed_reader = CompressedReader::new(&headers, request, body_reader)?;
     let response_reader = ResponseReader::new(&headers, request, compressed_reader);
+
+    // Remove HOP-BY-HOP headers
+    headers.remove(TRANSFER_ENCODING);
+
     Ok((status, headers, response_reader))
 }
 
