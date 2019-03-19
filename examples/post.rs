@@ -4,8 +4,8 @@ fn main() -> HttpResult {
     env_logger::init();
 
     let (status, headers, reader) = lynx::post("https://httpbin.org/post").body("hello, world!").send()?;
-    println!("Headers:\n{:?} {:#?}", status, headers);
-    println!();
+    println!("Status: {:?}", status);
+    println!("Headers:\n{:#?}", headers);
     println!("Body:\n{}", reader.string()?);
 
     Ok(())

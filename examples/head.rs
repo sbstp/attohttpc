@@ -4,7 +4,8 @@ fn main() -> HttpResult {
     env_logger::init();
 
     let (status, headers, _) = lynx::head("http://httpbin.org").send()?;
-    println!("{:?} {:#?}", status, headers);
+    println!("Status: {:?}", status);
+    println!("Headers:\n{:#?}", headers);
 
     Ok(())
 }
