@@ -4,14 +4,12 @@ use std::io::{self, Read};
 
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
-use http::header::CONTENT_ENCODING;
+use http::header::{CONTENT_ENCODING, TRANSFER_ENCODING};
 #[cfg(feature = "compress")]
 use http::Method;
 #[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
-#[cfg(feature = "compress")]
-use crate::error::HttpError;
 use crate::error::HttpResult;
 use crate::parsing::body_reader::BodyReader;
 use crate::request::PreparedRequest;
@@ -26,21 +24,48 @@ pub enum CompressedReader {
     Gzip(gzip::Decoder<BufReader<BodyReader>>),
 }
 
+#[cfg(feature = "compress")]
+fn have_encoding_item(value: &str, enc: &str) -> bool {
+    value.split(",").map(|s| s.trim()).any(|s| s.eq_ignore_ascii_case(enc))
+}
+
+#[cfg(feature = "compress")]
+fn have_encoding_content_encoding(headers: &HeaderMap, enc: &str) -> bool {
+    headers
+        .get_all(CONTENT_ENCODING)
+        .into_iter()
+        .filter_map(|val| val.to_str().ok())
+        .any(|val| have_encoding_item(val, enc))
+}
+
+#[cfg(feature = "compress")]
+fn have_encoding_transfer_encoding(headers: &HeaderMap, enc: &str) -> bool {
+    headers
+        .get_all(TRANSFER_ENCODING)
+        .into_iter()
+        .filter_map(|val| val.to_str().ok())
+        .any(|val| have_encoding_item(val, enc))
+}
+
+#[cfg(feature = "compress")]
+fn have_encoding(headers: &HeaderMap, enc: &str) -> bool {
+    have_encoding_content_encoding(headers, enc) || have_encoding_transfer_encoding(headers, enc)
+}
+
 impl CompressedReader {
     #[cfg(feature = "compress")]
     pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
-        // If there is no body, we must not try to create a compressed reader because gzip tries to read
-        // the gzip header and the NoBody reader returns EOF.
         if request.method() != Method::HEAD {
-            if let Some(content_encoding) = headers.get(CONTENT_ENCODING).map(|v| v.as_bytes()) {
-                debug!("creating compressed reader from content encoding");
-                // TODO: there might still be a bug because the gzip decoder checks for data eargerly
-                return match content_encoding {
-                    b"deflate" => Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader)))),
-                    b"gzip" => Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?)),
-                    b"identity" => Ok(CompressedReader::Plain(reader)),
-                    _ => Err(HttpError::InvalidResponse("invalid Content-Encoding header")),
-                };
+            if have_encoding(headers, "gzip") {
+                // There's an issue when a Content-Encoding of Transfer-Encoding header are present and the body
+                // is empty, because the gzip decoder tries to read the header eagerly.
+                debug!("creating gzip decoder");
+                return Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?));
+            }
+
+            if have_encoding(headers, "deflate") {
+                debug!("creating deflate decoder");
+                return Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader))));
             }
         }
         debug!("creating plain reader");
@@ -71,13 +96,57 @@ impl Read for CompressedReader {
 mod tests {
     use std::io::prelude::*;
 
+    #[cfg(feature = "compress")]
+    use http::header::{HeaderMap, HeaderValue};
     use http::Method;
     #[cfg(feature = "compress")]
     use libflate::{deflate, gzip};
 
+    #[cfg(feature = "compress")]
+    use super::have_encoding;
     use crate::parsing::response::parse_response;
     use crate::streams::BaseStream;
     use crate::PreparedRequest;
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_have_encoding_none() {
+        let mut headers = HeaderMap::new();
+        headers.insert("content-encoding", HeaderValue::from_static("gzip"));
+        assert!(!have_encoding(&headers, "deflate"));
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_have_encoding_content_encoding_simple() {
+        let mut headers = HeaderMap::new();
+        headers.insert("content-encoding", HeaderValue::from_static("gzip"));
+        assert!(have_encoding(&headers, "gzip"));
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_have_encoding_content_encoding_multi() {
+        let mut headers = HeaderMap::new();
+        headers.insert("content-encoding", HeaderValue::from_static("identity, deflate"));
+        assert!(have_encoding(&headers, "deflate"));
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_have_encoding_transfer_encoding_simple() {
+        let mut headers = HeaderMap::new();
+        headers.insert("transfer-encoding", HeaderValue::from_static("deflate"));
+        assert!(have_encoding(&headers, "deflate"));
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_have_encoding_transfer_encoding_multi() {
+        let mut headers = HeaderMap::new();
+        headers.insert("transfer-encoding", HeaderValue::from_static("gzip, chunked"));
+        assert!(have_encoding(&headers, "gzip"));
+    }
 
     #[test]
     fn test_stream_plain() {

@@ -1,6 +1,6 @@
 use std::io::{self, BufReader, Read};
 
-use http::header::{HeaderMap, CONTENT_LENGTH, TRANSFER_ENCODING};
+use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
 use crate::error::{HttpError, HttpResult};
 use crate::parsing::{ChunkedReader, LengthReader};
@@ -23,22 +23,119 @@ impl Read for BodyReader {
     }
 }
 
+fn is_chunked(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(TRANSFER_ENCODING)
+        .into_iter()
+        .filter_map(|val| val.to_str().ok())
+        .any(|val| {
+            val.split(",")
+                .map(|s| s.trim())
+                .any(|s| s.eq_ignore_ascii_case("chunked"))
+        })
+}
+
+fn parse_content_length(val: &HeaderValue) -> HttpResult<u64> {
+    let val = val
+        .to_str()
+        .map_err(|_| HttpError::InvalidResponse("invalid content length: not a string"))?;
+    let val: u64 =
+        u64::from_str_radix(val, 10).map_err(|_| HttpError::InvalidResponse("invalid content length: not a number"))?;
+    Ok(val)
+}
+
+fn is_content_length(headers: &HeaderMap) -> HttpResult<Option<u64>> {
+    let mut last = None;
+    for val in headers.get_all(CONTENT_LENGTH) {
+        let val = parse_content_length(val)?;
+        last = Some(match last {
+            None => val,
+            Some(last) if last == val => val,
+            _ => {
+                return Err(HttpError::InvalidResponse(
+                    "multiple content-length headers and different values",
+                ));
+            }
+        });
+    }
+    Ok(last)
+}
+
 impl BodyReader {
     pub fn new(headers: &HeaderMap, reader: BufReader<BaseStream>) -> HttpResult<BodyReader> {
-        if headers.get(TRANSFER_ENCODING).map(|v| v.as_bytes()) == Some(b"chunked") {
+        if is_chunked(headers) {
             debug!("creating a chunked body reader");
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))
-        } else if let Some(val) = headers.get(CONTENT_LENGTH) {
+        } else if let Some(val) = is_content_length(headers)? {
             debug!("creating a length body reader");
-            let val = val
-                .to_str()
-                .map_err(|_| HttpError::InvalidResponse("invalid content length: not a string"))?;
-            let val: u64 = u64::from_str_radix(val, 10)
-                .map_err(|_| HttpError::InvalidResponse("invalid content length: not a number"))?;
             Ok(BodyReader::Length(LengthReader::new(reader, val)))
         } else {
             debug!("creating close reader");
             Ok(BodyReader::Close(reader))
         }
     }
+}
+
+#[test]
+fn test_is_chunked_false() {
+    let mut headers = HeaderMap::new();
+    headers.insert("content-encoding", HeaderValue::from_static("gzip"));
+    assert!(!is_chunked(&headers));
+}
+
+#[test]
+fn test_is_chunked_simple() {
+    let mut headers = HeaderMap::new();
+    headers.insert("transfer-encoding", HeaderValue::from_static("chunked"));
+    assert!(is_chunked(&headers));
+}
+
+#[test]
+fn test_is_chunked_multi() {
+    let mut headers = HeaderMap::new();
+    headers.insert("transfer-encoding", HeaderValue::from_static("gzip, chunked"));
+    assert!(is_chunked(&headers));
+}
+
+#[test]
+fn test_parse_content_length_ok() {
+    assert_eq!(parse_content_length(&HeaderValue::from_static("17")).ok(), Some(17));
+}
+
+#[test]
+fn test_parse_content_length_err() {
+    assert!(parse_content_length(&HeaderValue::from_static("XD")).is_err());
+}
+
+#[test]
+fn test_is_content_length_none() {
+    let headers = HeaderMap::new();
+    assert_eq!(is_content_length(&headers).ok(), Some(None));
+}
+
+#[test]
+fn test_is_content_length_one() {
+    let mut headers = HeaderMap::new();
+    headers.insert("content-length", HeaderValue::from_static("88"));
+    assert_eq!(is_content_length(&headers).ok(), Some(Some(88)));
+}
+
+#[test]
+fn test_is_content_length_many_ok() {
+    let mut headers = HeaderMap::new();
+    headers.append("content-length", HeaderValue::from_static("88"));
+    headers.append("content-length", HeaderValue::from_static("88"));
+
+    assert_eq!(headers.get_all("content-length").iter().count(), 2);
+    assert_eq!(is_content_length(&headers).ok(), Some(Some(88)));
+}
+
+#[test]
+fn test_is_content_length_many_err() {
+    let mut headers = HeaderMap::new();
+    headers.append("content-length", HeaderValue::from_static("88"));
+    headers.append("content-length", HeaderValue::from_static("90"));
+
+    assert_eq!(headers.get_all("content-length").iter().count(), 2);
+    assert!(is_content_length(&headers).is_err());
 }
