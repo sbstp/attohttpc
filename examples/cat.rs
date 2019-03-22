@@ -10,7 +10,7 @@ fn main() -> HttpResult {
     let (status, headers, reader) = lynx::get(&url).send()?;
     println!("Status: {:?}", status);
     println!("Headers:\n{:#?}", headers);
-    println!("Body:\n{}", reader.string()?);
+    println!("Body:\n{}", reader.text()?);
 
     Ok(())
 }

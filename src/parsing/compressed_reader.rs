@@ -160,7 +160,7 @@ mod tests {
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
-        assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod tests {
 
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
-        assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]
@@ -207,7 +207,7 @@ mod tests {
         let sock = BaseStream::mock(buf);
         let (_, _, response) = parse_response(sock, &req).unwrap();
 
-        assert_eq!(response.string().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]

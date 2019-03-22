@@ -4,6 +4,11 @@ use encoding_rs::{CoderResult, Decoder};
 
 use crate::charsets::Charset;
 
+/// `TextReader` converts bytes in a specific charset to bytes in UTF-8.
+///
+/// It can be used to convert a stream of text in a specific charset into a stream
+/// of UTF-8 encoded bytes. The `Read::read_to_string` method can be used to convert
+/// the stream of UTF-8 bytes into a `String`.
 pub struct TextReader<R>
 where
     R: BufRead,
@@ -17,6 +22,7 @@ impl<R> TextReader<R>
 where
     R: BufRead,
 {
+    /// Create a new `TextReader` with the given charset.
     pub fn new(inner: R, charset: Charset) -> TextReader<R> {
         TextReader {
             inner: inner,

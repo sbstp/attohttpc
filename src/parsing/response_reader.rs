@@ -1,6 +1,6 @@
-use std::io::{self, Read, Write};
 #[cfg(feature = "charsets")]
 use std::io::BufReader;
+use std::io::{self, Read, Write};
 
 #[cfg(feature = "charsets")]
 use encoding_rs::Encoding;
@@ -77,7 +77,7 @@ impl ResponseReader {
     ///
     /// The the UTF-8 codec is assumed. Use the `charsets` featured to get more options.
     #[cfg(not(feature = "charsets"))]
-    pub fn string(mut self) -> HttpResult<String> {
+    pub fn text(mut self) -> HttpResult<String> {
         let mut contents = String::new();
         self.inner.read_to_string(&mut contents)?;
         Ok(contents)
@@ -89,30 +89,56 @@ impl ResponseReader {
     /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
     /// will be used.
     #[cfg(feature = "charsets")]
-    pub fn string(self) -> HttpResult<String> {
+    pub fn text(self) -> HttpResult<String> {
         let charset = self.charset;
-        self.string_with(charset)
+        self.text_with(charset)
     }
 
     /// Read the response to a `String`, decoding with the given `Encoding`.
     ///
     /// This will ignore the encoding from the response headers and the default encoding, if any.
     #[cfg(feature = "charsets")]
-    pub fn string_with(self, charset: Charset) -> HttpResult<String> {
-        let mut reader = TextReader::new(BufReader::new(self.inner), charset);
+    pub fn text_with(self, charset: Charset) -> HttpResult<String> {
+        let mut reader = self.text_reader_with(charset);
         let mut text = String::new();
         reader.read_to_string(&mut text)?;
         Ok(text)
     }
 
+    #[cfg(feature = "charsets")]
+    /// Create a `TextReader` from this `ResponseReader`.
+    pub fn text_reader(self) -> TextReader<BufReader<ResponseReader>> {
+        let charset = self.charset;
+        self.text_reader_with(charset)
+    }
+
+    #[cfg(feature = "charsets")]
+    /// Create a `TextReader` from this `ResponseReader`.
+    pub fn text_reader_with(self, charset: Charset) -> TextReader<BufReader<ResponseReader>> {
+        TextReader::new(BufReader::new(self), charset)
+    }
+
     /// Parse the response as a JSON object and return it.
     #[cfg(feature = "json")]
+    #[cfg(feature = "charsets")]
     pub fn json<T>(self) -> HttpResult<T>
     where
         T: DeserializeOwned,
     {
-        let text = self.string()?;
-        let obj = serde_json::from_str(&text)?;
+        let reader = BufReader::new(self.text_reader());
+        let obj = serde_json::from_reader(reader)?;
+        Ok(obj)
+    }
+
+    #[cfg(feature = "json")]
+    #[cfg(not(feature = "charsets"))]
+    /// Parse the response as a JSON object and return it.
+    pub fn json<T>(self) -> HttpResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        let reader = BufReader::new(self);
+        let obj = serde_json::from_reader(reader)?;
         Ok(obj)
     }
 }
