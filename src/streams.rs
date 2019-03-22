@@ -3,14 +3,10 @@ use std::io::Cursor;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
-#[cfg(feature = "charsets")]
-use encoding_rs::{self, CoderResult};
 #[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
 
-#[cfg(feature = "charsets")]
-use crate::charsets::Charset;
 use crate::{HttpError, HttpResult};
 
 pub enum BaseStream {
@@ -89,85 +85,6 @@ impl Write for BaseStream {
             BaseStream::Tls(s) => s.flush(),
             #[cfg(test)]
             _ => Ok(()),
-        }
-    }
-}
-
-#[cfg(feature = "charsets")]
-pub struct StreamDecoder {
-    output: String,
-    decoder: encoding_rs::Decoder,
-}
-
-#[cfg(feature = "charsets")]
-impl StreamDecoder {
-    pub fn new(charset: Charset) -> StreamDecoder {
-        StreamDecoder {
-            output: String::with_capacity(1024),
-            decoder: charset.new_decoder(),
-        }
-    }
-
-    pub fn take(mut self) -> String {
-        self.decoder.decode_to_string(&[], &mut self.output, true);
-        self.output
-    }
-}
-
-#[cfg(feature = "charsets")]
-impl Write for StreamDecoder {
-    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
-        let len = buf.len();
-        while buf.len() > 0 {
-            match self.decoder.decode_to_string(&buf, &mut self.output, false) {
-                (CoderResult::InputEmpty, written, _) => {
-                    buf = &buf[written..];
-                }
-                (CoderResult::OutputFull, written, _) => {
-                    buf = &buf[written..];
-                    self.output.reserve(self.output.capacity());
-                }
-            }
-        }
-        Ok(len)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "charsets")]
-mod tests {
-    use super::StreamDecoder;
-    use crate::charsets;
-    use std::io::Write;
-
-    #[test]
-    fn test_stream_decoder_utf8() {
-        let mut decoder = StreamDecoder::new(charsets::UTF_8);
-        decoder.write_all("québec".as_bytes()).unwrap();
-        assert_eq!(decoder.take(), "québec");
-    }
-
-    #[test]
-    fn test_stream_decoder_latin1() {
-        let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
-        decoder.write_all(&[201]).unwrap();
-        assert_eq!(decoder.take(), "É");
-    }
-
-    #[test]
-    fn test_stream_decoder_large_buffer() {
-        let mut decoder = StreamDecoder::new(charsets::WINDOWS_1252);
-        let mut buf = vec![];
-        for _ in 0..10_000 {
-            buf.push(201);
-        }
-        decoder.write_all(&buf).unwrap();
-        for c in decoder.take().chars() {
-            assert_eq!(c, 'É');
         }
     }
 }

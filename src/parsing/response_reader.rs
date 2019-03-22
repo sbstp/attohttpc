@@ -1,4 +1,6 @@
 use std::io::{self, Read, Write};
+#[cfg(feature = "charsets")]
+use std::io::BufReader;
 
 #[cfg(feature = "charsets")]
 use encoding_rs::Encoding;
@@ -14,9 +16,9 @@ use crate::error::HttpResult;
 #[cfg(feature = "charsets")]
 use crate::parsing::buffers::trim_byte;
 use crate::parsing::CompressedReader;
-use crate::request::PreparedRequest;
 #[cfg(feature = "charsets")]
-use crate::streams::StreamDecoder;
+use crate::parsing::TextReader;
+use crate::request::PreparedRequest;
 
 #[cfg(feature = "charsets")]
 fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset {
@@ -97,9 +99,10 @@ impl ResponseReader {
     /// This will ignore the encoding from the response headers and the default encoding, if any.
     #[cfg(feature = "charsets")]
     pub fn string_with(self, charset: Charset) -> HttpResult<String> {
-        let mut decoder = StreamDecoder::new(charset);
-        self.write_to(&mut decoder)?;
-        Ok(decoder.take())
+        let mut reader = TextReader::new(BufReader::new(self.inner), charset);
+        let mut text = String::new();
+        reader.read_to_string(&mut text)?;
+        Ok(text)
     }
 
     /// Parse the response as a JSON object and return it.
