@@ -184,18 +184,41 @@ impl RequestBuilder {
         Ok(self)
     }
 
-    /// Set the body of this request.
+    /// Set the body of this request to be text.
     ///
-    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
-    pub fn body(mut self, body: impl AsRef<[u8]>) -> RequestBuilder {
-        self.body = body.as_ref().to_owned();
+    /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
+    pub fn text(mut self, body: impl Into<String>) -> RequestBuilder {
+        self.body = body.into().into_bytes();
+        self.headers
+            .entry(http::header::CONTENT_TYPE)
+            .unwrap()
+            .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
         self
     }
 
-    /// Set the body of this request to be the given JSON.
+    /// Set the body of this request to be bytes.
+    ///
+    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
+    /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
+    pub fn bytes(mut self, body: impl Into<Vec<u8>>) -> RequestBuilder {
+        self.body = body.into();
+        self.headers
+            .entry(http::header::CONTENT_TYPE)
+            .unwrap()
+            .or_insert(HeaderValue::from_static("application/octet-stream"));
+        self
+    }
+
+    /// Set the body of this request to be the JSON representation of the given object.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
     pub fn json<T: serde::Serialize>(mut self, value: &T) -> HttpResult<RequestBuilder> {
         self.body = serde_json::to_vec(value)?;
+        self.headers
+            .entry(http::header::CONTENT_TYPE)
+            .unwrap()
+            .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
         Ok(self)
     }
 
