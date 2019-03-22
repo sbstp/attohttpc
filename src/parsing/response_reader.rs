@@ -1,4 +1,4 @@
-#[cfg(feature = "charsets")]
+#[cfg(any(feature = "charsets", feature = "json"))]
 use std::io::BufReader;
 use std::io::{self, Read, Write};
 
