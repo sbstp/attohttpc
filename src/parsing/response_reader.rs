@@ -170,6 +170,7 @@ impl ResponseReader {
     /// Parse the response as a JSON object and return it.
     ///
     /// The response body is assumed to be JSON encoded as UTF-8.
+    /// This method only exists when the `json` feature is enabled.
     pub fn json<T>(self) -> Result<T>
     where
         T: DeserializeOwned,
@@ -180,6 +181,7 @@ impl ResponseReader {
     /// Parse the response as a JSON object encoded in UTF-8.
     ///
     /// This method ignores headers and the default encoding.
+    /// This method only exists when the `json` feature is enabled.
     #[cfg(feature = "json")]
     pub fn json_utf8<T>(self) -> Result<T>
     where
