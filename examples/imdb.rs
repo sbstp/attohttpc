@@ -1,8 +1,6 @@
 use std::fs::File;
 
-use attohttpc::HttpResult;
-
-fn main() -> HttpResult {
+fn main() -> attohttpc::Result {
     env_logger::init();
 
     let (status, headers, reader) = attohttpc::get("https://datasets.imdbws.com/title.basics.tsv.gz").send()?;

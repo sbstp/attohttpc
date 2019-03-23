@@ -2,7 +2,7 @@ use std::io::{self, BufReader, Read};
 
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
-use crate::error::{HttpError, HttpResult};
+use crate::error::{HttpError, Result};
 use crate::parsing::{ChunkedReader, LengthReader};
 use crate::streams::BaseStream;
 
@@ -35,7 +35,7 @@ fn is_chunked(headers: &HeaderMap) -> bool {
         })
 }
 
-fn parse_content_length(val: &HeaderValue) -> HttpResult<u64> {
+fn parse_content_length(val: &HeaderValue) -> Result<u64> {
     let val = val
         .to_str()
         .map_err(|_| HttpError::InvalidResponse("invalid content length: not a string"))?;
@@ -44,7 +44,7 @@ fn parse_content_length(val: &HeaderValue) -> HttpResult<u64> {
     Ok(val)
 }
 
-fn is_content_length(headers: &HeaderMap) -> HttpResult<Option<u64>> {
+fn is_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
     let mut last = None;
     for val in headers.get_all(CONTENT_LENGTH) {
         let val = parse_content_length(val)?;
@@ -62,7 +62,7 @@ fn is_content_length(headers: &HeaderMap) -> HttpResult<Option<u64>> {
 }
 
 impl BodyReader {
-    pub fn new(headers: &HeaderMap, reader: BufReader<BaseStream>) -> HttpResult<BodyReader> {
+    pub fn new(headers: &HeaderMap, reader: BufReader<BaseStream>) -> Result<BodyReader> {
         if is_chunked(headers) {
             debug!("creating a chunked body reader");
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))

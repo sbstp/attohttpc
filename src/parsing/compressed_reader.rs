@@ -10,7 +10,7 @@ use http::Method;
 #[cfg(feature = "compress")]
 use libflate::{deflate, gzip};
 
-use crate::error::HttpResult;
+use crate::error::Result;
 use crate::parsing::body_reader::BodyReader;
 use crate::request::PreparedRequest;
 
@@ -54,7 +54,7 @@ fn have_encoding(headers: &HeaderMap, enc: &str) -> bool {
 
 impl CompressedReader {
     #[cfg(feature = "compress")]
-    pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> Result<CompressedReader> {
         if request.method() != Method::HEAD {
             if have_encoding(headers, "gzip") {
                 // There's an issue when a Content-Encoding of Transfer-Encoding header are present and the body
@@ -73,7 +73,7 @@ impl CompressedReader {
     }
 
     #[cfg(not(feature = "compress"))]
-    pub fn new(_: &HeaderMap, _: &PreparedRequest, reader: BodyReader) -> HttpResult<CompressedReader> {
+    pub fn new(_: &HeaderMap, _: &PreparedRequest, reader: BodyReader) -> Result<CompressedReader> {
         Ok(CompressedReader::Plain(reader))
     }
 }

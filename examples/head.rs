@@ -1,6 +1,4 @@
-use attohttpc::HttpResult;
-
-fn main() -> HttpResult {
+fn main() -> attohttpc::Result {
     env_logger::init();
 
     let (status, headers, _) = attohttpc::head("http://httpbin.org").send()?;

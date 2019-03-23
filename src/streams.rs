@@ -7,7 +7,7 @@ use std::net::TcpStream;
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
 
-use crate::{HttpError, HttpResult};
+use crate::{HttpError, Result};
 
 pub enum BaseStream {
     Plain(TcpStream),
@@ -18,7 +18,7 @@ pub enum BaseStream {
 }
 
 impl BaseStream {
-    pub fn connect(url: &Url) -> HttpResult<BaseStream> {
+    pub fn connect(url: &Url) -> Result<BaseStream> {
         let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
         let port = url
             .port_or_known_default()
@@ -35,7 +35,7 @@ impl BaseStream {
     }
 
     #[cfg(feature = "tls")]
-    fn connect_tls(host: &str, port: u16) -> HttpResult<BaseStream> {
+    fn connect_tls(host: &str, port: u16) -> Result<BaseStream> {
         let connector = TlsConnector::new()?;
         let stream = TcpStream::connect((host, port))?;
         let tls_stream = match connector.connect(host, stream) {

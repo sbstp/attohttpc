@@ -1,8 +1,6 @@
 use serde_json::json;
 
-use attohttpc::HttpResult;
-
-fn main() -> HttpResult {
+fn main() -> attohttpc::Result {
     env_logger::init();
 
     let body = json!({

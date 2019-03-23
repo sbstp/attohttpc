@@ -2,6 +2,7 @@
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
+use std::result;
 use std::str;
 
 #[cfg(feature = "compress")]
@@ -15,12 +16,12 @@ use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
-use crate::error::{HttpError, HttpResult};
+use crate::error::{HttpError, Result};
 use crate::parsing::{parse_response, ResponseReader};
 use crate::streams::BaseStream;
 
 pub trait HttpTryInto<T> {
-    fn try_into(self) -> Result<T, http::Error>;
+    fn try_into(self) -> result::Result<T, http::Error>;
 }
 
 impl<T, U> HttpTryInto<U> for T
@@ -28,13 +29,13 @@ where
     U: HttpTryFrom<T>,
     http::Error: From<<U as http::HttpTryFrom<T>>::Error>,
 {
-    fn try_into(self) -> Result<U, http::Error> {
+    fn try_into(self) -> result::Result<U, http::Error> {
         let val = U::try_from(self)?;
         Ok(val)
     }
 }
 
-fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> HttpResult
+fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
     H: IntoHeaderName,
     V: HttpTryInto<HeaderValue>,
@@ -44,7 +45,7 @@ where
     Ok(())
 }
 
-fn header_append<H, V>(headers: &mut HeaderMap, header: H, value: V) -> HttpResult
+fn header_append<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
     H: IntoHeaderName,
     V: HttpTryInto<HeaderValue>,
@@ -87,7 +88,7 @@ impl RequestBuilder {
     ///
     /// If the base URL is invalid, an error is returned.
     /// If the method is CONNECT, an error is also returned. CONNECT is not yet supported.
-    pub fn try_new<U>(method: Method, base_url: U) -> HttpResult<RequestBuilder>
+    pub fn try_new<U>(method: Method, base_url: U) -> Result<RequestBuilder>
     where
         U: AsRef<str>,
     {
@@ -170,7 +171,7 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn try_header<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
+    pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<RequestBuilder>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -182,7 +183,7 @@ impl RequestBuilder {
     /// Append a new header to this `Request`.
     ///
     /// The new header is always appended to the `Request`, even if the header already exists.
-    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> HttpResult<RequestBuilder>
+    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<RequestBuilder>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -220,7 +221,7 @@ impl RequestBuilder {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> HttpResult<RequestBuilder> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
         self.body = serde_json::to_vec(value)?;
         self.headers
             .entry(http::header::CONTENT_TYPE)
@@ -266,7 +267,7 @@ impl RequestBuilder {
     }
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
-    pub fn try_prepare(self) -> HttpResult<PreparedRequest> {
+    pub fn try_prepare(self) -> Result<PreparedRequest> {
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
@@ -290,7 +291,7 @@ impl RequestBuilder {
     }
 
     /// Send this request directly.
-    pub fn send(self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+    pub fn send(self) -> Result<(StatusCode, HeaderMap, ResponseReader)> {
         self.try_prepare()?.send()
     }
 }
@@ -327,7 +328,7 @@ impl PreparedRequest {
         }
     }
 
-    fn set_host(&mut self, url: &Url) -> HttpResult {
+    fn set_host(&mut self, url: &Url) -> Result {
         let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
         if let Some(port) = url.port() {
             header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
@@ -338,12 +339,12 @@ impl PreparedRequest {
     }
 
     #[cfg(not(feature = "compress"))]
-    fn set_compression(&mut self) -> HttpResult {
+    fn set_compression(&mut self) -> Result {
         Ok(())
     }
 
     #[cfg(feature = "compress")]
-    fn set_compression(&mut self) -> HttpResult {
+    fn set_compression(&mut self) -> Result {
         if self.allow_compression {
             header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
@@ -354,7 +355,7 @@ impl PreparedRequest {
         !self.body.is_empty() && self.method != Method::TRACE
     }
 
-    fn base_redirect_url(&self, location: &str, previous_url: &Url) -> HttpResult<Url> {
+    fn base_redirect_url(&self, location: &str, previous_url: &Url) -> Result<Url> {
         Ok(match Url::parse(location) {
             Ok(url) => url,
             Err(url::ParseError::RelativeUrlWithoutBase) => previous_url
@@ -364,7 +365,7 @@ impl PreparedRequest {
         })
     }
 
-    fn write_headers<W>(&self, writer: &mut W) -> HttpResult
+    fn write_headers<W>(&self, writer: &mut W) -> Result
     where
         W: Write,
     {
@@ -377,7 +378,7 @@ impl PreparedRequest {
         Ok(())
     }
 
-    fn write_request<W>(&mut self, writer: W, url: &Url) -> HttpResult
+    fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
     where
         W: Write,
     {
@@ -436,7 +437,7 @@ impl PreparedRequest {
     }
 
     /// Send this request and wait for the result.
-    pub fn send(mut self) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+    pub fn send(mut self) -> Result<(StatusCode, HeaderMap, ResponseReader)> {
         let mut url = self.url.clone();
         loop {
             let mut stream = BaseStream::connect(&url)?;

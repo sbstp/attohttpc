@@ -6,13 +6,13 @@ use http::{
     HeaderMap, StatusCode,
 };
 
-use crate::error::{HttpError, HttpResult};
+use crate::error::{HttpError, Result};
 use crate::parsing::buffers::{self, trim_byte};
 use crate::parsing::{BodyReader, CompressedReader, ResponseReader};
 use crate::request::PreparedRequest;
 use crate::streams::BaseStream;
 
-pub fn parse_response_head<R>(reader: &mut BufReader<R>) -> HttpResult<(StatusCode, HeaderMap)>
+pub fn parse_response_head<R>(reader: &mut BufReader<R>) -> Result<(StatusCode, HeaderMap)>
 where
     R: Read,
 {
@@ -59,7 +59,7 @@ where
 pub fn parse_response(
     reader: BaseStream,
     request: &PreparedRequest,
-) -> HttpResult<(StatusCode, HeaderMap, ResponseReader)> {
+) -> Result<(StatusCode, HeaderMap, ResponseReader)> {
     let mut reader = BufReader::new(reader);
     let (status, mut headers) = parse_response_head(&mut reader)?;
     let body_reader = BodyReader::new(&headers, reader)?;

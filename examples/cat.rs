@@ -1,8 +1,8 @@
 use std::env;
 
-use attohttpc::HttpResult;
+use attohttpc::Result;
 
-fn main() -> HttpResult {
+fn main() -> Result {
     env_logger::init();
 
     let url: String = env::args().collect::<Vec<_>>().into_iter().nth(1).expect("missing url");

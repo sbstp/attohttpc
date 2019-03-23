@@ -47,7 +47,7 @@ mod parsing;
 mod request;
 mod streams;
 
-pub use crate::error::{HttpError, HttpResult};
+pub use crate::error::{HttpError, Result};
 pub use crate::parsing::ResponseReader;
 pub use crate::request::{PreparedRequest, RequestBuilder};
 #[cfg(feature = "charsets")]

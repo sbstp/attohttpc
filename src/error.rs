@@ -90,4 +90,4 @@ impl_from!(native_tls::Error, Tls);
 impl_from!(serde_json::Error, Json);
 
 /// Wrapper for the `Result` type with an `HttpError`.
-pub type HttpResult<T = ()> = result::Result<T, HttpError>;
+pub type Result<T = ()> = result::Result<T, HttpError>;

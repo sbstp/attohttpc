@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::{self, Charset};
-use crate::error::HttpResult;
+use crate::error::Result;
 #[cfg(feature = "charsets")]
 use crate::parsing::buffers::trim_byte;
 use crate::parsing::CompressedReader;
@@ -67,7 +67,7 @@ impl ResponseReader {
     }
 
     /// Write the response to any object that implements `Write`.
-    pub fn write_to<W>(mut self, mut writer: W) -> HttpResult<u64>
+    pub fn write_to<W>(mut self, mut writer: W) -> Result<u64>
     where
         W: Write,
     {
@@ -76,7 +76,7 @@ impl ResponseReader {
     }
 
     /// Read the response to a `Vec` of bytes.
-    pub fn bytes(self) -> HttpResult<Vec<u8>> {
+    pub fn bytes(self) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
         self.write_to(&mut buf)?;
         Ok(buf)
@@ -86,7 +86,7 @@ impl ResponseReader {
     ///
     /// The the UTF-8 codec is assumed. Use the `charsets` feature to get more options.
     #[cfg(not(feature = "charsets"))]
-    pub fn text(self) -> HttpResult<String> {
+    pub fn text(self) -> Result<String> {
         self.text_utf8()
     }
 
@@ -98,7 +98,7 @@ impl ResponseReader {
     ///
     /// When the `charsets` feature is disabled this method can only decode UTF-8.
     #[cfg(feature = "charsets")]
-    pub fn text(self) -> HttpResult<String> {
+    pub fn text(self) -> Result<String> {
         let charset = self.charset;
         self.text_with(charset)
     }
@@ -109,7 +109,7 @@ impl ResponseReader {
     ///
     /// This method only exists when the `charsets` feature is enabled.
     #[cfg(feature = "charsets")]
-    pub fn text_with(self, charset: Charset) -> HttpResult<String> {
+    pub fn text_with(self, charset: Charset) -> Result<String> {
         let mut reader = self.text_reader_with(charset);
         let mut text = String::new();
         reader.read_to_string(&mut text)?;
@@ -142,7 +142,7 @@ impl ResponseReader {
     /// Read the response body to a String using the UTF-8 encoding.
     ///
     /// This method ignores headers and the default encoding.
-    pub fn text_utf8(mut self) -> HttpResult<String> {
+    pub fn text_utf8(mut self) -> Result<String> {
         let mut text = String::new();
         self.inner.read_to_string(&mut text)?;
         Ok(text)
@@ -156,7 +156,7 @@ impl ResponseReader {
     /// When the `charsets` feature is disabled, this method can only decode UTF-8 encoded JSON.
     #[cfg(feature = "json")]
     #[cfg(feature = "charsets")]
-    pub fn json<T>(self) -> HttpResult<T>
+    pub fn json<T>(self) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -170,7 +170,7 @@ impl ResponseReader {
     /// Parse the response as a JSON object and return it.
     ///
     /// The response body is assumed to be JSON encoded as UTF-8.
-    pub fn json<T>(self) -> HttpResult<T>
+    pub fn json<T>(self) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -181,7 +181,7 @@ impl ResponseReader {
     ///
     /// This method ignores headers and the default encoding.
     #[cfg(feature = "json")]
-    pub fn json_utf8<T>(self) -> HttpResult<T>
+    pub fn json_utf8<T>(self) -> Result<T>
     where
         T: DeserializeOwned,
     {

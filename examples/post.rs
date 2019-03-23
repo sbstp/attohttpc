@@ -1,6 +1,4 @@
-use attohttpc::HttpResult;
-
-fn main() -> HttpResult {
+fn main() -> attohttpc::Result {
     env_logger::init();
 
     let (status, headers, reader) = attohttpc::post("https://httpbin.org/post")
