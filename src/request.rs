@@ -9,7 +9,6 @@ use std::str;
 use http::header::ACCEPT_ENCODING;
 use http::{
     header::{HeaderValue, IntoHeaderName, CONNECTION, CONTENT_LENGTH, HOST},
-    status::StatusCode,
     HeaderMap, HttpTryFrom, Method, Version,
 };
 use url::Url;
@@ -17,7 +16,7 @@ use url::Url;
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
-use crate::parsing::{parse_response, ResponseReader};
+use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
 
 pub trait HttpTryInto<T> {
@@ -291,7 +290,7 @@ impl RequestBuilder {
     }
 
     /// Send this request directly.
-    pub fn send(self) -> Result<(StatusCode, HeaderMap, ResponseReader)> {
+    pub fn send(self) -> Result<Response> {
         self.try_prepare()?.send()
     }
 }
@@ -437,21 +436,22 @@ impl PreparedRequest {
     }
 
     /// Send this request and wait for the result.
-    pub fn send(mut self) -> Result<(StatusCode, HeaderMap, ResponseReader)> {
+    pub fn send(mut self) -> Result<Response> {
         let mut url = self.url.clone();
         loop {
             let mut stream = BaseStream::connect(&url)?;
             self.write_request(&mut stream, &url)?;
-            let (status, headers, resp) = parse_response(stream, &self)?;
+            let resp = parse_response(stream, &self)?;
 
-            debug!("status code {}", status.as_u16());
+            debug!("status code {}", resp.status().as_u16());
 
-            if !self.follow_redirects || !status.is_redirection() {
-                return Ok((status, headers, resp));
+            if !self.follow_redirects || !resp.status().is_redirection() {
+                return Ok(resp);
             }
 
             // Handle redirect
-            let location = headers
+            let location = resp
+                .headers()
                 .get(http::header::LOCATION)
                 .ok_or(Error::InvalidResponse("redirect has no location header"))?;
             let location = location

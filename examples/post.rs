@@ -1,12 +1,13 @@
 fn main() -> attohttpc::Result {
     env_logger::init();
 
-    let (status, headers, reader) = attohttpc::post("https://httpbin.org/post")
+    let resp = attohttpc::post("https://httpbin.org/post")
         .text("hello, world!")
         .send()?;
-    println!("Status: {:?}", status);
-    println!("Headers:\n{:#?}", headers);
-    println!("Body:\n{}", reader.text()?);
+
+    println!("Status: {:?}", resp.status());
+    println!("Headers:\n{:#?}", resp.headers());
+    println!("Body:\n{}", resp.text()?);
 
     Ok(())
 }

@@ -159,7 +159,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let (_, _, response) = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req).unwrap();
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let (_, _, response) = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req).unwrap();
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
@@ -205,7 +205,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let (_, _, response) = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req).unwrap();
 
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }

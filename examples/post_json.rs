@@ -7,10 +7,10 @@ fn main() -> attohttpc::Result {
         "hello": "world",
     });
 
-    let (status, headers, reader) = attohttpc::post("http://httpbin.org/post").json(&body)?.send()?;
-    println!("Status: {:?}", status);
-    println!("Headers:\n{:#?}", headers);
-    println!("Body:\n{}", reader.text_utf8()?);
+    let resp = attohttpc::post("http://httpbin.org/post").json(&body)?.send()?;
+    println!("Status: {:?}", resp.status());
+    println!("Headers:\n{:#?}", resp.headers());
+    println!("Body:\n{}", resp.text_utf8()?);
 
     Ok(())
 }

@@ -2,23 +2,24 @@
 use std::io::BufReader;
 use std::io::{self, Read, Write};
 
-#[cfg(feature = "charsets")]
-use encoding_rs::Encoding;
 use http::header::HeaderMap;
-#[cfg(feature = "charsets")]
-use http::header::CONTENT_TYPE;
 #[cfg(feature = "json")]
 use serde::de::DeserializeOwned;
 
-#[cfg(feature = "charsets")]
-use crate::charsets::{self, Charset};
 use crate::error::Result;
-#[cfg(feature = "charsets")]
-use crate::parsing::buffers::trim_byte;
 use crate::parsing::CompressedReader;
-#[cfg(feature = "charsets")]
-use crate::parsing::TextReader;
 use crate::request::PreparedRequest;
+
+#[cfg(feature = "charsets")]
+use {
+    crate::{
+        charsets::{self, Charset},
+        parsing::buffers::trim_byte,
+        parsing::TextReader,
+    },
+    encoding_rs::Encoding,
+    http::header::CONTENT_TYPE,
+};
 
 #[cfg(feature = "charsets")]
 fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset {

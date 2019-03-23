@@ -1,9 +1,9 @@
 fn main() -> attohttpc::Result {
     env_logger::init();
 
-    let (status, headers, _) = attohttpc::head("http://httpbin.org").send()?;
-    println!("Status: {:?}", status);
-    println!("Headers:\n{:#?}", headers);
+    let resp = attohttpc::head("http://httpbin.org").send()?;
+    println!("Status: {:?}", resp.status());
+    println!("Headers:\n{:#?}", resp.headers());
 
     Ok(())
 }

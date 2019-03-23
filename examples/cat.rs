@@ -7,10 +7,10 @@ fn main() -> Result {
 
     let url: String = env::args().collect::<Vec<_>>().into_iter().nth(1).expect("missing url");
 
-    let (status, headers, reader) = attohttpc::get(&url).send()?;
-    println!("Status: {:?}", status);
-    println!("Headers:\n{:#?}", headers);
-    println!("Body:\n{}", reader.text()?);
+    let resp = attohttpc::get(&url).send()?;
+    println!("Status: {:?}", resp.status());
+    println!("Headers:\n{:#?}", resp.headers());
+    println!("Body:\n{}", resp.text()?);
 
     Ok(())
 }

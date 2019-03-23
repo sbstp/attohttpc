@@ -48,7 +48,7 @@ mod request;
 mod streams;
 
 pub use crate::error::{Error, Result};
-pub use crate::parsing::ResponseReader;
+pub use crate::parsing::{Response, ResponseReader};
 pub use crate::request::{PreparedRequest, RequestBuilder};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
