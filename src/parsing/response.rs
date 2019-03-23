@@ -107,8 +107,7 @@ impl Response {
 
     /// Split this `Reponse` into a tuple of `StatusCode`, `HeaderMap`, `ResponseReader`.
     ///
-    /// This method is useful to read the status code or headers after consuming the response
-    /// to access the body.
+    /// This method is useful to read the status code or headers after consuming the response.
     #[inline]
     pub fn split(self) -> (StatusCode, HeaderMap, ResponseReader) {
         (self.status, self.headers, self.reader)
