@@ -37,6 +37,15 @@ fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset
 }
 
 /// The `ResponseReader` is used to read the body of a reponse.
+///
+/// The `ResponseReader` implements `Read` and can be used like any other stream,
+/// but the data returned by `Read` are untouched bytes from the socket. This means
+/// that if a string is expected back, it could be in a different encoding than the
+/// expected one. In order to properly read text, use the `charsets` feature and the
+/// `text` or `text_reader` methods.
+///
+/// In general it's best to avoid `Read`ing directly from this object. Instead use the
+/// helper methods, they process the data stream properly.
 pub struct ResponseReader {
     inner: CompressedReader,
     #[cfg(feature = "charsets")]
@@ -75,12 +84,10 @@ impl ResponseReader {
 
     /// Read the response to a `String`.
     ///
-    /// The the UTF-8 codec is assumed. Use the `charsets` featured to get more options.
+    /// The the UTF-8 codec is assumed. Use the `charsets` feature to get more options.
     #[cfg(not(feature = "charsets"))]
     pub fn text(mut self) -> HttpResult<String> {
-        let mut contents = String::new();
-        self.inner.read_to_string(&mut contents)?;
-        Ok(contents)
+        self.text_utf8()
     }
 
     /// Read the response to a `String`.
@@ -88,15 +95,19 @@ impl ResponseReader {
     /// If the response headers contain charset information, that charset will be used to decode the body.
     /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
     /// will be used.
+    ///
+    /// When the `charsets` feature is disabled this method can only decode UTF-8.
     #[cfg(feature = "charsets")]
     pub fn text(self) -> HttpResult<String> {
         let charset = self.charset;
         self.text_with(charset)
     }
 
-    /// Read the response to a `String`, decoding with the given `Encoding`.
+    /// Read the response to a `String`, decoding with the given `Charset`.
     ///
     /// This will ignore the encoding from the response headers and the default encoding, if any.
+    ///
+    /// This method only exists when the `charsets` feature is enabled.
     #[cfg(feature = "charsets")]
     pub fn text_with(self, charset: Charset) -> HttpResult<String> {
         let mut reader = self.text_reader_with(charset);
@@ -105,20 +116,44 @@ impl ResponseReader {
         Ok(text)
     }
 
-    #[cfg(feature = "charsets")]
     /// Create a `TextReader` from this `ResponseReader`.
+    ///
+    /// If the response headers contain charset information, that charset will be used to decode the body.
+    /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
+    /// will be used.
+    ///
+    /// This method only exists when the `charsets` feature is enabled.
+    #[cfg(feature = "charsets")]
     pub fn text_reader(self) -> TextReader<BufReader<ResponseReader>> {
         let charset = self.charset;
         self.text_reader_with(charset)
     }
 
     #[cfg(feature = "charsets")]
-    /// Create a `TextReader` from this `ResponseReader`.
+    /// Create a `TextReader` from this `ResponseReader`, decoding with the given `Charset`.
+    ///
+    /// This will ignore the encoding from the response headers and the default encoding, if any.
+    ///
+    /// This method only exists when the `charsets` feature is enabled.
     pub fn text_reader_with(self, charset: Charset) -> TextReader<BufReader<ResponseReader>> {
         TextReader::new(BufReader::new(self), charset)
     }
 
+    /// Read the response body to a String using the UTF-8 encoding.
+    ///
+    /// This method ignores headers and the default encoding.
+    pub fn text_utf8(mut self) -> HttpResult<String> {
+        let mut text = String::new();
+        self.inner.read_to_string(&mut text)?;
+        Ok(text)
+    }
+
     /// Parse the response as a JSON object and return it.
+    ///
+    /// This method will attempt to decode the text using the response headers or the default encoding,
+    /// falling back to ISO-8559-1 if they aren't set.
+    ///
+    /// When the `charsets` feature is disabled, this method can only decode UTF-8 encoded JSON.
     #[cfg(feature = "json")]
     #[cfg(feature = "charsets")]
     pub fn json<T>(self) -> HttpResult<T>
@@ -133,7 +168,20 @@ impl ResponseReader {
     #[cfg(feature = "json")]
     #[cfg(not(feature = "charsets"))]
     /// Parse the response as a JSON object and return it.
+    ///
+    /// The response body is assumed to be JSON encoded as UTF-8.
     pub fn json<T>(self) -> HttpResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        self.json_utf8()
+    }
+
+    /// Parse the response as a JSON object encoded in UTF-8.
+    ///
+    /// This method ignores headers and the default encoding.
+    /// #[cfg(feature = "json")]
+    pub fn json_utf8<T>(self) -> HttpResult<T>
     where
         T: DeserializeOwned,
     {

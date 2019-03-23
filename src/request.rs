@@ -56,8 +56,9 @@ where
 
 /// `Request` is the main way of performing requests.
 ///
-/// Use one of its contructors to create a request and then use the `send` method
-/// to send the `Request` and get the status, headers and response.
+/// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
+/// or use one of the simpler constructors available in the crate root, such as `get`
+/// `post`, etc.
 pub struct RequestBuilder {
     url: Url,
     method: Method,
@@ -139,6 +140,9 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
+    ///
+    /// # Panics
+    /// This method will panic if the value is invalid.
     pub fn header<H, V>(self, header: H, value: V) -> RequestBuilder
     where
         H: IntoHeaderName,
@@ -151,6 +155,9 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
+    ///
+    /// # Panics
+    /// This method will panic if the value is invalid.
     pub fn header_append<H, V>(self, header: H, value: V) -> RequestBuilder
     where
         H: IntoHeaderName,

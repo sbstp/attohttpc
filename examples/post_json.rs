@@ -12,7 +12,7 @@ fn main() -> HttpResult {
     let (status, headers, reader) = lynx::post("http://httpbin.org/post").json(&body)?.send()?;
     println!("Status: {:?}", status);
     println!("Headers:\n{:#?}", headers);
-    println!("Body:\n{}", reader.text()?);
+    println!("Body:\n{}", reader.text_utf8()?);
 
     Ok(())
 }
