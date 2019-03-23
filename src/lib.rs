@@ -1,15 +1,19 @@
 #![deny(missing_docs)]
-//! `lynx` is a tiny and configurable HTTP client. Get just what you need, nothing more.
+//! This project's goal is to provide a lightweight and simple HTTP client for the Rust ecosystem. The intended use is for
+//! projects that have HTTP needs where performance is not critical or when HTTP is not the main purpose of the application.
+//! Note that the project still tries to perform well and avoid allocation where possible, but stays away from Rust's
+//! asynchronous stack to provide a crate that's as small as possible. Features are provided behind feature flags when
+//! possible to allow users to get just what they need.
 //!
 //! # Quick usage
 //! ```ignore
 //! # use serde_json::json;
-//! # fn main() -> lynx::HttpResult {
+//! # fn main() -> attohttpc::HttpResult {
 //! let obj = json!({
 //!     "hello": "world",
 //! });
 //!
-//! let (status, headers, reader) = lynx::post("https://my-api.org/do/something")
+//! let (status, headers, reader) = attohttpc::post("https://my-api.org/do/something")
 //!     .header("X-My-Header", "foo")   // set a header for the request
 //!     .param("qux", "baz")            // set a query parameter
 //!     .json(&obj)?                    // set the request body
@@ -30,7 +34,7 @@
 //! * `json` support for serialization and deserialization
 //! * `tls` support for tls connections (**default**)
 //!
-//! Check out the [repository](https://github.com/sbstp/lynx) for more general information
+//! Check out the [repository](https://github.com/sbstp/attohttpc) for more general information
 //! and examples.
 
 #[macro_use]

@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use lynx::HttpResult;
+use attohttpc::HttpResult;
 
 fn main() -> HttpResult {
     env_logger::init();
@@ -9,7 +9,7 @@ fn main() -> HttpResult {
         "hello": "world",
     });
 
-    let (status, headers, reader) = lynx::post("http://httpbin.org/post").json(&body)?.send()?;
+    let (status, headers, reader) = attohttpc::post("http://httpbin.org/post").json(&body)?.send()?;
     println!("Status: {:?}", status);
     println!("Headers:\n{:#?}", headers);
     println!("Body:\n{}", reader.text_utf8()?);

@@ -1,9 +1,9 @@
-use lynx::HttpResult;
+use attohttpc::HttpResult;
 
 fn main() -> HttpResult {
     env_logger::init();
 
-    let (status, headers, _) = lynx::head("http://httpbin.org").send()?;
+    let (status, headers, _) = attohttpc::head("http://httpbin.org").send()?;
     println!("Status: {:?}", status);
     println!("Headers:\n{:#?}", headers);
 

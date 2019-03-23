@@ -1,5 +1,5 @@
 [package]
-name = "lynx"
+name = "attohttpc"
 version = "0.2.0"
 authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
@@ -7,9 +7,9 @@ license = "MPL-2.0"
 
 readme = "README.md"
 description = "Small and lightweight HTTP client"
-documentation = "https://docs.rs/lynx"
-homepage = "https://github.com/sbstp/lynx"
-repository = "https://github.com/sbstp/lynx"
+documentation = "https://docs.rs/attohttpc"
+homepage = "https://github.com/sbstp/attohttpc"
+repository = "https://github.com/sbstp/attohttpc"
 keywords = ["http", "client", "tls"]
 
 [dependencies]

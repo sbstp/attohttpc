@@ -1,11 +1,11 @@
 use std::fs::File;
 
-use lynx::HttpResult;
+use attohttpc::HttpResult;
 
 fn main() -> HttpResult {
     env_logger::init();
 
-    let (status, headers, reader) = lynx::get("https://datasets.imdbws.com/title.basics.tsv.gz").send()?;
+    let (status, headers, reader) = attohttpc::get("https://datasets.imdbws.com/title.basics.tsv.gz").send()?;
     println!("Status: {:?}", status);
     println!("Headers:\n{:#?}", headers);
     if status.is_success() {
