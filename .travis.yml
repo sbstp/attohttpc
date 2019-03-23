@@ -6,7 +6,8 @@ rust:
 script:
   - cargo test --verbose --all-features
   - cargo test --verbose --no-default-features
-  - cargo test --verbose --no-default-features --features compress
   - cargo test --verbose --no-default-features --features charsets
-  - cargo test --verbose --no-default-features --features tls
+  - cargo test --verbose --no-default-features --features compress
   - cargo test --verbose --no-default-features --features json
+  - cargo test --verbose --no-default-features --features tls
+
