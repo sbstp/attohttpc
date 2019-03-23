@@ -86,7 +86,7 @@ impl ResponseReader {
     ///
     /// The the UTF-8 codec is assumed. Use the `charsets` feature to get more options.
     #[cfg(not(feature = "charsets"))]
-    pub fn text(mut self) -> HttpResult<String> {
+    pub fn text(self) -> HttpResult<String> {
         self.text_utf8()
     }
 
@@ -180,7 +180,7 @@ impl ResponseReader {
     /// Parse the response as a JSON object encoded in UTF-8.
     ///
     /// This method ignores headers and the default encoding.
-    /// #[cfg(feature = "json")]
+    #[cfg(feature = "json")]
     pub fn json_utf8<T>(self) -> HttpResult<T>
     where
         T: DeserializeOwned,

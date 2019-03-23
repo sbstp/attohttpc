@@ -1,7 +1,8 @@
 #![deny(missing_docs)]
 //! `lynx` is a tiny and configurable HTTP client. Get just what you need, nothing more.
+//!
 //! # Quick usage
-//! ```no_run
+//! ```ignore
 //! # use serde_json::json;
 //! # fn main() -> lynx::HttpResult {
 //! let obj = json!({
@@ -22,8 +23,15 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # Features
+//! * `charsets` support for decoding more text encodings than just UTF-8
+//! * `compress` support for decompressing response bodies (**default**)
+//! * `json` support for serialization and deserialization
+//! * `tls` support for tls connections (**default**)
+//!
 //! Check out the [repository](https://github.com/sbstp/lynx) for more general information
-//! and examples for this crate.
+//! and examples.
 
 #[macro_use]
 extern crate log;

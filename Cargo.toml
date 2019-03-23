@@ -26,11 +26,11 @@ serde_json = { version = "1", optional = true }
 env_logger = "0.5"
 
 [features]
-compress = ["libflate"]
 charsets = ["encoding_rs"]
+compress = ["libflate"]
 tls = ["native-tls"]
 json = ["serde", "serde_json"]
-default = ["compress", "charsets", "tls", "json"]
+default = ["compress", "tls"]
 
 [package.metadata.docs.rs]
 all-features = true

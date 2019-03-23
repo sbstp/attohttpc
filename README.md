@@ -12,7 +12,13 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * HTTP/1.1, eventually HTTP/2.0
 * Use quality crates from the ecosystem (`http`, `url`, `encoding_rs`), not reinventing the wheel.
 
-# Usage
+## Features
+* `charsets` support for decoding more text encodings than just UTF-8
+* `compress` support for decompressing response bodies (**default**)
+* `json` support for serialization and deserialization
+* `tls` support for tls connections (**default**)
+
+## Usage
 See the `examples/` folder in the repository for more use cases.
 ```rust
 let (status, headers, body) = lynx::post("https://my-api.com/do/something").json(&request)?.send()?;
