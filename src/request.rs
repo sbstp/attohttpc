@@ -126,12 +126,12 @@ impl RequestBuilder {
     /// Associated a list of pairs to query parameters.
     ///
     /// The same key can be used multiple times.
-    pub fn params<'p, I, V>(mut self, pairs: I) -> RequestBuilder
+    pub fn params<'k, 'v, P, V>(mut self, pairs: P) -> RequestBuilder
     where
-        I: Into<&'p [(&'p str, V)]>,
-        V: Display + 'p,
+        P: AsRef<[(&'k str, V)]>,
+        V: Display + 'v,
     {
-        for (key, value) in pairs.into() {
+        for (key, value) in pairs.as_ref().iter() {
             self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
         }
         self
@@ -464,4 +464,9 @@ impl PreparedRequest {
             debug!("redirected to {} giving url {}", location, url,);
         }
     }
+}
+
+#[test]
+fn test_params_erg() {
+    crate::get("http://foo.bar").params([("p1", "v1"), ("p2", "v2")]);
 }
