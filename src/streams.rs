@@ -7,7 +7,7 @@ use std::net::TcpStream;
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
 
-use crate::{HttpError, Result};
+use crate::{Error, Result};
 
 pub enum BaseStream {
     Plain(TcpStream),
@@ -19,10 +19,10 @@ pub enum BaseStream {
 
 impl BaseStream {
     pub fn connect(url: &Url) -> Result<BaseStream> {
-        let host = url.host_str().ok_or(HttpError::InvalidUrl("url has no host"))?;
+        let host = url.host_str().ok_or(Error::InvalidUrl("url has no host"))?;
         let port = url
             .port_or_known_default()
-            .ok_or(HttpError::InvalidUrl("url has no port"))?;
+            .ok_or(Error::InvalidUrl("url has no port"))?;
 
         debug!("trying to connect to {}:{}", host, port);
 
@@ -30,7 +30,7 @@ impl BaseStream {
             "http" => BaseStream::Plain(TcpStream::connect((host, port))?),
             #[cfg(feature = "tls")]
             "https" => BaseStream::connect_tls(host, port)?,
-            _ => return Err(HttpError::InvalidUrl("url contains unsupported scheme")),
+            _ => return Err(Error::InvalidUrl("url contains unsupported scheme")),
         })
     }
 
