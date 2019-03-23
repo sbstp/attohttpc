@@ -79,7 +79,7 @@ pub fn parse_response(reader: BaseStream, request: &PreparedRequest) -> Result<R
     })
 }
 
-/// `Response` represents a reponse returned by a server.
+/// `Response` represents a response returned by a server.
 pub struct Response {
     status: StatusCode,
     headers: HeaderMap,
@@ -105,7 +105,7 @@ impl Response {
         self.status.is_success()
     }
 
-    /// Split this `Reponse` into a tuple of `StatusCode`, `HeaderMap`, `ResponseReader`.
+    /// Split this `Response` into a tuple of `StatusCode`, `HeaderMap`, `ResponseReader`.
     ///
     /// This method is useful to read the status code or headers after consuming the response.
     #[inline]
@@ -130,7 +130,13 @@ impl Response {
 
     /// Read the response to a `String`.
     ///
-    /// The the UTF-8 codec is assumed. Use the `charsets` feature to get more options.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
+    ///
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `text_utf8`.
     #[inline]
     pub fn text(self) -> Result<String> {
         self.reader.text()
@@ -180,10 +186,13 @@ impl Response {
 
     /// Parse the response as a JSON object and return it.
     ///
-    /// This method will attempt to decode the text using the response headers or the default encoding,
-    /// falling back to ISO-8559-1 if they aren't set.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
     ///
-    /// When the `charsets` feature is disabled, this method can only decode UTF-8 encoded JSON.
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `json_utf8`.
     #[cfg(feature = "json")]
     #[inline]
     pub fn json<T>(self) -> Result<T>
@@ -196,6 +205,7 @@ impl Response {
     /// Parse the response as a JSON object encoded in UTF-8.
     ///
     /// This method ignores headers and the default encoding.
+    ///
     /// This method only exists when the `json` feature is enabled.
     #[cfg(feature = "json")]
     #[inline]

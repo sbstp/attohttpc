@@ -37,7 +37,7 @@ fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset
     default_charset.unwrap_or(charsets::WINDOWS_1252)
 }
 
-/// The `ResponseReader` is used to read the body of a reponse.
+/// The `ResponseReader` is used to read the body of a response.
 ///
 /// The `ResponseReader` implements `Read` and can be used like any other stream,
 /// but the data returned by `Read` are untouched bytes from the socket. This means
@@ -85,7 +85,13 @@ impl ResponseReader {
 
     /// Read the response to a `String`.
     ///
-    /// The the UTF-8 codec is assumed. Use the `charsets` feature to get more options.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
+    ///
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `text_utf8`.
     #[cfg(not(feature = "charsets"))]
     pub fn text(self) -> Result<String> {
         self.text_utf8()
@@ -93,11 +99,13 @@ impl ResponseReader {
 
     /// Read the response to a `String`.
     ///
-    /// If the response headers contain charset information, that charset will be used to decode the body.
-    /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
-    /// will be used.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
     ///
-    /// When the `charsets` feature is disabled this method can only decode UTF-8.
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `text_utf8`.
     #[cfg(feature = "charsets")]
     pub fn text(self) -> Result<String> {
         let charset = self.charset;
@@ -151,10 +159,13 @@ impl ResponseReader {
 
     /// Parse the response as a JSON object and return it.
     ///
-    /// This method will attempt to decode the text using the response headers or the default encoding,
-    /// falling back to ISO-8559-1 if they aren't set.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
     ///
-    /// When the `charsets` feature is disabled, this method can only decode UTF-8 encoded JSON.
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `json_utf8`.
     #[cfg(feature = "json")]
     #[cfg(feature = "charsets")]
     pub fn json<T>(self) -> Result<T>
@@ -166,12 +177,17 @@ impl ResponseReader {
         Ok(obj)
     }
 
-    #[cfg(feature = "json")]
-    #[cfg(not(feature = "charsets"))]
     /// Parse the response as a JSON object and return it.
     ///
-    /// The response body is assumed to be JSON encoded as UTF-8.
-    /// This method only exists when the `json` feature is enabled.
+    /// If the `charsets` feature is enabled, it will try to decode the response using
+    /// the encoding in the headers. If there's no encoding specified in the headers,
+    /// it will fall back to the default encoding, and if that's also not specified,
+    /// it will fall back to the default of ISO-8859-1.
+    ///
+    /// If the `charsets` feature is disabled, this method is the same as calling
+    /// `json_utf8`.
+    #[cfg(feature = "json")]
+    #[cfg(not(feature = "charsets"))]
     pub fn json<T>(self) -> Result<T>
     where
         T: DeserializeOwned,
@@ -182,6 +198,7 @@ impl ResponseReader {
     /// Parse the response as a JSON object encoded in UTF-8.
     ///
     /// This method ignores headers and the default encoding.
+    ///
     /// This method only exists when the `json` feature is enabled.
     #[cfg(feature = "json")]
     pub fn json_utf8<T>(self) -> Result<T>
