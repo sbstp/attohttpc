@@ -1,6 +1,6 @@
 use std::net::TcpStream;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use attohttpc::ErrorKind;
 use lazy_static::lazy_static;
@@ -12,8 +12,14 @@ lazy_static! {
             rouille::start_server("localhost:55123", move |_| Response::redirect_301("/"));
         });
 
-        // Wait until server is ready
+        let start = Instant::now();
+        let timeout = Duration::from_secs(10);
+
+        // Wait until server is ready. 10s timeout in case of error creating server.
         while TcpStream::connect(("localhost", 55123)).is_err() {
+            if start.elapsed() > timeout {
+                panic!("time out in server creation");
+            }
             thread::sleep(Duration::from_millis(100));
         }
 
