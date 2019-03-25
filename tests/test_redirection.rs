@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::net::TcpStream;
 use std::thread;
+use std::time::Duration;
 
 use attohttpc::ErrorKind;
 use lazy_static::lazy_static;
@@ -8,15 +8,15 @@ use rouille::Response;
 
 lazy_static! {
     static ref STARTED: bool = {
-        let started = Arc::new(AtomicBool::new(false));
-        let started_clone = started.clone();
-
         thread::spawn(move || {
-            started_clone.store(true, Ordering::SeqCst);
-            rouille::start_server("0.0.0.0:55123", move |_| Response::redirect_301("/"));
+            rouille::start_server("localhost:55123", move |_| Response::redirect_301("/"));
         });
 
-        while !started.load(Ordering::SeqCst) {}
+        // Wait until server is ready
+        while TcpStream::connect(("localhost", 55123)).is_err() {
+            thread::sleep(Duration::from_millis(100));
+        }
+
         true
     };
 }
