@@ -6,7 +6,7 @@ use http::{
     HeaderMap, StatusCode,
 };
 
-use crate::error::{Error, Result};
+use crate::error::{InvalidResponseKind, Result};
 use crate::parsing::buffers::{self, trim_byte};
 use crate::parsing::{BodyReader, CompressedReader, ResponseReader};
 use crate::request::PreparedRequest;
@@ -30,13 +30,13 @@ where
         buffers::read_line(reader, &mut line)?;
         let mut parts = line.split(|&b| b == b' ').filter(|x| !x.is_empty());
 
-        let _ = parts.next().ok_or(Error::InvalidResponse("invalid status line"))?;
-        let code = parts.next().ok_or(Error::InvalidResponse("invalid status line"))?;
+        let _ = parts.next().ok_or(InvalidResponseKind::StatusLine)?;
+        let code = parts.next().ok_or(InvalidResponseKind::StatusLine)?;
 
         str::from_utf8(code)
-            .map_err(|_| Error::InvalidResponse("cannot decode code"))?
+            .map_err(|_| InvalidResponseKind::StatusCode)?
             .parse()
-            .map_err(|_| Error::InvalidResponse("invalid status code"))?
+            .map_err(|_| InvalidResponseKind::StatusCode)?
     };
 
     loop {
@@ -48,7 +48,7 @@ where
         let col = line
             .iter()
             .position(|&c| c == b':')
-            .ok_or(Error::InvalidResponse("header has no colon"))?;
+            .ok_or(InvalidResponseKind::Header)?;
 
         let header = trim_byte(b' ', &line[..col]);
         let value = trim_byte(b' ', &line[col + 1..]);

@@ -2,7 +2,7 @@ use std::io::{self, BufReader, Read};
 
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
-use crate::error::{Error, Result};
+use crate::error::{InvalidResponseKind, Result};
 use crate::parsing::{ChunkedReader, LengthReader};
 use crate::streams::BaseStream;
 
@@ -36,11 +36,8 @@ fn is_chunked(headers: &HeaderMap) -> bool {
 }
 
 fn parse_content_length(val: &HeaderValue) -> Result<u64> {
-    let val = val
-        .to_str()
-        .map_err(|_| Error::InvalidResponse("invalid content length: not a string"))?;
-    let val: u64 =
-        u64::from_str_radix(val, 10).map_err(|_| Error::InvalidResponse("invalid content length: not a number"))?;
+    let val = val.to_str().map_err(|_| InvalidResponseKind::ContentLength)?;
+    let val: u64 = u64::from_str_radix(val, 10).map_err(|_| InvalidResponseKind::ContentLength)?;
     Ok(val)
 }
 
@@ -52,9 +49,7 @@ fn is_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
             None => val,
             Some(last) if last == val => val,
             _ => {
-                return Err(Error::InvalidResponse(
-                    "multiple content-length headers and different values",
-                ));
+                return Err(InvalidResponseKind::ContentLength.into());
             }
         });
     }

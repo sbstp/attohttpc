@@ -3,15 +3,16 @@ use std::io::{self, BufReader, Read};
 use std::str;
 use std::u64;
 
+use crate::error::InvalidResponseKind;
 use crate::parsing::buffers;
-use crate::parsing::error;
 
 fn parse_chunk_size(line: &[u8]) -> io::Result<u64> {
     line.iter()
         .position(|&b| b == b';')
         .map_or_else(|| str::from_utf8(line), |idx| str::from_utf8(&line[..idx]))
-        .map_err(|_| error("cannot decode chunk size as utf-8"))
-        .and_then(|line| u64::from_str_radix(line, 16).map_err(|_| error("cannot decode chunk size as hex")))
+        .map_err(|_| InvalidResponseKind::ChunkSize)
+        .and_then(|line| u64::from_str_radix(line, 16).map_err(|_| InvalidResponseKind::ChunkSize))
+        .map_err(|e| e.into())
 }
 
 pub struct ChunkedReader<R>
@@ -60,7 +61,7 @@ where
     fn read_empty_line(&mut self) -> io::Result<()> {
         let n = self.read_line()?;
         if n == 0 || !self.line.is_empty() {
-            Err(error("invalid chunk, error in chunked encoding"))
+            Err(InvalidResponseKind::Chunk.into())
         } else {
             Ok(())
         }

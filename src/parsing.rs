@@ -1,5 +1,3 @@
-use std::io;
-
 pub mod body_reader;
 pub mod buffers;
 pub mod chunked_reader;
@@ -9,10 +7,6 @@ pub mod response;
 pub mod response_reader;
 #[cfg(feature = "charsets")]
 pub mod text_reader;
-
-pub fn error(msg: &str) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
-}
 
 pub use self::body_reader::BodyReader;
 pub use self::chunked_reader::ChunkedReader;

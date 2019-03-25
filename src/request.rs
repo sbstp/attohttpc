@@ -15,7 +15,7 @@ use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
-use crate::error::{Error, Result};
+use crate::error::{ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
 
@@ -91,10 +91,10 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        let url = Url::parse(base_url.as_ref()).map_err(|_| Error::InvalidUrl("invalid base url"))?;
+        let url = Url::parse(base_url.as_ref()).map_err(|_| ErrorKind::InvalidBaseUrl)?;
 
         match method {
-            Method::CONNECT => return Err(Error::Other("CONNECT is not supported")),
+            Method::CONNECT => return Err(ErrorKind::ConnectNotSupported.into()),
             _ => {}
         }
 
@@ -328,7 +328,7 @@ impl PreparedRequest {
     }
 
     fn set_host(&mut self, url: &Url) -> Result {
-        let host = url.host_str().ok_or(Error::InvalidUrl("url has no host"))?;
+        let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         if let Some(port) = url.port() {
             header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
         } else {
@@ -359,8 +359,8 @@ impl PreparedRequest {
             Ok(url) => url,
             Err(url::ParseError::RelativeUrlWithoutBase) => previous_url
                 .join(location)
-                .map_err(|_| Error::InvalidUrl("cannot join location with new url"))?,
-            Err(_) => Err(Error::InvalidUrl("invalid redirection url"))?,
+                .map_err(|_| InvalidResponseKind::RedirectionUrl)?,
+            Err(_) => Err(InvalidResponseKind::RedirectionUrl)?,
         })
     }
 
@@ -453,10 +453,8 @@ impl PreparedRequest {
             let location = resp
                 .headers()
                 .get(http::header::LOCATION)
-                .ok_or(Error::InvalidResponse("redirect has no location header"))?;
-            let location = location
-                .to_str()
-                .map_err(|_| Error::InvalidResponse("location to str error"))?;
+                .ok_or(InvalidResponseKind::LocationHeader)?;
+            let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
             url = self.base_redirect_url(location, &url)?;
             self.set_host(&url)?;
