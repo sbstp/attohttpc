@@ -58,6 +58,8 @@ pub enum ErrorKind {
     InvalidUrlPort,
     /// Server sent an invalid response.
     InvalidResponse(InvalidResponseKind),
+    /// Too many redirections
+    TooManyRedirections,
     /// JSON decoding/encoding error.
     #[cfg(feature = "json")]
     Json(serde_json::Error),
@@ -94,6 +96,7 @@ impl Display for Error {
             InvalidUrlHost => write!(w, "URL is missing a host"),
             InvalidUrlPort => write!(w, "URL is missing a port"),
             InvalidResponse(ref k) => write!(w, "InvalidResponse: {}", k),
+            TooManyRedirections => write!(w, "Too many redirections"),
             #[cfg(feature = "json")]
             Json(ref e) => write!(w, "Json Error: {}", e),
             #[cfg(feature = "tls")]
@@ -114,6 +117,7 @@ impl StdError for Error {
             InvalidUrlHost => "url has no host",
             InvalidUrlPort => "url has no port",
             InvalidResponse(_) => "invalid response",
+            TooManyRedirections => "too many redirections",
             #[cfg(feature = "json")]
             Json(ref e) => e.description(),
             #[cfg(feature = "tls")]

@@ -64,6 +64,7 @@ pub struct RequestBuilder {
     method: Method,
     headers: HeaderMap,
     body: Vec<u8>,
+    max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
@@ -103,6 +104,7 @@ impl RequestBuilder {
             method: method,
             headers: HeaderMap::new(),
             body: Vec::new(),
+            max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
             default_charset: None,
@@ -229,6 +231,12 @@ impl RequestBuilder {
         Ok(self)
     }
 
+    /// Set the maximum number of redirections this `Request` can perform.
+    pub fn max_redirections(mut self, max_redirections: u32) -> RequestBuilder {
+        self.max_redirections = max_redirections;
+        self
+    }
+
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
@@ -272,6 +280,7 @@ impl RequestBuilder {
             method: self.method,
             headers: self.headers,
             body: self.body,
+            max_redirections: self.max_redirections,
             follow_redirects: self.follow_redirects,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
@@ -301,6 +310,7 @@ pub struct PreparedRequest {
     method: Method,
     headers: HeaderMap,
     body: Vec<u8>,
+    max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
@@ -319,6 +329,7 @@ impl PreparedRequest {
             method: method,
             headers: HeaderMap::new(),
             body: vec![],
+            max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
             default_charset: None,
@@ -438,6 +449,8 @@ impl PreparedRequest {
     /// Send this request and wait for the result.
     pub fn send(mut self) -> Result<Response> {
         let mut url = self.url.clone();
+        let mut redirections = 0;
+
         loop {
             let mut stream = BaseStream::connect(&url)?;
             self.write_request(&mut stream, &url)?;
@@ -447,6 +460,11 @@ impl PreparedRequest {
 
             if !self.follow_redirects || !resp.status().is_redirection() {
                 return Ok(resp);
+            }
+
+            redirections += 1;
+            if redirections > self.max_redirections {
+                return Err(ErrorKind::TooManyRedirections.into());
             }
 
             // Handle redirect
