@@ -28,7 +28,7 @@
 //! }
 //! # Ok(())
 //! # }
-//! #[cfg(not(feature = "json"))]
+//! # #[cfg(not(feature = "json"))]
 //! # fn main() {
 //! # }
 //! ```
