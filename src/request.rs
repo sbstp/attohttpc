@@ -236,6 +236,19 @@ impl RequestBuilder {
         Ok(self)
     }
 
+    /// Set the body of this request to be the URL-encoded representation of the given object.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
+    #[cfg(feature = "form")]
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
+        self.body = serde_urlencoded::to_string(value)?.into_bytes();
+        self.headers
+            .entry(http::header::CONTENT_TYPE)
+            .unwrap()
+            .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
+        Ok(self)
+    }
+
     /// Set the maximum number of redirections this `Request` can perform.
     pub fn max_redirections(mut self, max_redirections: u32) -> RequestBuilder {
         self.max_redirections = max_redirections;
