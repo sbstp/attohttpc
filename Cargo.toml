@@ -22,6 +22,7 @@ libflate = { version = "0.1", optional = true }
 native-tls = { version = "0.2", optional = true }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
+serde_urlencoded = { version = "0.6", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"
@@ -33,6 +34,7 @@ charsets = ["encoding_rs"]
 compress = ["libflate"]
 tls = ["native-tls"]
 json = ["serde", "serde_json"]
+form = ["serde", "serde_urlencoded"]
 default = ["compress", "tls"]
 
 [package.metadata.docs.rs]

@@ -193,6 +193,11 @@ impl RequestBuilder {
         Ok(self)
     }
 
+    /// Enable HTTP bearer authentication.
+    pub fn bearer_auth(self, token: impl Into<String>) -> RequestBuilder {
+        self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
+    }
+
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
@@ -228,6 +233,19 @@ impl RequestBuilder {
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        Ok(self)
+    }
+
+    /// Set the body of this request to be the URL-encoded representation of the given object.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
+    #[cfg(feature = "form")]
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
+        self.body = serde_urlencoded::to_string(value)?.into_bytes();
+        self.headers
+            .entry(http::header::CONTENT_TYPE)
+            .unwrap()
+            .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
         Ok(self)
     }
 

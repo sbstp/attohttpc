@@ -63,6 +63,9 @@ pub enum ErrorKind {
     /// JSON decoding/encoding error.
     #[cfg(feature = "json")]
     Json(serde_json::Error),
+    /// Form-URL encoding error.
+    #[cfg(feature = "form")]
+    UrlEncoded(serde_urlencoded::ser::Error),
     /// TLS error encountered while connecting to an https server.
     #[cfg(feature = "tls")]
     Tls(native_tls::Error),
@@ -99,6 +102,8 @@ impl Display for Error {
             TooManyRedirections => write!(w, "Too many redirections"),
             #[cfg(feature = "json")]
             Json(ref e) => write!(w, "Json Error: {}", e),
+            #[cfg(feature = "form")]
+            UrlEncoded(ref e) => write!(w, "URL Encoding Error: {}", e),
             #[cfg(feature = "tls")]
             Tls(ref e) => write!(w, "Tls Error: {}", e),
         }
@@ -120,6 +125,8 @@ impl StdError for Error {
             TooManyRedirections => "too many redirections",
             #[cfg(feature = "json")]
             Json(ref e) => e.description(),
+            #[cfg(feature = "form")]
+            UrlEncoded(ref e) => e.description(),
             #[cfg(feature = "tls")]
             Tls(ref e) => e.description(),
         }
@@ -163,6 +170,13 @@ impl From<native_tls::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Error {
         Error(Box::new(ErrorKind::Json(err)))
+    }
+}
+
+#[cfg(feature = "form")]
+impl From<serde_urlencoded::ser::Error> for Error {
+    fn from(err: serde_urlencoded::ser::Error) -> Error {
+        Error(Box::new(ErrorKind::UrlEncoded(err)))
     }
 }
 
