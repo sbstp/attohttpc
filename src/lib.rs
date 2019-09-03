@@ -6,25 +6,30 @@
 //! possible to allow users to get just what they need.
 //!
 //! # Quick usage
-//! ```ignore
+//! ```no_run
+//! # #[cfg(feature = "json")]
 //! # use serde_json::json;
-//! # fn main() -> attohttpc::HttpResult {
+//! # #[cfg(feature = "json")]
+//! # fn main() -> attohttpc::Result {
 //! let obj = json!({
 //!     "hello": "world",
 //! });
 //!
-//! let (status, headers, reader) = attohttpc::post("https://my-api.org/do/something")
+//! let resp = attohttpc::post("https://my-api.org/do/something")
 //!     .header("X-My-Header", "foo")   // set a header for the request
 //!     .param("qux", "baz")            // set a query parameter
 //!     .json(&obj)?                    // set the request body
 //!     .send()?;                       // send the request
 //!
 //! // Check if the status is a 2XX code.
-//! if status.is_success() {
+//! if resp.is_success() {
 //!     // Consume the response body as text and print it.
-//!     println!("{}", reader.text()?);
+//!     println!("{}", resp.text()?);
 //! }
 //! # Ok(())
+//! # }
+//! #[cfg(not(feature = "json"))]
+//! # fn main() {
 //! # }
 //! ```
 //!
