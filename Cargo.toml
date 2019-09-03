@@ -10,7 +10,7 @@ description = "Small and lightweight HTTP client"
 documentation = "https://docs.rs/attohttpc"
 homepage = "https://github.com/sbstp/attohttpc"
 repository = "https://github.com/sbstp/attohttpc"
-keywords = ["http", "client", "tls", "http-1.0", "http-1.1"]
+keywords = ["http", "client", "tls"]
 categories = ["network-programming", "web-programming", "web-programming::http-client"]
 
 [dependencies]
