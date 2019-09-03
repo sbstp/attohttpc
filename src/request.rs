@@ -193,6 +193,11 @@ impl RequestBuilder {
         Ok(self)
     }
 
+    /// Enable HTTP bearer authentication.
+    pub fn bearer_auth(self, token: impl Into<String>) -> RequestBuilder {
+        self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
+    }
+
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
