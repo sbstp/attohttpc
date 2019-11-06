@@ -307,7 +307,6 @@ impl RequestBuilder {
         };
 
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
-        prepped.set_host(&prepped.url.clone())?;
         prepped.set_compression()?;
         if prepped.has_body() {
             header_insert(&mut prepped.headers, CONTENT_LENGTH, format!("{}", prepped.body.len()))?;
@@ -406,7 +405,7 @@ impl PreparedRequest {
         Ok(())
     }
 
-    fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
+    fn write_request<W>(&self, writer: W, url: &Url) -> Result
     where
         W: Write,
     {
@@ -465,14 +464,16 @@ impl PreparedRequest {
     }
 
     /// Send this request and wait for the result.
-    pub fn send(mut self) -> Result<Response> {
+    pub fn send(&mut self) -> Result<Response> {
         let mut url = self.url.clone();
+        self.set_host(&url)?;
+
         let mut redirections = 0;
 
         loop {
             let mut stream = BaseStream::connect(&url)?;
             self.write_request(&mut stream, &url)?;
-            let resp = parse_response(stream, &self)?;
+            let resp = parse_response(stream, self)?;
 
             debug!("status code {}", resp.status().as_u16());
 
@@ -495,7 +496,7 @@ impl PreparedRequest {
             url = self.base_redirect_url(location, &url)?;
             self.set_host(&url)?;
 
-            debug!("redirected to {} giving url {}", location, url,);
+            debug!("redirected to {} giving url {}", location, url);
         }
     }
 }
