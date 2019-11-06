@@ -26,7 +26,7 @@ pub enum CompressedReader {
 
 #[cfg(feature = "compress")]
 fn have_encoding_item(value: &str, enc: &str) -> bool {
-    value.split(",").map(|s| s.trim()).any(|s| s.eq_ignore_ascii_case(enc))
+    value.split(',').map(|s| s.trim()).any(|s| s.eq_ignore_ascii_case(enc))
 }
 
 #[cfg(feature = "compress")]
@@ -69,7 +69,7 @@ impl CompressedReader {
             }
         }
         debug!("creating plain reader");
-        return Ok(CompressedReader::Plain(reader));
+        Ok(CompressedReader::Plain(reader))
     }
 
     #[cfg(not(feature = "compress"))]
