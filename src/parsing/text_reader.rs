@@ -25,7 +25,7 @@ where
     /// Create a new `TextReader` with the given charset.
     pub fn new(inner: R, charset: Charset) -> TextReader<R> {
         TextReader {
-            inner: inner,
+            inner,
             decoder: charset.new_decoder(),
             eof: false,
         }

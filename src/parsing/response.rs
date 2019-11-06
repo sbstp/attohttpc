@@ -62,7 +62,7 @@ where
     Ok((status, headers))
 }
 
-pub fn parse_response(reader: BaseStream, request: &PreparedRequest) -> Result<Response> {
+pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Result<Response> {
     let mut reader = BufReader::new(reader);
     let (status, mut headers) = parse_response_head(&mut reader)?;
     let body_reader = BodyReader::new(&headers, reader)?;
