@@ -257,5 +257,4 @@ mod tests {
         let headers = HeaderMap::new();
         assert_eq!(get_charset(&headers, None), charsets::WINDOWS_1252);
     }
-
 }

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::write_with_newline)]
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
@@ -94,14 +95,13 @@ impl RequestBuilder {
     {
         let url = Url::parse(base_url.as_ref()).map_err(|_| ErrorKind::InvalidBaseUrl)?;
 
-        match method {
-            Method::CONNECT => return Err(ErrorKind::ConnectNotSupported.into()),
-            _ => {}
+        if method == Method::CONNECT {
+            return Err(ErrorKind::ConnectNotSupported.into());
         }
 
         Ok(RequestBuilder {
             url,
-            method: method,
+            method,
             headers: HeaderMap::new(),
             body: Vec::new(),
             max_redirections: 5,
@@ -344,7 +344,7 @@ impl PreparedRequest {
     {
         PreparedRequest {
             url: Url::parse(base_url.as_ref()).unwrap(),
-            method: method,
+            method,
             headers: HeaderMap::new(),
             body: vec![],
             max_redirections: 5,
@@ -384,13 +384,17 @@ impl PreparedRequest {
     }
 
     fn base_redirect_url(&self, location: &str, previous_url: &Url) -> Result<Url> {
-        Ok(match Url::parse(location) {
-            Ok(url) => url,
-            Err(url::ParseError::RelativeUrlWithoutBase) => previous_url
-                .join(location)
-                .map_err(|_| InvalidResponseKind::RedirectionUrl)?,
-            Err(_) => Err(InvalidResponseKind::RedirectionUrl)?,
-        })
+        match Url::parse(location) {
+            Ok(url) => Ok(url),
+            Err(url::ParseError::RelativeUrlWithoutBase) => {
+                let joined_url = previous_url
+                    .join(location)
+                    .map_err(|_| InvalidResponseKind::RedirectionUrl)?;
+
+                Ok(joined_url)
+            }
+            Err(_) => Err(InvalidResponseKind::RedirectionUrl.into()),
+        }
     }
 
     fn write_headers<W>(&self, writer: &mut W) -> Result

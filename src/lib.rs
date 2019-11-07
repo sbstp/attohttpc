@@ -1,4 +1,5 @@
 #![deny(missing_docs)]
+#![allow(clippy::needless_doctest_main)]
 //! This project's goal is to provide a lightweight and simple HTTP client for the Rust ecosystem. The intended use is for
 //! projects that have HTTP needs where performance is not critical or when HTTP is not the main purpose of the application.
 //! Note that the project still tries to perform well and avoid allocation where possible, but stays away from Rust's

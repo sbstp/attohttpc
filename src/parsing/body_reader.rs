@@ -29,7 +29,7 @@ fn is_chunked(headers: &HeaderMap) -> bool {
         .into_iter()
         .filter_map(|val| val.to_str().ok())
         .any(|val| {
-            val.split(",")
+            val.split(',')
                 .map(|s| s.trim())
                 .any(|s| s.eq_ignore_ascii_case("chunked"))
         })
