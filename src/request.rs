@@ -60,11 +60,11 @@ where
 /// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
 /// or use one of the simpler constructors available in the crate root, such as `get`
 /// `post`, etc.
-pub struct RequestBuilder {
+pub struct RequestBuilder<B = [u8; 0]> {
     url: Url,
     method: Method,
     headers: HeaderMap,
-    body: Vec<u8>,
+    body: B,
     max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
@@ -78,18 +78,18 @@ impl RequestBuilder {
     ///
     /// # Panics
     /// Panics if the base url is invalid or if the method is CONNECT.
-    pub fn new<U>(method: Method, base_url: U) -> RequestBuilder
+    pub fn new<U>(method: Method, base_url: U) -> Self
     where
         U: AsRef<str>,
     {
-        RequestBuilder::try_new(method, base_url).expect("invalid url or method")
+        Self::try_new(method, base_url).expect("invalid url or method")
     }
 
     /// Try to create a new `RequestBuilder`.
     ///
     /// If the base URL is invalid, an error is returned.
     /// If the method is CONNECT, an error is also returned. CONNECT is not yet supported.
-    pub fn try_new<U>(method: Method, base_url: U) -> Result<RequestBuilder>
+    pub fn try_new<U>(method: Method, base_url: U) -> Result<Self>
     where
         U: AsRef<str>,
     {
@@ -99,11 +99,11 @@ impl RequestBuilder {
             return Err(ErrorKind::ConnectNotSupported.into());
         }
 
-        Ok(RequestBuilder {
+        Ok(Self {
             url,
             method,
             headers: HeaderMap::new(),
-            body: Vec::new(),
+            body: [],
             max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
@@ -112,11 +112,13 @@ impl RequestBuilder {
             allow_compression: true,
         })
     }
+}
 
+impl<B> RequestBuilder<B> {
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
-    pub fn param<V>(mut self, key: &str, value: V) -> RequestBuilder
+    pub fn param<V>(mut self, key: &str, value: V) -> Self
     where
         V: Display,
     {
@@ -127,7 +129,7 @@ impl RequestBuilder {
     /// Associated a list of pairs to query parameters.
     ///
     /// The same key can be used multiple times.
-    pub fn params<'k, 'v, P, V>(mut self, pairs: P) -> RequestBuilder
+    pub fn params<'k, 'v, P, V>(mut self, pairs: P) -> Self
     where
         P: AsRef<[(&'k str, V)]>,
         V: Display + 'v,
@@ -145,7 +147,7 @@ impl RequestBuilder {
     ///
     /// # Panics
     /// This method will panic if the value is invalid.
-    pub fn header<H, V>(self, header: H, value: V) -> RequestBuilder
+    pub fn header<H, V>(self, header: H, value: V) -> Self
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -160,7 +162,7 @@ impl RequestBuilder {
     ///
     /// # Panics
     /// This method will panic if the value is invalid.
-    pub fn header_append<H, V>(self, header: H, value: V) -> RequestBuilder
+    pub fn header_append<H, V>(self, header: H, value: V) -> Self
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -172,7 +174,7 @@ impl RequestBuilder {
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
-    pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<RequestBuilder>
+    pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -184,7 +186,7 @@ impl RequestBuilder {
     /// Append a new header to this `Request`.
     ///
     /// The new header is always appended to the `Request`, even if the header already exists.
-    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<RequestBuilder>
+    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
         V: HttpTryInto<HeaderValue>,
@@ -194,63 +196,83 @@ impl RequestBuilder {
     }
 
     /// Enable HTTP bearer authentication.
-    pub fn bearer_auth(self, token: impl Into<String>) -> RequestBuilder {
+    pub fn bearer_auth(self, token: impl Into<String>) -> Self {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
+    }
+
+    fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+        RequestBuilder {
+            url: self.url,
+            method: self.method,
+            headers: self.headers,
+            body,
+            max_redirections: self.max_redirections,
+            follow_redirects: self.follow_redirects,
+            #[cfg(feature = "charsets")]
+            default_charset: self.default_charset,
+            #[cfg(feature = "compress")]
+            allow_compression: self.allow_compression,
+        }
     }
 
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl Into<String>) -> RequestBuilder {
-        self.body = body.into().into_bytes();
+    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl AsRef<[u8]>> {
+        struct Text<B1>(B1);
+
+        impl<B1: AsRef<str>> AsRef<[u8]> for Text<B1> {
+            fn as_ref(&self) -> &[u8] {
+                self.0.as_ref().as_bytes()
+            }
+        }
+
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self
+        self.body(Text(body))
     }
 
     /// Set the body of this request to be bytes.
     ///
-    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl Into<Vec<u8>>) -> RequestBuilder {
-        self.body = body.into();
+    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/octet-stream"));
-        self
+        self.body(body)
     }
 
     /// Set the body of this request to be the JSON representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
-        self.body = serde_json::to_vec(value)?;
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+        let body = serde_json::to_vec(value)?;
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        Ok(self)
+        Ok(self.body(body))
     }
 
     /// Set the body of this request to be the URL-encoded representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
-        self.body = serde_urlencoded::to_string(value)?.into_bytes();
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+        let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-        Ok(self)
+        Ok(self.body(body))
     }
 
     /// Set the maximum number of redirections this `Request` can perform.
-    pub fn max_redirections(mut self, max_redirections: u32) -> RequestBuilder {
+    pub fn max_redirections(mut self, max_redirections: u32) -> Self {
         self.max_redirections = max_redirections;
         self
     }
@@ -258,7 +280,7 @@ impl RequestBuilder {
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
-    pub fn follow_redirects(mut self, follow_redirects: bool) -> RequestBuilder {
+    pub fn follow_redirects(mut self, follow_redirects: bool) -> Self {
         self.follow_redirects = follow_redirects;
         self
     }
@@ -268,7 +290,7 @@ impl RequestBuilder {
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
     #[cfg(feature = "charsets")]
-    pub fn default_charset(mut self, default_charset: Option<Charset>) -> RequestBuilder {
+    pub fn default_charset(mut self, default_charset: Option<Charset>) -> Self {
         self.default_charset = default_charset;
         self
     }
@@ -278,21 +300,23 @@ impl RequestBuilder {
     /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "compress")]
-    pub fn allow_compression(mut self, allow_compression: bool) -> RequestBuilder {
+    pub fn allow_compression(mut self, allow_compression: bool) -> Self {
         self.allow_compression = allow_compression;
         self
     }
+}
 
+impl<B: AsRef<[u8]>> RequestBuilder<B> {
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     ///
     /// # Panics
     /// Will panic if an error occurs trying to prepare the request. It shouldn't happen.
-    pub fn prepare(self) -> PreparedRequest {
+    pub fn prepare(self) -> PreparedRequest<B> {
         self.try_prepare().expect("failed to prepare request")
     }
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
-    pub fn try_prepare(self) -> Result<PreparedRequest> {
+    pub fn try_prepare(self) -> Result<PreparedRequest<B>> {
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
@@ -309,7 +333,7 @@ impl RequestBuilder {
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
         prepped.set_compression()?;
         if prepped.has_body() {
-            header_insert(&mut prepped.headers, CONTENT_LENGTH, format!("{}", prepped.body.len()))?;
+            header_insert(&mut prepped.headers, CONTENT_LENGTH, prepped.body.as_ref().len())?;
         }
 
         Ok(prepped)
@@ -322,11 +346,11 @@ impl RequestBuilder {
 }
 
 /// Represents a request that's ready to be sent. You can inspect this object for information about the request.
-pub struct PreparedRequest {
+pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
     headers: HeaderMap,
-    body: Vec<u8>,
+    body: B,
     max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
@@ -335,9 +359,9 @@ pub struct PreparedRequest {
     allow_compression: bool,
 }
 
-impl PreparedRequest {
-    #[cfg(test)]
-    pub(crate) fn new<U>(method: Method, base_url: U) -> PreparedRequest
+#[cfg(test)]
+impl PreparedRequest<Vec<u8>> {
+    pub(crate) fn new<U>(method: Method, base_url: U) -> Self
     where
         U: AsRef<str>,
     {
@@ -345,7 +369,7 @@ impl PreparedRequest {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             headers: HeaderMap::new(),
-            body: vec![],
+            body: Vec::new(),
             max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
@@ -354,7 +378,9 @@ impl PreparedRequest {
             allow_compression: true,
         }
     }
+}
 
+impl<B> PreparedRequest<B> {
     fn set_host(&mut self, url: &Url) -> Result {
         let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         if let Some(port) = url.port() {
@@ -376,10 +402,6 @@ impl PreparedRequest {
             header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
         Ok(())
-    }
-
-    fn has_body(&self) -> bool {
-        !self.body.is_empty() && self.method != Method::TRACE
     }
 
     fn base_redirect_url(&self, location: &str, previous_url: &Url) -> Result<Url> {
@@ -409,6 +431,34 @@ impl PreparedRequest {
         Ok(())
     }
 
+    /// Get the URL of this request.
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+
+    /// Get the method of this request.
+    pub fn method(&self) -> &Method {
+        &self.method
+    }
+
+    /// Get the headers of this request.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+}
+
+impl<B: AsRef<[u8]>> PreparedRequest<B> {
+    /// Get the body of the request.
+    ///
+    /// If no body was provided, the slice will be empty.
+    pub fn body(&self) -> &[u8] {
+        self.body.as_ref()
+    }
+
+    fn has_body(&self) -> bool {
+        !self.body.as_ref().is_empty() && self.method != Method::TRACE
+    }
+
     fn write_request<W>(&self, writer: W, url: &Url) -> Result
     where
         W: Write,
@@ -436,35 +486,13 @@ impl PreparedRequest {
         self.write_headers(&mut writer)?;
 
         if self.has_body() {
-            debug!("writing out body of length {}", self.body.len());
-            writer.write_all(&self.body)?;
+            debug!("writing out body of length {}", self.body.as_ref().len());
+            writer.write_all(self.body.as_ref())?;
         }
 
         writer.flush()?;
 
         Ok(())
-    }
-
-    /// Get the URL of this request.
-    pub fn url(&self) -> &Url {
-        &self.url
-    }
-
-    /// Get the method of this request.
-    pub fn method(&self) -> &Method {
-        &self.method
-    }
-
-    /// Get the headers of this request.
-    pub fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
-
-    /// Get the body of the request.
-    ///
-    /// If no body was provided, the slice will be empty.
-    pub fn body(&self) -> &[u8] {
-        &self.body
     }
 
     /// Send this request and wait for the result.
