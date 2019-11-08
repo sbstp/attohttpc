@@ -54,7 +54,7 @@ fn have_encoding(headers: &HeaderMap, enc: &str) -> bool {
 
 impl CompressedReader {
     #[cfg(feature = "compress")]
-    pub fn new<B>(headers: &HeaderMap, request: &PreparedRequest<B>, reader: BodyReader) -> Result<CompressedReader> {
+    pub fn new(headers: &HeaderMap, request: &PreparedRequest, reader: BodyReader) -> Result<CompressedReader> {
         if request.method() != Method::HEAD {
             if have_encoding(headers, "gzip") {
                 // There's an issue when a Content-Encoding of Transfer-Encoding header are present and the body

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
+
+use std::borrow::Cow;
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
@@ -60,11 +62,11 @@ where
 /// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
 /// or use one of the simpler constructors available in the crate root, such as `get`
 /// `post`, etc.
-pub struct RequestBuilder<B = [u8; 0]> {
+pub struct RequestBuilder<'body> {
     url: Url,
     method: Method,
     headers: HeaderMap,
-    body: B,
+    body: Cow<'body, [u8]>,
     max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
@@ -73,7 +75,7 @@ pub struct RequestBuilder<B = [u8; 0]> {
     allow_compression: bool,
 }
 
-impl RequestBuilder {
+impl RequestBuilder<'_> {
     /// Create a new `Request` with the base URL and the given method.
     ///
     /// # Panics
@@ -103,7 +105,7 @@ impl RequestBuilder {
             url,
             method,
             headers: HeaderMap::new(),
-            body: [],
+            body: Cow::Owned(vec![]),
             max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
@@ -114,7 +116,7 @@ impl RequestBuilder {
     }
 }
 
-impl<B> RequestBuilder<B> {
+impl<'body> RequestBuilder<'body> {
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
@@ -200,12 +202,12 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    fn body(self, body: &'body [u8]) -> Self {
         RequestBuilder {
             url: self.url,
             method: self.method,
             headers: self.headers,
-            body,
+            body: Cow::Borrowed(body),
             max_redirections: self.max_redirections,
             follow_redirects: self.follow_redirects,
             #[cfg(feature = "charsets")]
@@ -218,26 +220,18 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl AsRef<[u8]>> {
-        struct Text<B1>(B1);
-
-        impl<B1: AsRef<str>> AsRef<[u8]> for Text<B1> {
-            fn as_ref(&self) -> &[u8] {
-                self.0.as_ref().as_bytes()
-            }
-        }
-
+    pub fn text(mut self, body: &'body str) -> Self {
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self.body(Text(body))
+        self.body(body.as_bytes())
     }
 
     /// Set the body of this request to be bytes.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    pub fn bytes<B>(mut self, body: &'body [u8]) -> Self {
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
@@ -306,17 +300,17 @@ impl<B> RequestBuilder<B> {
     }
 }
 
-impl<B: AsRef<[u8]>> RequestBuilder<B> {
+impl<'body> RequestBuilder<'body> {
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     ///
     /// # Panics
     /// Will panic if an error occurs trying to prepare the request. It shouldn't happen.
-    pub fn prepare(self) -> PreparedRequest<B> {
+    pub fn prepare(self) -> PreparedRequest<'body> {
         self.try_prepare().expect("failed to prepare request")
     }
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
-    pub fn try_prepare(self) -> Result<PreparedRequest<B>> {
+    pub fn try_prepare(self) -> Result<PreparedRequest<'body>> {
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
@@ -346,11 +340,11 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
 }
 
 /// Represents a request that's ready to be sent. You can inspect this object for information about the request.
-pub struct PreparedRequest<B> {
+pub struct PreparedRequest<'body> {
     url: Url,
     method: Method,
     headers: HeaderMap,
-    body: B,
+    body: Cow<'body, [u8]>,
     max_redirections: u32,
     follow_redirects: bool,
     #[cfg(feature = "charsets")]
@@ -360,7 +354,7 @@ pub struct PreparedRequest<B> {
 }
 
 #[cfg(test)]
-impl PreparedRequest<Vec<u8>> {
+impl PreparedRequest<'_> {
     pub(crate) fn new<U>(method: Method, base_url: U) -> Self
     where
         U: AsRef<str>,
@@ -369,7 +363,7 @@ impl PreparedRequest<Vec<u8>> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             headers: HeaderMap::new(),
-            body: Vec::new(),
+            body: Cow::Owned(vec![]),
             max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
@@ -380,7 +374,7 @@ impl PreparedRequest<Vec<u8>> {
     }
 }
 
-impl<B> PreparedRequest<B> {
+impl PreparedRequest<'_> {
     fn set_host(&mut self, url: &Url) -> Result {
         let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         if let Some(port) = url.port() {
@@ -447,7 +441,7 @@ impl<B> PreparedRequest<B> {
     }
 }
 
-impl<B: AsRef<[u8]>> PreparedRequest<B> {
+impl<'body> PreparedRequest<'body> {
     /// Get the body of the request.
     ///
     /// If no body was provided, the slice will be empty.

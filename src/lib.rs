@@ -67,7 +67,7 @@ pub mod header {
 }
 
 /// Create a new `RequestBuilder` with the GET method.
-pub fn get<U>(base_url: U) -> RequestBuilder
+pub fn get<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -75,7 +75,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the POST method.
-pub fn post<U>(base_url: U) -> RequestBuilder
+pub fn post<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -83,7 +83,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the PUT method.
-pub fn put<U>(base_url: U) -> RequestBuilder
+pub fn put<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -91,7 +91,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the DELETE method.
-pub fn delete<U>(base_url: U) -> RequestBuilder
+pub fn delete<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -99,7 +99,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the HEAD method.
-pub fn head<U>(base_url: U) -> RequestBuilder
+pub fn head<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -107,7 +107,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the OPTIONS method.
-pub fn options<U>(base_url: U) -> RequestBuilder
+pub fn options<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -115,7 +115,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the PATCH method.
-pub fn patch<U>(base_url: U) -> RequestBuilder
+pub fn patch<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
@@ -123,7 +123,7 @@ where
 }
 
 /// Create a new `RequestBuilder` with the TRACE method.
-pub fn trace<U>(base_url: U) -> RequestBuilder
+pub fn trace<'b, U>(base_url: U) -> RequestBuilder<'b>
 where
     U: AsRef<str>,
 {
