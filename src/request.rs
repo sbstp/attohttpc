@@ -82,7 +82,7 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        Self::with_body(method, base_url, [])
+        Self::try_new(method, base_url).expect("invalid url or method")
     }
 
     /// Try to create a new `RequestBuilder`.
@@ -92,32 +92,6 @@ impl RequestBuilder {
     pub fn try_new<U>(method: Method, base_url: U) -> Result<Self>
     where
         U: AsRef<str>,
-    {
-        Self::try_with_body(method, base_url, [])
-    }
-}
-
-impl<B> RequestBuilder<B> {
-    /// Create a `Request` with the base URL, the given method and the given body.
-    ///
-    /// # Panics
-    /// Panics if the base url is invalid or if the method is CONNECT.
-    pub fn with_body<U>(method: Method, base_url: U, body: B) -> Self
-    where
-        U: AsRef<str>,
-        B: AsRef<[u8]>,
-    {
-        Self::try_with_body(method, base_url, body).expect("invalid url or method")
-    }
-
-    /// Try to create a `RequestBuilder` with the given body.
-    ///
-    /// If the base URL is invalid, an error is returned.
-    /// If the method is CONNECT, an error is also returned. CONNECT is not yet supported.
-    pub fn try_with_body<U>(method: Method, base_url: U, body: B) -> Result<Self>
-    where
-        U: AsRef<str>,
-        B: AsRef<[u8]>,
     {
         let url = Url::parse(base_url.as_ref()).map_err(|_| ErrorKind::InvalidBaseUrl)?;
 
@@ -129,7 +103,7 @@ impl<B> RequestBuilder<B> {
             url,
             method,
             headers: HeaderMap::new(),
-            body,
+            body: [],
             max_redirections: 5,
             follow_redirects: true,
             #[cfg(feature = "charsets")]
@@ -138,7 +112,9 @@ impl<B> RequestBuilder<B> {
             allow_compression: true,
         })
     }
+}
 
+impl<B> RequestBuilder<B> {
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
@@ -224,10 +200,7 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    /// Set the body of this request.
-    ///
-    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
-    pub fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
         RequestBuilder {
             url: self.url,
             method: self.method,

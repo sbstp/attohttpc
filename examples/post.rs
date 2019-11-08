@@ -2,7 +2,7 @@ fn main() -> attohttpc::Result {
     env_logger::init();
 
     let resp = attohttpc::post("https://httpbin.org/post")
-        .body("hello, world!")
+        .text("hello, world!")
         .send()?;
 
     println!("Status: {:?}", resp.status());
