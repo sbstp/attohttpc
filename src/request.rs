@@ -60,7 +60,7 @@ where
 /// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
 /// or use one of the simpler constructors available in the crate root, such as `get`
 /// `post`, etc.
-pub struct RequestBuilder<B = Vec<u8>> {
+pub struct RequestBuilder<B = [u8; 0]> {
     url: Url,
     method: Method,
     headers: HeaderMap,
@@ -82,7 +82,7 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        Self::with_body(method, base_url, Vec::new())
+        Self::with_body(method, base_url, [])
     }
 
     /// Try to create a new `RequestBuilder`.
@@ -93,7 +93,7 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        Self::try_with_body(method, base_url, Vec::new())
+        Self::try_with_body(method, base_url, [])
     }
 }
 
