@@ -225,7 +225,9 @@ impl<B> RequestBuilder<B> {
     }
 
     /// Set the body of this request.
-    pub fn body<B1: AsRef<[u8]>>(self, body: B1) -> RequestBuilder<B1> {
+    ///
+    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
+    pub fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
         RequestBuilder {
             url: self.url,
             method: self.method,
@@ -243,31 +245,38 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl Into<String>) -> RequestBuilder {
+    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl AsRef<[u8]>> {
+        struct Text<B1>(B1);
+
+        impl<B1: AsRef<str>> AsRef<[u8]> for Text<B1> {
+            fn as_ref(&self) -> &[u8] {
+                self.0.as_ref().as_bytes()
+            }
+        }
+
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self.body(body.into().into_bytes())
+        self.body(Text(body))
     }
 
     /// Set the body of this request to be bytes.
     ///
-    /// The can be a `&[u8]` or a `str`, anything that's a sequence of bytes.
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl Into<Vec<u8>>) -> RequestBuilder {
+    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/octet-stream"));
-        self.body(body.into())
+        self.body(body)
     }
 
     /// Set the body of this request to be the JSON representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
         let body = serde_json::to_vec(value)?;
         self.headers
             .entry(http::header::CONTENT_TYPE)
@@ -280,7 +289,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder> {
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.headers
             .entry(http::header::CONTENT_TYPE)
