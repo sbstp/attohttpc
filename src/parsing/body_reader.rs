@@ -6,6 +6,7 @@ use crate::error::{InvalidResponseKind, Result};
 use crate::parsing::{ChunkedReader, LengthReader};
 use crate::streams::BaseStream;
 
+#[derive(Debug)]
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
     Length(LengthReader<BufReader<BaseStream>>),

@@ -60,6 +60,7 @@ where
 /// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
 /// or use one of the simpler constructors available in the crate root, such as `get`
 /// `post`, etc.
+#[derive(Debug)]
 pub struct RequestBuilder<B = [u8; 0]> {
     url: Url,
     method: Method,
@@ -346,6 +347,7 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
 }
 
 /// Represents a request that's ready to be sent. You can inspect this object for information about the request.
+#[derive(Debug)]
 pub struct PreparedRequest<B> {
     url: Url,
     method: Method,

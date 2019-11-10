@@ -1,6 +1,7 @@
 use std::cmp;
 use std::io::{self, Read};
 
+#[derive(Debug)]
 pub struct LengthReader<R>
 where
     R: Read,

@@ -9,6 +9,7 @@ use url::Url;
 
 use crate::{ErrorKind, Result};
 
+#[derive(Debug)]
 pub enum BaseStream {
     Plain(TcpStream),
     #[cfg(feature = "tls")]

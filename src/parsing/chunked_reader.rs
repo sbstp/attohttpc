@@ -15,6 +15,7 @@ fn parse_chunk_size(line: &[u8]) -> io::Result<u64> {
         .map_err(|e| e.into())
 }
 
+#[derive(Debug)]
 pub struct ChunkedReader<R>
 where
     R: Read,
