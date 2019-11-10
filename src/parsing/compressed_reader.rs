@@ -14,6 +14,7 @@ use crate::error::Result;
 use crate::parsing::body_reader::BodyReader;
 use crate::request::PreparedRequest;
 
+#[derive(Debug)]
 pub enum CompressedReader {
     Plain(BodyReader),
     #[cfg(feature = "compress")]

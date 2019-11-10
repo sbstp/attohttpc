@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::{self, BufRead, Read};
 
 use encoding_rs::{CoderResult, Decoder};
@@ -29,6 +30,19 @@ where
             decoder: charset.new_decoder(),
             eof: false,
         }
+    }
+}
+
+impl<R> fmt::Debug for TextReader<R>
+where
+    R: fmt::Debug + BufRead,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TextReader")
+            .field("inner", &self.inner)
+            .field("decoder", &"<Decoder>")
+            .field("eof", &self.eof)
+            .finish()
     }
 }
 

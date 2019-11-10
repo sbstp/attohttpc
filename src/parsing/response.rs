@@ -80,6 +80,7 @@ pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Re
 }
 
 /// `Response` represents a response returned by a server.
+#[derive(Debug)]
 pub struct Response {
     status: StatusCode,
     headers: HeaderMap,

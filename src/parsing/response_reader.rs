@@ -47,6 +47,7 @@ fn get_charset(headers: &HeaderMap, default_charset: Option<Charset>) -> Charset
 ///
 /// In general it's best to avoid `Read`ing directly from this object. Instead use the
 /// helper methods, they process the data stream properly.
+#[derive(Debug)]
 pub struct ResponseReader {
     inner: CompressedReader,
     #[cfg(feature = "charsets")]
