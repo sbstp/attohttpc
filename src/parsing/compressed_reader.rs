@@ -73,7 +73,7 @@ impl CompressedReader {
     }
 
     #[cfg(not(feature = "compress"))]
-    pub fn new<B>(_: &HeaderMap, _: &PreparedRequest<B>, reader: BodyReader) -> Result<CompressedReader> {
+    pub fn new(_: &HeaderMap, _: &PreparedRequest, reader: BodyReader) -> Result<CompressedReader> {
         Ok(CompressedReader::Plain(reader))
     }
 }

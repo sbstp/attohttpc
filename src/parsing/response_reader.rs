@@ -55,11 +55,7 @@ pub struct ResponseReader {
 
 impl ResponseReader {
     #[cfg(feature = "charsets")]
-    pub(crate) fn new<B>(
-        headers: &HeaderMap,
-        request: &PreparedRequest<B>,
-        reader: CompressedReader,
-    ) -> ResponseReader {
+    pub(crate) fn new(headers: &HeaderMap, request: &PreparedRequest, reader: CompressedReader) -> ResponseReader {
         ResponseReader {
             inner: reader,
             charset: get_charset(&headers, request.default_charset),

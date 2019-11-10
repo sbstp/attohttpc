@@ -202,21 +202,6 @@ impl<'body> RequestBuilder<'body> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body(self, body: &'body [u8]) -> Self {
-        RequestBuilder {
-            url: self.url,
-            method: self.method,
-            headers: self.headers,
-            body: Cow::Borrowed(body),
-            max_redirections: self.max_redirections,
-            follow_redirects: self.follow_redirects,
-            #[cfg(feature = "charsets")]
-            default_charset: self.default_charset,
-            #[cfg(feature = "compress")]
-            allow_compression: self.allow_compression,
-        }
-    }
-
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
@@ -225,44 +210,48 @@ impl<'body> RequestBuilder<'body> {
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self.body(body.as_bytes())
+        self.body = Cow::Borrowed(body.as_bytes());
+        self
     }
 
     /// Set the body of this request to be bytes.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes<B>(mut self, body: &'body [u8]) -> Self {
+    pub fn bytes(mut self, body: &'body [u8]) -> Self {
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/octet-stream"));
-        self.body(body)
+        self.body = Cow::Borrowed(body);
+        self
     }
 
     /// Set the body of this request to be the JSON representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<Self> {
         let body = serde_json::to_vec(value)?;
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        Ok(self.body(body))
+        self.body = Cow::Owned(body);
+        Ok(self)
     }
 
     /// Set the body of this request to be the URL-encoded representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<Self> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.headers
             .entry(http::header::CONTENT_TYPE)
             .unwrap()
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-        Ok(self.body(body))
+        self.body = Cow::Owned(body);
+        Ok(self)
     }
 
     /// Set the maximum number of redirections this `Request` can perform.
