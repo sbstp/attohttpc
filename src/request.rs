@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
+use std::borrow::Borrow;
 use std::borrow::Cow;
 use std::convert::From;
-use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
 use std::result;
 use std::str;
@@ -120,24 +120,33 @@ impl<B> RequestBuilder<B> {
     /// Associate a query string parameter to the given value.
     ///
     /// The same key can be used multiple times.
-    pub fn param<V>(mut self, key: &str, value: V) -> Self
+    pub fn param<K, V>(mut self, key: K, value: V) -> Self
     where
-        V: Display,
+        K: AsRef<str>,
+        V: ToString,
     {
-        self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
+        self.url.query_pairs_mut().append_pair(key.as_ref(), &value.to_string());
         self
     }
 
     /// Associated a list of pairs to query parameters.
     ///
     /// The same key can be used multiple times.
-    pub fn params<'k, 'v, P, V>(mut self, pairs: P) -> Self
+    ///
+    /// # Example
+    /// ```
+    /// attohttpc::get("http://foo.bar").params(&[("p1", "v1"), ("p2", "v2")]);
+    /// ```
+    pub fn params<P, K, V>(mut self, pairs: P) -> Self
     where
-        P: AsRef<[(&'k str, V)]>,
-        V: Display + 'v,
+        P: IntoIterator,
+        P::Item: Borrow<(K, V)>,
+        K: AsRef<str>,
+        V: ToString,
     {
-        for (key, value) in pairs.as_ref().iter() {
-            self.url.query_pairs_mut().append_pair(key, &format!("{}", value));
+        for pair in pairs.into_iter() {
+            let (key, value) = pair.borrow();
+            self.url.query_pairs_mut().append_pair(key.as_ref(), &value.to_string());
         }
         self
     }
@@ -534,9 +543,4 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
         header_insert(headers, HOST, host)?;
     }
     Ok(())
-}
-
-#[test]
-fn test_params_erg() {
-    crate::get("http://foo.bar").params([("p1", "v1"), ("p2", "v2")]);
 }
