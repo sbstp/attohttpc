@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
+use std::borrow::Cow;
 use std::convert::From;
 use std::fmt::Display;
 use std::io::{prelude::*, BufWriter};
@@ -383,16 +384,6 @@ impl PreparedRequest<Vec<u8>> {
 }
 
 impl<B> PreparedRequest<B> {
-    fn set_host(&mut self, url: &Url) -> Result {
-        let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
-        if let Some(port) = url.port() {
-            header_insert(&mut self.headers, HOST, format!("{}:{}", host, port))?;
-        } else {
-            header_insert(&mut self.headers, HOST, host)?;
-        }
-        Ok(())
-    }
-
     #[cfg(not(feature = "compress"))]
     fn set_compression(&mut self) -> Result {
         Ok(())
@@ -499,8 +490,8 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
-        let mut url = self.url.clone();
-        self.set_host(&url)?;
+        let mut url = Cow::Borrowed(&self.url);
+        set_host(&mut self.headers, &url)?;
 
         let mut redirections = 0;
 
@@ -527,12 +518,22 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 .ok_or(InvalidResponseKind::LocationHeader)?;
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
-            url = self.base_redirect_url(location, &url)?;
-            self.set_host(&url)?;
+            url = Cow::Owned(self.base_redirect_url(location, &url)?);
+            set_host(&mut self.headers, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
     }
+}
+
+fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
+    let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
+    if let Some(port) = url.port() {
+        header_insert(headers, HOST, format!("{}:{}", host, port))?;
+    } else {
+        header_insert(headers, HOST, host)?;
+    }
+    Ok(())
 }
 
 #[test]
