@@ -19,14 +19,15 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `charsets` support for decoding more text encodings than just UTF-8
 * `compress` support for decompressing response bodies (**default**)
 * `json` support for serialization and deserialization
+* `form` support for url encoded forms (does not include support for multipart)
 * `tls` support for tls connections (**default**)
 
 ## Usage
 See the `examples/` folder in the repository for more use cases.
 ```rust
-let (status, headers, body) = attohttpc::post("https://my-api.com/do/something").json(&request)?.send()?;
-if status.is_success() {
-    let response = body.json()?;
+let resp = attohttpc::post("https://my-api.com/do/something").json(&request)?.send()?;
+if resp.is_success() {
+    let response = resp.json()?;
     // ...
 }
 ```
@@ -34,19 +35,19 @@ if status.is_success() {
 ## Current feature set
 * Query parameters
 * Request headers
-* Tls
+* TLS
 * Automatic redirection
 * Streaming response body
 * Text encoding support
 * Gzip, deflate support
 * Transfer-Encoding: chunked
 * `serde` support behind a feature flag
+* Authentication (partial support)
 
 ## Features being worked on
 * File upload, form data
 * Thorough test suite
 * Connection: keep-alive
-* Authentication
 
 ## License
 This project is licensed under the `MPL-2.0`.
