@@ -3,43 +3,29 @@
 use std::borrow::Borrow;
 use std::borrow::Cow;
 use std::convert::From;
+use std::convert::TryInto;
 use std::io::{prelude::*, BufWriter};
-use std::result;
 use std::str;
 
 #[cfg(feature = "compress")]
 use http::header::ACCEPT_ENCODING;
 use http::{
     header::{HeaderValue, IntoHeaderName, CONNECTION, CONTENT_LENGTH, HOST},
-    HeaderMap, HttpTryFrom, Method, Version,
+    HeaderMap, Method, Version,
 };
 use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
-use crate::error::{ErrorKind, InvalidResponseKind, Result};
+use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
-
-pub trait HttpTryInto<T> {
-    fn try_into(self) -> result::Result<T, http::Error>;
-}
-
-impl<T, U> HttpTryInto<U> for T
-where
-    U: HttpTryFrom<T>,
-    http::Error: From<<U as http::HttpTryFrom<T>>::Error>,
-{
-    fn try_into(self) -> result::Result<U, http::Error> {
-        let val = U::try_from(self)?;
-        Ok(val)
-    }
-}
 
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
     H: IntoHeaderName,
-    V: HttpTryInto<HeaderValue>,
+    V: TryInto<HeaderValue>,
+    Error: From<V::Error>,
 {
     let value = value.try_into()?;
     headers.insert(header, value);
@@ -49,7 +35,8 @@ where
 fn header_append<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
     H: IntoHeaderName,
-    V: HttpTryInto<HeaderValue>,
+    V: TryInto<HeaderValue>,
+    Error: From<V::Error>,
 {
     let value = value.try_into()?;
     headers.append(header, value);
@@ -161,7 +148,8 @@ impl<B> RequestBuilder<B> {
     pub fn header<H, V>(self, header: H, value: V) -> Self
     where
         H: IntoHeaderName,
-        V: HttpTryInto<HeaderValue>,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
     {
         self.try_header(header, value).expect("invalid header value")
     }
@@ -176,7 +164,8 @@ impl<B> RequestBuilder<B> {
     pub fn header_append<H, V>(self, header: H, value: V) -> Self
     where
         H: IntoHeaderName,
-        V: HttpTryInto<HeaderValue>,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
     {
         self.try_header_append(header, value).expect("invalid header value")
     }
@@ -188,7 +177,8 @@ impl<B> RequestBuilder<B> {
     pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
-        V: HttpTryInto<HeaderValue>,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
     {
         header_insert(&mut self.headers, header, value)?;
         Ok(self)
@@ -200,7 +190,8 @@ impl<B> RequestBuilder<B> {
     pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
-        V: HttpTryInto<HeaderValue>,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
     {
         header_append(&mut self.headers, header, value)?;
         Ok(self)
@@ -258,7 +249,6 @@ impl<B> RequestBuilder<B> {
 
         self.headers
             .entry(http::header::CONTENT_TYPE)
-            .unwrap()
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
         self.body(Text(body))
     }
@@ -269,7 +259,6 @@ impl<B> RequestBuilder<B> {
     pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
         self.headers
             .entry(http::header::CONTENT_TYPE)
-            .unwrap()
             .or_insert(HeaderValue::from_static("application/octet-stream"));
         self.body(body)
     }
@@ -282,7 +271,6 @@ impl<B> RequestBuilder<B> {
         let body = serde_json::to_vec(value)?;
         self.headers
             .entry(http::header::CONTENT_TYPE)
-            .unwrap()
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
         Ok(self.body(body))
     }
@@ -295,7 +283,6 @@ impl<B> RequestBuilder<B> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.headers
             .entry(http::header::CONTENT_TYPE)
-            .unwrap()
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
         Ok(self.body(body))
     }

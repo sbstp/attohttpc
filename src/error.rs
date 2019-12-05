@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::fmt::{self, Display};
 use std::io;
@@ -147,6 +148,12 @@ impl StdError for Error {
     }
 }
 
+impl From<Infallible> for Error {
+    fn from(_err: Infallible) -> Error {
+        unreachable!()
+    }
+}
+
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
         Error(Box::new(ErrorKind::Io(err)))
@@ -156,6 +163,12 @@ impl From<io::Error> for Error {
 impl From<http::Error> for Error {
     fn from(err: http::Error) -> Error {
         Error(Box::new(ErrorKind::Http(err)))
+    }
+}
+
+impl From<http::header::InvalidHeaderValue> for Error {
+    fn from(err: http::header::InvalidHeaderValue) -> Error {
+        Error(Box::new(ErrorKind::Http(http::Error::from(err))))
     }
 }
 
