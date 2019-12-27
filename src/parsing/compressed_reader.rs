@@ -1,14 +1,12 @@
-#[cfg(feature = "compress")]
-use std::io::BufReader;
 use std::io::{self, Read};
 
+#[cfg(feature = "compress")]
+use flate2::read::{DeflateDecoder, GzDecoder};
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
 use http::header::{CONTENT_ENCODING, TRANSFER_ENCODING};
 #[cfg(feature = "compress")]
 use http::Method;
-#[cfg(feature = "compress")]
-use libflate::{deflate, gzip};
 
 use crate::error::Result;
 use crate::parsing::body_reader::BodyReader;
@@ -18,11 +16,9 @@ use crate::request::PreparedRequest;
 pub enum CompressedReader {
     Plain(BodyReader),
     #[cfg(feature = "compress")]
-    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
-    Deflate(deflate::Decoder<BufReader<BodyReader>>),
+    Deflate(DeflateDecoder<BodyReader>),
     #[cfg(feature = "compress")]
-    // The BodyReader needs to be wrapped in a BufReader because libflate reads one byte at a time.
-    Gzip(gzip::Decoder<BufReader<BodyReader>>),
+    Gzip(GzDecoder<BodyReader>),
 }
 
 #[cfg(feature = "compress")]
@@ -58,15 +54,13 @@ impl CompressedReader {
     pub fn new<B>(headers: &HeaderMap, request: &PreparedRequest<B>, reader: BodyReader) -> Result<CompressedReader> {
         if request.method() != Method::HEAD {
             if have_encoding(headers, "gzip") {
-                // There's an issue when a Content-Encoding of Transfer-Encoding header are present and the body
-                // is empty, because the gzip decoder tries to read the header eagerly.
                 debug!("creating gzip decoder");
-                return Ok(CompressedReader::Gzip(gzip::Decoder::new(BufReader::new(reader))?));
+                return Ok(CompressedReader::Gzip(GzDecoder::new(reader)));
             }
 
             if have_encoding(headers, "deflate") {
                 debug!("creating deflate decoder");
-                return Ok(CompressedReader::Deflate(deflate::Decoder::new(BufReader::new(reader))));
+                return Ok(CompressedReader::Deflate(DeflateDecoder::new(reader)));
             }
         }
         debug!("creating plain reader");
@@ -98,10 +92,13 @@ mod tests {
     use std::io::prelude::*;
 
     #[cfg(feature = "compress")]
+    use flate2::{
+        write::{DeflateEncoder, GzEncoder},
+        Compression,
+    };
+    #[cfg(feature = "compress")]
     use http::header::{HeaderMap, HeaderValue};
     use http::Method;
-    #[cfg(feature = "compress")]
-    use libflate::{deflate, gzip};
 
     #[cfg(feature = "compress")]
     use super::have_encoding;
@@ -168,9 +165,9 @@ mod tests {
     #[cfg(feature = "compress")]
     fn test_stream_deflate() {
         let mut payload = Vec::new();
-        let mut enc = deflate::Encoder::new(&mut payload);
+        let mut enc = DeflateEncoder::new(&mut payload, Compression::default());
         enc.write_all(b"Hello world!!!!!!!!").unwrap();
-        enc.finish();
+        enc.finish().unwrap();
 
         let mut buf: Vec<u8> = Vec::new();
         let _ = write!(
@@ -191,9 +188,9 @@ mod tests {
     #[cfg(feature = "compress")]
     fn test_stream_gzip() {
         let mut payload = Vec::new();
-        let mut enc = gzip::Encoder::new(&mut payload).unwrap();
+        let mut enc = GzEncoder::new(&mut payload, Compression::default());
         enc.write_all(b"Hello world!!!!!!!!").unwrap();
-        enc.finish();
+        enc.finish().unwrap();
 
         let mut buf: Vec<u8> = Vec::new();
         let _ = write!(
@@ -218,7 +215,8 @@ mod tests {
 
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
         let sock = BaseStream::mock(buf.to_vec());
-        assert!(parse_response(sock, &req).is_err());
+        // Fixed by the move from libflate to flate2
+        assert!(parse_response(sock, &req).is_ok());
     }
 
     #[test]
