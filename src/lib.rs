@@ -54,6 +54,8 @@ mod parsing;
 mod request;
 mod streams;
 
+pub mod happy;
+
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 pub use crate::parsing::{Response, ResponseReader};
 pub use crate::request::{PreparedRequest, RequestBuilder};
