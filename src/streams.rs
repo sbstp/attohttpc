@@ -7,6 +7,7 @@ use std::net::TcpStream;
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
 
+use crate::happy;
 use crate::{ErrorKind, Result};
 
 #[derive(Debug)]
@@ -26,7 +27,7 @@ impl BaseStream {
         debug!("trying to connect to {}:{}", host, port);
 
         Ok(match url.scheme() {
-            "http" => BaseStream::Plain(TcpStream::connect((host, port))?),
+            "http" => BaseStream::Plain(happy::connect((host, port), None)?),
             #[cfg(feature = "tls")]
             "https" => BaseStream::connect_tls(host, port)?,
             _ => return Err(ErrorKind::InvalidBaseUrl.into()),
@@ -36,7 +37,7 @@ impl BaseStream {
     #[cfg(feature = "tls")]
     fn connect_tls(host: &str, port: u16) -> Result<BaseStream> {
         let connector = TlsConnector::new()?;
-        let stream = TcpStream::connect((host, port))?;
+        let stream = happy::connect((host, port), None)?;
         let tls_stream = match connector.connect(host, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),

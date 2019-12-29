@@ -143,12 +143,12 @@ impl ResponseReader {
         self.text_reader_with(charset)
     }
 
-    #[cfg(feature = "charsets")]
     /// Create a `TextReader` from this `ResponseReader`, decoding with the given `Charset`.
     ///
     /// This will ignore the encoding from the response headers and the default encoding, if any.
     ///
     /// This method only exists when the `charsets` feature is enabled.
+    #[cfg(feature = "charsets")]
     pub fn text_reader_with(self, charset: Charset) -> TextReader<BufReader<ResponseReader>> {
         TextReader::new(BufReader::new(self), charset)
     }
