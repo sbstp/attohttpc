@@ -1,4 +1,4 @@
-use std::io::{self, BufReader, Read, Take};
+use std::io::{self, BufRead, BufReader, Read, Take};
 
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
@@ -20,6 +20,26 @@ impl Read for BodyReader {
             BodyReader::Chunked(r) => r.read(buf),
             BodyReader::Length(r) => r.read(buf),
             BodyReader::Close(r) => r.read(buf),
+        }
+    }
+}
+
+impl BufRead for BodyReader {
+    #[inline]
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        match self {
+            BodyReader::Chunked(r) => r.fill_buf(),
+            BodyReader::Length(r) => r.fill_buf(),
+            BodyReader::Close(r) => r.fill_buf(),
+        }
+    }
+
+    #[inline]
+    fn consume(&mut self, amt: usize) {
+        match self {
+            BodyReader::Chunked(r) => r.consume(amt),
+            BodyReader::Length(r) => r.consume(amt),
+            BodyReader::Close(r) => r.consume(amt),
         }
     }
 }

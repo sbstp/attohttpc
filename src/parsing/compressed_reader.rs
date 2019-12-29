@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 
 #[cfg(feature = "compress")]
-use flate2::read::{DeflateDecoder, GzDecoder};
+use flate2::bufread::{DeflateDecoder, GzDecoder};
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
 use http::header::{CONTENT_ENCODING, TRANSFER_ENCODING};
