@@ -48,7 +48,7 @@ where
 
     #[inline]
     fn read_line(&mut self) -> io::Result<usize> {
-        buffers::read_line(&mut self.inner, &mut self.line)
+        buffers::read_line(&mut self.inner, &mut self.line, 128)
     }
 
     fn read_chunk_size(&mut self) -> io::Result<u64> {
@@ -171,7 +171,7 @@ fn test_read_invalid_no_terminating_chunk() {
     let mut s = String::new();
     assert_eq!(
         reader.read_to_string(&mut s).err().unwrap().kind(),
-        io::ErrorKind::Other
+        io::ErrorKind::UnexpectedEof
     );
 }
 
@@ -182,6 +182,6 @@ fn test_read_invalid_bad_terminating_chunk() {
     let mut s = String::new();
     assert_eq!(
         reader.read_to_string(&mut s).err().unwrap().kind(),
-        io::ErrorKind::Other
+        io::ErrorKind::UnexpectedEof
     );
 }
