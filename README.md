@@ -43,6 +43,7 @@ if resp.is_success() {
 * Transfer-Encoding: chunked
 * `serde` support behind a feature flag
 * Authentication (partial support)
+* [Happy Eyeballs](https://en.wikipedia.org/wiki/Happy_Eyeballs)
 
 ## Features being worked on
 * File upload, form data
