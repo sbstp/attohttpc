@@ -2,7 +2,6 @@ pub mod body_reader;
 pub mod buffers;
 pub mod chunked_reader;
 pub mod compressed_reader;
-pub mod length_reader;
 pub mod response;
 pub mod response_reader;
 #[cfg(feature = "charsets")]

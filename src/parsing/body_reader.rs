@@ -1,15 +1,15 @@
-use std::io::{self, BufReader, Read};
+use std::io::{self, BufReader, Read, Take};
 
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
 use crate::error::{InvalidResponseKind, Result};
-use crate::parsing::{chunked_reader::ChunkedReader, length_reader::LengthReader};
+use crate::parsing::chunked_reader::ChunkedReader;
 use crate::streams::BaseStream;
 
 #[derive(Debug)]
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
-    Length(LengthReader<BufReader<BaseStream>>),
+    Length(Take<BufReader<BaseStream>>),
     Close(BufReader<BaseStream>),
 }
 
@@ -64,7 +64,7 @@ impl BodyReader {
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))
         } else if let Some(val) = is_content_length(headers)? {
             debug!("creating a length body reader");
-            Ok(BodyReader::Length(LengthReader::new(reader, val)))
+            Ok(BodyReader::Length(reader.take(val)))
         } else {
             debug!("creating close reader");
             Ok(BodyReader::Close(reader))
