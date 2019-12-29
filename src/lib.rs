@@ -50,11 +50,10 @@ extern crate log;
 #[cfg(feature = "charsets")]
 pub mod charsets;
 mod error;
+mod happy;
 mod parsing;
 mod request;
 mod streams;
-
-pub mod happy;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 pub use crate::parsing::{Response, ResponseReader};

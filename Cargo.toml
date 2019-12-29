@@ -67,7 +67,3 @@ required-features = ["json"]
 name = "post"
 path = "examples/post.rs"
 required-features = ["tls"]
-
-[[example]]
-name = "happy"
-path = "examples/happy.rs"
