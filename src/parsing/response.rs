@@ -22,12 +22,14 @@ pub fn parse_response_head<R>(reader: &mut BufReader<R>) -> Result<(StatusCode, 
 where
     R: Read,
 {
+    const MAX_LINE_LEN: u64 = 16 * 1024;
+
     let mut line = Vec::new();
     let mut headers = HeaderMap::new();
 
     // status line
     let status: StatusCode = {
-        buffers::read_line(reader, &mut line)?;
+        buffers::read_line(reader, &mut line, MAX_LINE_LEN)?;
         let mut parts = line.split(|&b| b == b' ').filter(|x| !x.is_empty());
 
         let _ = parts.next().ok_or(InvalidResponseKind::StatusLine)?;
@@ -40,7 +42,7 @@ where
     };
 
     loop {
-        buffers::read_line(reader, &mut line)?;
+        buffers::read_line(reader, &mut line, MAX_LINE_LEN)?;
         if line.is_empty() {
             break;
         }
