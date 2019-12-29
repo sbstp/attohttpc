@@ -23,13 +23,11 @@ pub fn trim_byte(byte: u8, buf: &[u8]) -> &[u8] {
 }
 
 pub fn trim_byte_left(byte: u8, buf: &[u8]) -> &[u8] {
-    let n = buf.iter().take_while(|b| **b == byte).count();
-    &buf[n..]
+    buf.iter().position(|b| *b != byte).map_or(&[], |n| &buf[n..])
 }
 
 pub fn trim_byte_right(byte: u8, buf: &[u8]) -> &[u8] {
-    let n = buf.iter().rev().take_while(|b| **b == byte).count();
-    &buf[..buf.len() - n]
+    buf.iter().rposition(|b| *b != byte).map_or(&[], |n| &buf[..=n])
 }
 
 #[test]
