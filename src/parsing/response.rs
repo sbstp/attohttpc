@@ -8,7 +8,7 @@ use http::{
 
 use crate::error::{InvalidResponseKind, Result};
 use crate::parsing::buffers::{self, trim_byte};
-use crate::parsing::{BodyReader, CompressedReader, ResponseReader};
+use crate::parsing::{body_reader::BodyReader, compressed_reader::CompressedReader, ResponseReader};
 use crate::request::PreparedRequest;
 use crate::streams::BaseStream;
 

@@ -3,7 +3,7 @@ use std::io::{self, BufReader, Read};
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
 use crate::error::{InvalidResponseKind, Result};
-use crate::parsing::{ChunkedReader, LengthReader};
+use crate::parsing::{chunked_reader::ChunkedReader, length_reader::LengthReader};
 use crate::streams::BaseStream;
 
 #[derive(Debug)]
