@@ -21,9 +21,9 @@ where
     let timeout = timeout.into().unwrap_or(DEFAULT_CONNECTION_TIMEOUT);
     let addrs: Vec<_> = addrs.to_socket_addrs()?.collect();
 
-    if addrs.len() == 1 {
+    if let [addr] = &addrs[..] {
         debug!("DNS returned only one address, using fast path");
-        return TcpStream::connect_timeout(&addrs[0], timeout);
+        return TcpStream::connect_timeout(addr, timeout);
     }
 
     let ipv4 = addrs.iter().filter(|a| a.is_ipv4()).copied();
@@ -72,14 +72,11 @@ where
     // when all the threads are finished.
     drop(tx);
 
-    let deadline = Instant::now() + timeout;
-
-    // This loop will wait up to timeout for replies from the background threads after which
-    // it will give up. This loop is reached when some of the threads do not complete within
-    // the race delay.
+    // This loop waits for replies from the background threads. It will automatically timeout when the background
+    // thread's connection attempt timeouts and the senders are dropped.
+    // This loop is reached when some of the threads do not complete within the race delay.
     loop {
-        let timeout_left = deadline.saturating_duration_since(Instant::now());
-        match rx.recv_timeout(timeout_left) {
+        match rx.recv() {
             Ok(Ok(sock)) => {
                 debug!("success, took {}ms", start.elapsed().as_millis());
 
@@ -93,7 +90,7 @@ where
                 }
             }
             Err(_) => {
-                // The channel is disconnected or timeouts, we exit the loop
+                // The channel is disconnected, we exit the loop
                 break;
             }
         }
@@ -107,28 +104,44 @@ where
     Err(first_err.unwrap_or(io::ErrorKind::ConnectionRefused.into()))
 }
 
-fn intertwine<T, A, B>(mut ita: A, mut itb: B) -> Vec<T>
+fn intertwine<T, A, B>(mut ita: A, mut itb: B) -> impl Iterator<Item = T>
 where
     A: FusedIterator<Item = T>,
     B: FusedIterator<Item = T>,
 {
-    let mut res = vec![];
+    let mut stashed = None;
 
-    loop {
+    std::iter::from_fn(move || {
+        if let Some(b) = stashed.take() {
+            return Some(b);
+        }
+
         match (ita.next(), itb.next()) {
             (Some(a), Some(b)) => {
-                res.push(a);
-                res.push(b);
+                stashed = Some(b);
+                Some(a)
             }
-            (Some(a), None) => {
-                res.push(a);
-            }
-            (None, Some(b)) => {
-                res.push(b);
-            }
-            (None, None) => break,
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
         }
-    }
+    })
+}
 
-    res
+#[test]
+fn test_intertwine_even() {
+    let x: Vec<u32> = intertwine(vec![1, 2, 3].into_iter(), vec![4, 5, 6].into_iter()).collect();
+    assert_eq!(&x[..], &[1, 4, 2, 5, 3, 6][..]);
+}
+
+#[test]
+fn test_intertwine_left() {
+    let x: Vec<u32> = intertwine(vec![1, 2, 3, 100, 101].into_iter(), vec![4, 5, 6].into_iter()).collect();
+    assert_eq!(&x[..], &[1, 4, 2, 5, 3, 6, 100, 101][..]);
+}
+
+#[test]
+fn test_intertwine_right() {
+    let x: Vec<u32> = intertwine(vec![1, 2, 3].into_iter(), vec![4, 5, 6, 100, 101].into_iter()).collect();
+    assert_eq!(&x[..], &[1, 4, 2, 5, 3, 6, 100, 101][..]);
 }
