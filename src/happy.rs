@@ -20,6 +20,12 @@ where
 {
     let timeout = timeout.into().unwrap_or(DEFAULT_CONNECTION_TIMEOUT);
     let addrs: Vec<_> = addrs.to_socket_addrs()?.collect();
+
+    if addrs.len() == 1 {
+        debug!("DNS returned only one address, using fast path");
+        return TcpStream::connect_timeout(&addrs[0], timeout);
+    }
+
     let ipv4 = addrs.iter().filter(|a| a.is_ipv4()).copied();
     let ipv6 = addrs.iter().filter(|a| a.is_ipv6()).copied();
     let sorted = intertwine(ipv6, ipv4);
