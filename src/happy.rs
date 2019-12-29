@@ -1,5 +1,5 @@
 use std::io;
-use std::iter::FusedIterator;
+use std::iter::{self, FusedIterator};
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::{channel, RecvTimeoutError};
@@ -101,7 +101,7 @@ where
         start.elapsed().as_millis()
     );
 
-    Err(first_err.unwrap_or(io::ErrorKind::ConnectionRefused.into()))
+    Err(first_err.unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "no DNS entries found")))
 }
 
 fn intertwine<T, A, B>(mut ita: A, mut itb: B) -> impl Iterator<Item = T>
@@ -111,7 +111,7 @@ where
 {
     let mut stashed = None;
 
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         if let Some(b) = stashed.take() {
             return Some(b);
         }
