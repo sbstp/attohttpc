@@ -18,6 +18,20 @@ where
     Ok(n)
 }
 
+pub fn read_line_ending<R>(reader: &mut BufReader<R>) -> io::Result<bool>
+where
+    R: Read,
+{
+    let mut b = [0];
+    reader.read_exact(&mut b)?;
+
+    if &b == b"\r" {
+        reader.read_exact(&mut b)?;
+    }
+
+    Ok(&b == b"\n")
+}
+
 pub fn trim_byte(byte: u8, buf: &[u8]) -> &[u8] {
     trim_byte_left(byte, trim_byte_right(byte, buf))
 }
