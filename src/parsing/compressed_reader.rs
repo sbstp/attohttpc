@@ -18,7 +18,7 @@ pub enum CompressedReader {
     #[cfg(feature = "compress")]
     Deflate(DeflateDecoder<BodyReader>),
     #[cfg(feature = "compress")]
-    Gzip(GzDecoder<BodyReader>),
+    Gzip(Box<GzDecoder<BodyReader>>),
 }
 
 #[cfg(feature = "compress")]
@@ -55,7 +55,7 @@ impl CompressedReader {
         if request.method() != Method::HEAD {
             if have_encoding(headers, "gzip") {
                 debug!("creating gzip decoder");
-                return Ok(CompressedReader::Gzip(GzDecoder::new(reader)));
+                return Ok(CompressedReader::Gzip(Box::new(GzDecoder::new(reader))));
             }
 
             if have_encoding(headers, "deflate") {
