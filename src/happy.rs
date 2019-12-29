@@ -22,7 +22,7 @@ where
     let addrs: Vec<_> = addrs.to_socket_addrs()?.collect();
     let ipv4 = addrs.iter().filter(|a| a.is_ipv4()).cloned();
     let ipv6 = addrs.iter().filter(|a| a.is_ipv6()).cloned();
-    let order = intertwine(ipv6, ipv4);
+    let order = intertwine(ipv4, ipv6);
 
     let (tx, rx) = channel();
     let mut last_err = None;
