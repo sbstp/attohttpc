@@ -112,27 +112,6 @@ impl Display for Error {
 }
 
 impl StdError for Error {
-    fn description(&self) -> &str {
-        use ErrorKind::*;
-
-        match *self.0 {
-            ConnectNotSupported => "CONNECT is not supported",
-            Http(ref e) => e.description(),
-            Io(ref e) => e.description(),
-            InvalidBaseUrl => "invalid base url",
-            InvalidUrlHost => "url has no host",
-            InvalidUrlPort => "url has no port",
-            InvalidResponse(_) => "invalid response",
-            TooManyRedirections => "too many redirections",
-            #[cfg(feature = "json")]
-            Json(ref e) => e.description(),
-            #[cfg(feature = "form")]
-            UrlEncoded(ref e) => e.description(),
-            #[cfg(feature = "tls")]
-            Tls(ref e) => e.description(),
-        }
-    }
-
     fn cause(&self) -> Option<&dyn StdError> {
         use ErrorKind::*;
 
