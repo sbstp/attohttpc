@@ -1,8 +1,7 @@
 use std::io;
 use std::iter::{self, FusedIterator};
-use std::net::TcpStream;
-use std::net::ToSocketAddrs;
-use std::sync::mpsc::{channel, RecvTimeoutError};
+use std::net::{TcpStream, ToSocketAddrs};
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -26,8 +25,8 @@ where
         return TcpStream::connect_timeout(addr, timeout);
     }
 
-    let ipv4 = addrs.iter().filter(|a| a.is_ipv4()).copied();
-    let ipv6 = addrs.iter().filter(|a| a.is_ipv6()).copied();
+    let ipv4 = addrs.iter().filter(|a| a.is_ipv4());
+    let ipv6 = addrs.iter().filter(|a| a.is_ipv6());
     let sorted = intertwine(ipv6, ipv4);
 
     let (tx, rx) = channel();
@@ -35,35 +34,41 @@ where
 
     let start = Instant::now();
 
+    let mut handle_res = |addr, res| match res {
+        Ok(sock) => {
+            debug!(
+                "successfully connected to {}, took {}ms",
+                addr,
+                start.elapsed().as_millis()
+            );
+
+            Some(sock)
+        }
+        Err(err) => {
+            debug!("failed to connect to {}: {}", addr, err);
+
+            if first_err.is_none() {
+                first_err = Some(err);
+            }
+
+            None
+        }
+    };
+
     // This loop will race each connection attempt against others, returning early if a
     // connection attempt is successful.
-    for addr in sorted {
+    for &addr in sorted {
         let tx = tx.clone();
 
         thread::spawn(move || {
             debug!("trying to connect to {}", addr);
 
-            let _ = tx.send(TcpStream::connect_timeout(&addr, timeout));
+            let _ = tx.send((addr, TcpStream::connect_timeout(&addr, timeout)));
         });
 
-        match rx.recv_timeout(RACE_DELAY) {
-            Ok(Ok(sock)) => {
-                debug!("success, took {}ms", start.elapsed().as_millis());
-
+        if let Ok((addr, res)) = rx.recv_timeout(RACE_DELAY) {
+            if let Some(sock) = handle_res(addr, res) {
                 return Ok(sock);
-            }
-            Ok(Err(err)) => {
-                debug!("connection error: {} addr={}", err, addr);
-
-                if first_err.is_none() {
-                    first_err = Some(err);
-                }
-            }
-            Err(RecvTimeoutError::Timeout) => {
-                continue;
-            }
-            Err(RecvTimeoutError::Disconnected) => {
-                unreachable!();
             }
         }
     }
@@ -72,27 +77,12 @@ where
     // when all the threads are finished.
     drop(tx);
 
-    // This loop waits for replies from the background threads. It will automatically timeout when the background
-    // thread's connection attempt timeouts and the senders are dropped.
+    // This loop waits for replies from the background threads. It will automatically timeout
+    // when the background threads' connection attempts timeout and the senders are dropped.
     // This loop is reached when some of the threads do not complete within the race delay.
-    loop {
-        match rx.recv() {
-            Ok(Ok(sock)) => {
-                debug!("success, took {}ms", start.elapsed().as_millis());
-
-                return Ok(sock);
-            }
-            Ok(Err(err)) => {
-                debug!("connection error: {}", err);
-
-                if first_err.is_none() {
-                    first_err = Some(err);
-                }
-            }
-            Err(_) => {
-                // The channel is disconnected, we exit the loop
-                break;
-            }
+    for (addr, res) in rx.iter() {
+        if let Some(sock) = handle_res(addr, res) {
+            return Ok(sock);
         }
     }
 
@@ -109,16 +99,16 @@ where
     A: FusedIterator<Item = T>,
     B: FusedIterator<Item = T>,
 {
-    let mut stashed = None;
+    let mut valb = None;
 
     iter::from_fn(move || {
-        if let Some(b) = stashed.take() {
+        if let Some(b) = valb.take() {
             return Some(b);
         }
 
         match (ita.next(), itb.next()) {
             (Some(a), Some(b)) => {
-                stashed = Some(b);
+                valb = Some(b);
                 Some(a)
             }
             (Some(a), None) => Some(a),
