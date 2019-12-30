@@ -1,15 +1,15 @@
-use std::io::{self, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read, Take};
 
 use http::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, TRANSFER_ENCODING};
 
 use crate::error::{InvalidResponseKind, Result};
-use crate::parsing::{ChunkedReader, LengthReader};
+use crate::parsing::chunked_reader::ChunkedReader;
 use crate::streams::BaseStream;
 
 #[derive(Debug)]
 pub enum BodyReader {
     Chunked(ChunkedReader<BaseStream>),
-    Length(LengthReader<BufReader<BaseStream>>),
+    Length(Take<BufReader<BaseStream>>),
     Close(BufReader<BaseStream>),
 }
 
@@ -20,6 +20,26 @@ impl Read for BodyReader {
             BodyReader::Chunked(r) => r.read(buf),
             BodyReader::Length(r) => r.read(buf),
             BodyReader::Close(r) => r.read(buf),
+        }
+    }
+}
+
+impl BufRead for BodyReader {
+    #[inline]
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        match self {
+            BodyReader::Chunked(r) => r.fill_buf(),
+            BodyReader::Length(r) => r.fill_buf(),
+            BodyReader::Close(r) => r.fill_buf(),
+        }
+    }
+
+    #[inline]
+    fn consume(&mut self, amt: usize) {
+        match self {
+            BodyReader::Chunked(r) => r.consume(amt),
+            BodyReader::Length(r) => r.consume(amt),
+            BodyReader::Close(r) => r.consume(amt),
         }
     }
 }
@@ -64,7 +84,7 @@ impl BodyReader {
             Ok(BodyReader::Chunked(ChunkedReader::new(reader)))
         } else if let Some(val) = is_content_length(headers)? {
             debug!("creating a length body reader");
-            Ok(BodyReader::Length(LengthReader::new(reader, val)))
+            Ok(BodyReader::Length(reader.take(val)))
         } else {
             debug!("creating close reader");
             Ok(BodyReader::Close(reader))

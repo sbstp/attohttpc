@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 
 #[cfg(feature = "compress")]
-use flate2::read::{DeflateDecoder, GzDecoder};
+use flate2::bufread::{DeflateDecoder, GzDecoder};
 use http::header::HeaderMap;
 #[cfg(feature = "compress")]
 use http::header::{CONTENT_ENCODING, TRANSFER_ENCODING};
@@ -18,7 +18,7 @@ pub enum CompressedReader {
     #[cfg(feature = "compress")]
     Deflate(DeflateDecoder<BodyReader>),
     #[cfg(feature = "compress")]
-    Gzip(Box<GzDecoder<BodyReader>>),
+    Gzip(GzDecoder<BodyReader>),
 }
 
 #[cfg(feature = "compress")]
@@ -55,7 +55,7 @@ impl CompressedReader {
         if request.method() != Method::HEAD {
             if have_encoding(headers, "gzip") {
                 debug!("creating gzip decoder");
-                return Ok(CompressedReader::Gzip(Box::new(GzDecoder::new(reader))));
+                return Ok(CompressedReader::Gzip(GzDecoder::new(reader)));
             }
 
             if have_encoding(headers, "deflate") {

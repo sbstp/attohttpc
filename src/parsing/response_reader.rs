@@ -7,7 +7,7 @@ use http::header::HeaderMap;
 use serde::de::DeserializeOwned;
 
 use crate::error::Result;
-use crate::parsing::CompressedReader;
+use crate::parsing::compressed_reader::CompressedReader;
 use crate::request::PreparedRequest;
 
 #[cfg(feature = "charsets")]
