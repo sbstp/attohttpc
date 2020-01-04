@@ -13,6 +13,7 @@ use http::{
     header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, HOST, USER_AGENT},
     HeaderMap, Method, Version,
 };
+use lazy_static::lazy_static;
 use url::Url;
 
 #[cfg(feature = "charsets")]
@@ -22,6 +23,10 @@ use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+lazy_static! {
+    static ref DEFAULT_USER_AGENT: String = format!("attohttpc/{}", VERSION);
+}
 
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
@@ -366,7 +371,7 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
         }
 
         header_insert_if_missing(&mut prepped.headers, ACCEPT, "*/*")?;
-        header_insert_if_missing(&mut prepped.headers, USER_AGENT, format!("attohttpc/{}", VERSION))?;
+        header_insert_if_missing(&mut prepped.headers, USER_AGENT, &*DEFAULT_USER_AGENT)?;
 
         Ok(prepped)
     }
@@ -664,7 +669,7 @@ fn test_request_builder_write_request_no_query() {
             "connection: close",
             "accept-encoding: gzip, deflate",
             "accept: */*",
-            &format!("user-agent: attohttpc/{}", VERSION),
+            &format!("user-agent: {}", *DEFAULT_USER_AGENT),
             "",
         ]
     );
@@ -686,7 +691,7 @@ fn test_request_builder_write_request_with_query() {
             "connection: close",
             "accept-encoding: gzip, deflate",
             "accept: */*",
-            &format!("user-agent: attohttpc/{}", VERSION),
+            &format!("user-agent: {}", *DEFAULT_USER_AGENT),
             "",
         ]
     );
@@ -696,7 +701,7 @@ fn test_request_builder_write_request_with_query() {
 fn test_prepare_default_headers() {
     let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz").prepare();
     assert_eq!(prepped.headers()[ACCEPT], "*/*");
-    assert_eq!(prepped.headers()[USER_AGENT], format!("attohttpc/{}", VERSION));
+    assert_eq!(prepped.headers()[USER_AGENT], *DEFAULT_USER_AGENT);
 }
 
 #[test]
