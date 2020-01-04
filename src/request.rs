@@ -10,7 +10,7 @@ use std::str;
 #[cfg(feature = "compress")]
 use http::header::ACCEPT_ENCODING;
 use http::{
-    header::{HeaderValue, IntoHeaderName, CONNECTION, CONTENT_LENGTH, HOST},
+    header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, HOST, USER_AGENT},
     HeaderMap, Method, Version,
 };
 use url::Url;
@@ -21,6 +21,8 @@ use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
     H: IntoHeaderName,
@@ -29,6 +31,17 @@ where
 {
     let value = value.try_into()?;
     headers.insert(header, value);
+    Ok(())
+}
+
+fn header_insert_if_missing<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
+where
+    H: IntoHeaderName,
+    V: TryInto<HeaderValue>,
+    Error: From<V::Error>,
+{
+    let value = value.try_into()?;
+    headers.entry(header).or_insert(value);
     Ok(())
 }
 
@@ -352,6 +365,9 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
             header_insert(&mut prepped.headers, CONTENT_LENGTH, prepped.body.as_ref().len())?;
         }
 
+        header_insert_if_missing(&mut prepped.headers, ACCEPT, "*/*")?;
+        header_insert_if_missing(&mut prepped.headers, USER_AGENT, format!("attohttpc/{}", VERSION))?;
+
         Ok(prepped)
     }
 
@@ -548,4 +564,47 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
         header_insert(headers, HOST, host)?;
     }
     Ok(())
+}
+
+#[test]
+fn test_header_insert_exists() {
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, HeaderValue::from_static("hello"));
+    header_insert(&mut headers, USER_AGENT, "world").unwrap();
+    assert_eq!(headers[USER_AGENT], "world");
+}
+
+#[test]
+fn test_header_insert_missing() {
+    let mut headers = HeaderMap::new();
+    header_insert(&mut headers, USER_AGENT, "world").unwrap();
+    assert_eq!(headers[USER_AGENT], "world");
+}
+
+#[test]
+fn test_header_insert_if_missing_exists() {
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, HeaderValue::from_static("hello"));
+    header_insert_if_missing(&mut headers, USER_AGENT, "world").unwrap();
+    assert_eq!(headers[USER_AGENT], "hello");
+}
+
+#[test]
+fn test_header_insert_if_missing_missing() {
+    let mut headers = HeaderMap::new();
+    header_insert_if_missing(&mut headers, USER_AGENT, "world").unwrap();
+    assert_eq!(headers[USER_AGENT], "world");
+}
+
+#[test]
+fn test_header_append() {
+    let mut headers = HeaderMap::new();
+    header_append(&mut headers, USER_AGENT, "hello").unwrap();
+    header_append(&mut headers, USER_AGENT, "world").unwrap();
+
+    let vals: Vec<_> = headers.get_all(USER_AGENT).into_iter().collect();
+    assert_eq!(vals.len(), 2);
+    for val in vals {
+        assert!(val == "hello" || val == "world");
+    }
 }
