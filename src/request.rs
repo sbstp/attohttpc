@@ -608,3 +608,103 @@ fn test_header_append() {
         assert!(val == "hello" || val == "world");
     }
 }
+
+#[test]
+fn test_request_builder_param() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+        .param("qux", "baz")
+        .prepare();
+
+    assert_eq!(prepped.url().as_str(), "http://localhost:1337/foo?qux=baz");
+}
+
+#[test]
+fn test_request_builder_params() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+        .params(&[("qux", "baz"), ("foo", "bar")])
+        .prepare();
+
+    assert_eq!(prepped.url().as_str(), "http://localhost:1337/foo?qux=baz&foo=bar");
+}
+
+#[test]
+fn test_request_builder_header_insert() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+        .header("hello", "world")
+        .prepare();
+
+    assert_eq!(prepped.headers()["hello"], "world");
+}
+
+#[test]
+fn test_request_builder_header_append() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+        .header_append("hello", "world")
+        .header_append("hello", "!!!")
+        .prepare();
+
+    let vals: Vec<_> = prepped.headers().get_all("hello").into_iter().collect();
+    assert_eq!(vals.len(), 2);
+    for val in vals {
+        assert!(val == "world" || val == "!!!");
+    }
+}
+
+#[test]
+fn test_request_builder_write_request_no_query() {
+    let mut buf = Vec::new();
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo").prepare();
+    prepped.write_request(&mut buf, prepped.url()).unwrap();
+    let text = std::str::from_utf8(&buf).unwrap();
+    let lines: Vec<_> = text.lines().collect();
+    assert_eq!(
+        lines,
+        vec![
+            "GET /foo HTTP/1.1",
+            "connection: close",
+            "accept-encoding: gzip, deflate",
+            "accept: */*",
+            &format!("user-agent: attohttpc/{}", VERSION),
+            "",
+        ]
+    );
+}
+
+#[test]
+fn test_request_builder_write_request_with_query() {
+    let mut buf = Vec::new();
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+        .param("hello", "world")
+        .prepare();
+    prepped.write_request(&mut buf, prepped.url()).unwrap();
+    let text = std::str::from_utf8(&buf).unwrap();
+    let lines: Vec<_> = text.lines().collect();
+    assert_eq!(
+        lines,
+        vec![
+            "GET /foo?hello=world HTTP/1.1",
+            "connection: close",
+            "accept-encoding: gzip, deflate",
+            "accept: */*",
+            &format!("user-agent: attohttpc/{}", VERSION),
+            "",
+        ]
+    );
+}
+
+#[test]
+fn test_prepare_default_headers() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz").prepare();
+    assert_eq!(prepped.headers()[ACCEPT], "*/*");
+    assert_eq!(prepped.headers()[USER_AGENT], format!("attohttpc/{}", VERSION));
+}
+
+#[test]
+fn test_prepare_custom_headers() {
+    let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz")
+        .header(USER_AGENT, "foobaz")
+        .header("Accept", "nothing")
+        .prepare();
+    assert_eq!(prepped.headers()[ACCEPT], "nothing");
+    assert_eq!(prepped.headers()[USER_AGENT], "foobaz");
+}
