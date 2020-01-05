@@ -67,3 +67,8 @@ required-features = ["json"]
 name = "post"
 path = "examples/post.rs"
 required-features = ["tls"]
+
+[[example]]
+name = "charset"
+path = "examples/charset.rs"
+required-features = ["charsets"]

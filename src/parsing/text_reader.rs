@@ -50,24 +50,30 @@ impl<R> Read for TextReader<R>
 where
     R: BufRead,
 {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
             return Ok(0);
         }
+
+        dbg!(buf.len());
 
         let mut total_written = 0;
 
         loop {
             let src = self.inner.fill_buf()?;
+            dbg!(src.len());
+            dbg!(buf.len());
+
             if src.is_empty() {
                 // inner has reached EOF, write last to the buffer.
                 let (res, _, written, _) = self.decoder.decode_to_utf8(src, buf, true);
                 total_written += written;
+                dbg!(&res);
 
                 match res {
                     CoderResult::InputEmpty => {
                         // last call was successful, set eof to true
-                        self.eof = true;
+                        dbg!(self.eof = true);
                         break;
                     }
                     CoderResult::OutputFull => {
@@ -76,10 +82,12 @@ where
                     }
                 }
             } else {
-                let (res, read, written, _) = self.decoder.decode_to_utf8(src, buf, false);
+                let (res, read, written, _) = dbg!(self.decoder.decode_to_utf8(src, buf, false));
+                debug!("decoded to buf {} => {} : {:?}", read, written, res);
 
                 self.inner.consume(read);
                 total_written += written;
+                buf = &mut buf[written..];
 
                 match res {
                     CoderResult::InputEmpty => {
@@ -94,6 +102,7 @@ where
             }
         }
 
+        dbg!(total_written);
         Ok(total_written)
     }
 }
@@ -128,6 +137,8 @@ fn test_string_reader_large_buffer_latin1() {
 
     let mut text = String::new();
     reader.read_to_string(&mut text).unwrap();
+
+    assert_eq!(text.len(), 20_000);
 
     for c in text.chars() {
         assert_eq!(c, 'É');
