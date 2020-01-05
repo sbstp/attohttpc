@@ -1,4 +1,4 @@
-#![deny(missing_debug_implementations)]
+//#![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 #![allow(clippy::needless_doctest_main)]
 //! This project's goal is to provide a lightweight and simple HTTP client for the Rust ecosystem. The intended use is for

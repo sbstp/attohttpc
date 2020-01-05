@@ -16,6 +16,8 @@ where
 {
     inner: R,
     decoder: Decoder,
+    internal_buf: Vec<u8>,
+    internal_buf_amt: usize,
     eof: bool,
 }
 
@@ -28,82 +30,81 @@ where
         TextReader {
             inner,
             decoder: charset.new_decoder(),
+            internal_buf: vec![0u8; 4096],
+            internal_buf_amt: 0,
             eof: false,
         }
     }
 }
 
-impl<R> fmt::Debug for TextReader<R>
-where
-    R: fmt::Debug + BufRead,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TextReader")
-            .field("inner", &self.inner)
-            .field("decoder", &"<Decoder>")
-            .field("eof", &self.eof)
-            .finish()
-    }
-}
+// impl<R> fmt::Debug for TextReader<R>
+// where
+//     R: fmt::Debug + BufRead,
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         f.debug_struct("TextReader")
+//             .field("inner", &self.inner)
+//             .field("decoder", &"<Decoder>")
+//             .field("eof", &self.eof)
+//             .finish()
+//     }
+// }
 
 impl<R> Read for TextReader<R>
 where
     R: BufRead,
 {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        if self.eof {
+    fn read(&mut self, mut dst: &mut [u8]) -> io::Result<usize> {
+        // The `Read` trait is not directly compatible with the `encoding_rs` crate. There is no
+        // way to signify to the caller of the `read` method that a larger buffer is required.
+        // It is expected that as long as the destination buffer has a length larger than 0, some
+        // data can be written into it. However, the `encoding_rs` crate will refuse to write
+        // in a buffer that cannot contain a full code point. This is why we need to use a
+        // middle-man buffer which always has enough room to be written into.
+        //
+        // Whenever the middle-man buffer contains data, it is first copied into the destination
+        // buffer. When it's empty, we decode more data from the source buffer into it.
+
+        if self.eof && self.internal_buf_amt == 0 {
+            // If the inner reader is eof and the internal buffer is empty, we have nothing
+            // else to do.
             return Ok(0);
         }
 
-        dbg!(buf.len());
+        let dst_len = dst.len();
 
-        let mut total_written = 0;
-
-        loop {
-            let src = self.inner.fill_buf()?;
-            dbg!(src.len());
-            dbg!(buf.len());
-
-            if src.is_empty() {
-                // inner has reached EOF, write last to the buffer.
-                let (res, _, written, _) = self.decoder.decode_to_utf8(src, buf, true);
-                total_written += written;
-                dbg!(&res);
-
-                match res {
-                    CoderResult::InputEmpty => {
-                        // last call was successful, set eof to true
-                        dbg!(self.eof = true);
-                        break;
-                    }
-                    CoderResult::OutputFull => {
-                        // last call was not successful because the output is full, try again in the next call to `read`
-                        break;
-                    }
-                }
+        // Loop as long as the destination buffer has room and that the underlying stream is not
+        // exhausted or that the internal buffer has data.
+        while dst.len() > 0 && (!self.eof || self.internal_buf_amt > 0) {
+            if self.internal_buf_amt > 0 {
+                // Internal buffer contains some data. Copy it into dst.
+                let n = std::cmp::min(dst.len(), self.internal_buf_amt);
+                dst[..n].copy_from_slice(&self.internal_buf[..n]);
+                self.internal_buf_amt -= n;
+                dst = &mut dst[n..];
             } else {
-                let (res, read, written, _) = dbg!(self.decoder.decode_to_utf8(src, buf, false));
-                debug!("decoded to buf {} => {} : {:?}", read, written, res);
+                // Internal buffer is empty. Decode more data into it.
+                let src = self.inner.fill_buf()?;
+                if !src.is_empty() {
+                    // Source buffer has data. Decode the data it contains into the internal buffer.
+                    let (_, read, written, _) = self.decoder.decode_to_utf8(src, &mut self.internal_buf, false);
+                    self.internal_buf_amt += written;
+                    self.inner.consume(read);
+                } else {
+                    // EOF has been reached in the underlying stream. Source buffer is empty.
+                    // We must finalize the decoding.
+                    let (res, _, written, _) = self.decoder.decode_to_utf8(src, &mut self.internal_buf, true);
+                    self.internal_buf_amt += written;
 
-                self.inner.consume(read);
-                total_written += written;
-                buf = &mut buf[written..];
-
-                match res {
-                    CoderResult::InputEmpty => {
-                        // read all the bytes available in src, read more
-                        continue;
-                    }
-                    CoderResult::OutputFull => {
-                        // buf is full, break and return the number read
-                        break;
+                    // If the finalization was successful, we can set eof.
+                    if res == CoderResult::InputEmpty {
+                        self.eof = true;
                     }
                 }
             }
         }
 
-        dbg!(total_written);
-        Ok(total_written)
+        dbg!(Ok(dst_len - dst.len()))
     }
 }
 
@@ -136,7 +137,7 @@ fn test_string_reader_large_buffer_latin1() {
     let mut reader = TextReader::new(&buf[..], crate::charsets::WINDOWS_1252);
 
     let mut text = String::new();
-    reader.read_to_string(&mut text).unwrap();
+    assert_eq!(20_000, reader.read_to_string(&mut text).unwrap());
 
     assert_eq!(text.len(), 20_000);
 
