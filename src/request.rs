@@ -21,7 +21,7 @@ use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::BaseStream;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
