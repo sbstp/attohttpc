@@ -2,6 +2,7 @@
 use std::io::Cursor;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
+use std::time::Duration;
 
 #[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
@@ -20,30 +21,41 @@ pub enum BaseStream {
 }
 
 impl BaseStream {
-    pub fn connect(url: &Url) -> Result<BaseStream> {
+    pub fn connect(url: &Url, connect_timeout: Duration, read_timeout: Duration) -> Result<BaseStream> {
         let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         let port = url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
 
         debug!("trying to connect to {}:{}", host, port);
 
-        Ok(match url.scheme() {
-            "http" => BaseStream::Plain(happy::connect((host, port), None)?),
+        match url.scheme() {
+            "http" => BaseStream::connect_tcp(host, port, connect_timeout, read_timeout).map(BaseStream::Plain),
             #[cfg(feature = "tls")]
-            "https" => BaseStream::connect_tls(host, port)?,
-            _ => return Err(ErrorKind::InvalidBaseUrl.into()),
-        })
+            "https" => BaseStream::connect_tls(host, port, connect_timeout, read_timeout).map(BaseStream::Tls),
+            _ => Err(ErrorKind::InvalidBaseUrl.into()),
+        }
+    }
+
+    fn connect_tcp(host: &str, port: u16, connect_timeout: Duration, read_timeout: Duration) -> Result<TcpStream> {
+        let stream = happy::connect((host, port), connect_timeout)?;
+        stream.set_read_timeout(Some(read_timeout))?;
+        Ok(stream)
     }
 
     #[cfg(feature = "tls")]
-    fn connect_tls(host: &str, port: u16) -> Result<BaseStream> {
+    fn connect_tls(
+        host: &str,
+        port: u16,
+        connect_timeout: Duration,
+        read_timeout: Duration,
+    ) -> Result<TlsStream<TcpStream>> {
         let connector = TlsConnector::new()?;
-        let stream = happy::connect((host, port), None)?;
+        let stream = BaseStream::connect_tcp(host, port, connect_timeout, read_timeout)?;
         let tls_stream = match connector.connect(host, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),
             Err(HandshakeError::WouldBlock(_)) => panic!("socket configured in non-blocking mode"),
         };
-        Ok(BaseStream::Tls(tls_stream))
+        Ok(tls_stream)
     }
 
     #[cfg(test)]
