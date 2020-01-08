@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
-use std::borrow::Borrow;
-use std::borrow::Cow;
-use std::convert::From;
-use std::convert::TryInto;
+use std::borrow::{Borrow, Cow};
+use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "compress")]
 use http::header::ACCEPT_ENCODING;
@@ -69,6 +68,7 @@ pub struct RequestBuilder<B = [u8; 0]> {
     body: B,
     max_redirections: u32,
     follow_redirects: bool,
+    timeout: Option<Duration>,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
@@ -108,6 +108,7 @@ impl RequestBuilder {
             body: [],
             max_redirections: 5,
             follow_redirects: true,
+            timeout: None,
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
@@ -241,6 +242,7 @@ impl<B> RequestBuilder<B> {
             body,
             max_redirections: self.max_redirections,
             follow_redirects: self.follow_redirects,
+            timeout: self.timeout,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
@@ -314,6 +316,14 @@ impl<B> RequestBuilder<B> {
         self
     }
 
+    /// Sets a timeout for this request.
+    ///
+    /// Defaults to no timeout.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
     /// Set the default charset to use while parsing the response of this `Request`.
     ///
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
@@ -353,6 +363,7 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
             body: self.body,
             max_redirections: self.max_redirections,
             follow_redirects: self.follow_redirects,
+            timeout: self.timeout,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
@@ -386,6 +397,7 @@ pub struct PreparedRequest<B> {
     body: B,
     max_redirections: u32,
     follow_redirects: bool,
+    timeout: Option<Duration>,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
@@ -405,6 +417,7 @@ impl PreparedRequest<Vec<u8>> {
             body: Vec::new(),
             max_redirections: 5,
             follow_redirects: true,
+            timeout: None,
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
@@ -524,9 +537,10 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
         set_host(&mut self.headers, &url)?;
 
         let mut redirections = 0;
+        let deadline = self.timeout.map(|timeout| Instant::now() + timeout);
 
         loop {
-            let mut stream = BaseStream::connect(&url)?;
+            let mut stream = BaseStream::connect(&url, deadline)?;
             self.write_request(&mut stream, &url)?;
             let resp = parse_response(stream, self)?;
 
