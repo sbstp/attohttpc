@@ -406,6 +406,7 @@ impl<B> RequestBuilder<B> {
     /// Use this setting with care. This will accept **any** TLS certificate valid or not.
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
+    #[cfg(feature = "tls")]
     pub fn accept_invalid_tls(mut self, accept_invalid_tls: bool) -> Self {
         self.accept_invalid_certs = accept_invalid_tls;
         self.accept_invalid_hostnames = accept_invalid_tls;
