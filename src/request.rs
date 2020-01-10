@@ -371,6 +371,9 @@ impl<B> RequestBuilder<B> {
 
     /// Sets if this `Request` will accept invalid TLS certificates.
     ///
+    /// Accepting invalid certificates implies that invalid hostnames are accepted
+    /// as well.
+    ///
     /// The default value is `false`.
     ///
     /// # Danger
@@ -378,7 +381,7 @@ impl<B> RequestBuilder<B> {
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
     #[cfg(feature = "tls")]
-    pub fn accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
+    pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
         self.accept_invalid_certs = accept_invalid_certs;
         self
     }
@@ -388,28 +391,11 @@ impl<B> RequestBuilder<B> {
     /// The default value is `false`.
     ///
     /// # Danger
-    /// Use this setting with care. This will accept **any** TLS certificate valid or not.
-    /// If you are using self signed certificates, it is much safer to add their root CA
-    /// to the list of trusted root CAs by your system.
+    /// Use this setting with care. This will accept TLS certificates that do not match
+    /// the hostname.
     #[cfg(feature = "tls")]
-    pub fn accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
+    pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
         self.accept_invalid_hostnames = accept_invalid_hostnames;
-        self
-    }
-
-    /// Sets if this `Request` will accept invalid TLS certificates and invalid hostnames.
-    ///
-    /// This is just a shortcut for calling both `accept_invalid_certs` and
-    /// `accept_invalid_hostnames`.
-    ///
-    /// # Danger
-    /// Use this setting with care. This will accept **any** TLS certificate valid or not.
-    /// If you are using self signed certificates, it is much safer to add their root CA
-    /// to the list of trusted root CAs by your system.
-    #[cfg(feature = "tls")]
-    pub fn accept_invalid_tls(mut self, accept_invalid_tls: bool) -> Self {
-        self.accept_invalid_certs = accept_invalid_tls;
-        self.accept_invalid_hostnames = accept_invalid_tls;
         self
     }
 }
