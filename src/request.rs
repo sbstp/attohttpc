@@ -20,7 +20,7 @@ use url::Url;
 use crate::charsets::Charset;
 use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
-use crate::streams::BaseStream;
+use crate::streams::{BaseStream, ConnectInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -76,6 +76,10 @@ pub struct RequestBuilder<B = [u8; 0]> {
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
     allow_compression: bool,
+    #[cfg(feature = "tls")]
+    accept_invalid_certs: bool,
+    #[cfg(feature = "tls")]
+    accept_invalid_hostnames: bool,
 }
 
 impl RequestBuilder {
@@ -117,6 +121,10 @@ impl RequestBuilder {
             default_charset: None,
             #[cfg(feature = "compress")]
             allow_compression: true,
+            #[cfg(feature = "tls")]
+            accept_invalid_certs: false,
+            #[cfg(feature = "tls")]
+            accept_invalid_hostnames: false,
         })
     }
 }
@@ -252,6 +260,10 @@ impl<B> RequestBuilder<B> {
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
             allow_compression: self.allow_compression,
+            #[cfg(feature = "tls")]
+            accept_invalid_certs: self.accept_invalid_certs,
+            #[cfg(feature = "tls")]
+            accept_invalid_hostnames: self.accept_invalid_hostnames,
         }
     }
 
@@ -356,6 +368,36 @@ impl<B> RequestBuilder<B> {
         self.allow_compression = allow_compression;
         self
     }
+
+    /// Sets if this `Request` will accept invalid TLS certificates.
+    ///
+    /// Accepting invalid certificates implies that invalid hostnames are accepted
+    /// as well.
+    ///
+    /// The default value is `false`.
+    ///
+    /// # Danger
+    /// Use this setting with care. This will accept **any** TLS certificate valid or not.
+    /// If you are using self signed certificates, it is much safer to add their root CA
+    /// to the list of trusted root CAs by your system.
+    #[cfg(feature = "tls")]
+    pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
+        self.accept_invalid_certs = accept_invalid_certs;
+        self
+    }
+
+    /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
+    ///
+    /// The default value is `false`.
+    ///
+    /// # Danger
+    /// Use this setting with care. This will accept TLS certificates that do not match
+    /// the hostname.
+    #[cfg(feature = "tls")]
+    pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
+        self.accept_invalid_hostnames = accept_invalid_hostnames;
+        self
+    }
 }
 
 impl<B: AsRef<[u8]>> RequestBuilder<B> {
@@ -382,6 +424,10 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
             allow_compression: self.allow_compression,
+            #[cfg(feature = "tls")]
+            accept_invalid_certs: self.accept_invalid_certs,
+            #[cfg(feature = "tls")]
+            accept_invalid_hostnames: self.accept_invalid_hostnames,
         };
 
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
@@ -417,6 +463,10 @@ pub struct PreparedRequest<B> {
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
     allow_compression: bool,
+    #[cfg(feature = "tls")]
+    accept_invalid_certs: bool,
+    #[cfg(feature = "tls")]
+    accept_invalid_hostnames: bool,
 }
 
 #[cfg(test)]
@@ -438,6 +488,10 @@ impl PreparedRequest<Vec<u8>> {
             default_charset: None,
             #[cfg(feature = "compress")]
             allow_compression: true,
+            #[cfg(feature = "tls")]
+            accept_invalid_certs: false,
+            #[cfg(feature = "tls")]
+            accept_invalid_hostnames: false,
         }
     }
 }
@@ -555,7 +609,16 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
         let mut redirections = 0;
 
         loop {
-            let mut stream = BaseStream::connect(&url, self.connect_timeout, self.read_timeout)?;
+            let info = ConnectInfo {
+                url: &url,
+                connect_timeout: self.connect_timeout,
+                read_timeout: self.read_timeout,
+                #[cfg(feature = "tls")]
+                accept_invalid_certs: self.accept_invalid_certs,
+                #[cfg(feature = "tls")]
+                accept_invalid_hostnames: self.accept_invalid_hostnames,
+            };
+            let mut stream = BaseStream::connect(&info)?;
             self.write_request(&mut stream, &url)?;
             let resp = parse_response(stream, self)?;
 
@@ -636,4 +699,16 @@ fn test_header_append() {
     for val in vals {
         assert!(val == "hello" || val == "world");
     }
+}
+
+#[test]
+#[cfg(feature = "tls")]
+fn test_accept_invalid_certs_disabled_by_default() {
+    let builder = RequestBuilder::new(Method::GET, "https://localhost:7900");
+    assert_eq!(builder.accept_invalid_certs, false);
+    assert_eq!(builder.accept_invalid_hostnames, false);
+
+    let prepped = builder.prepare();
+    assert_eq!(prepped.accept_invalid_certs, false);
+    assert_eq!(prepped.accept_invalid_hostnames, false);
 }
