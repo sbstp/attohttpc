@@ -58,12 +58,17 @@ impl BaseStream {
             .danger_accept_invalid_hostnames(info.accept_invalid_hostnames)
             .build()?;
         let stream = BaseStream::connect_tcp(host, port, info)?;
-        let tls_stream = match connector.connect(host, stream) {
-            Ok(stream) => stream,
-            Err(HandshakeError::Failure(err)) => return Err(err.into()),
-            Err(HandshakeError::WouldBlock(_)) => panic!("socket configured in non-blocking mode"),
-        };
-        Ok(tls_stream)
+        match connector.connect(host, stream) {
+            Ok(stream) => Ok(stream),
+            Err(HandshakeError::Failure(err)) => Err(err.into()),
+            Err(HandshakeError::WouldBlock(mut stream)) => loop {
+                match stream.handshake() {
+                    Ok(stream) => return Ok(stream),
+                    Err(HandshakeError::Failure(err)) => return Err(err.into()),
+                    Err(HandshakeError::WouldBlock(mid_stream)) => stream = mid_stream,
+                }
+            },
+        }
     }
 
     #[cfg(test)]
