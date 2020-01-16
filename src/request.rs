@@ -12,7 +12,7 @@ use std::time::Duration;
 use http::header::ACCEPT_ENCODING;
 use http::{
     header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, HOST, USER_AGENT},
-    HeaderMap, Method, Version,
+    HeaderMap, Method, StatusCode, Version,
 };
 use url::Url;
 
@@ -624,7 +624,15 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
             debug!("status code {}", resp.status().as_u16());
 
-            if !self.follow_redirects || !resp.status().is_redirection() {
+            let is_redirect = match resp.status() {
+                StatusCode::MOVED_PERMANENTLY
+                | StatusCode::FOUND
+                | StatusCode::SEE_OTHER
+                | StatusCode::TEMPORARY_REDIRECT
+                | StatusCode::PERMANENT_REDIRECT => true,
+                _ => false,
+            };
+            if !self.follow_redirects || !is_redirect {
                 return Ok(resp);
             }
 
