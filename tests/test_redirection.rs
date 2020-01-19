@@ -6,13 +6,18 @@ use rouille::{router, Response};
 
 lazy_static! {
     static ref STARTED: u16 = {
-        let server = rouille::Server::new("localhost:0", |request| router!(request,
-            (GET) ["/301"] => Response::redirect_301("/301"),
-            (GET) ["/304"] => Response::text("").with_status_code(304),
-            _ => Response::empty_404()
-        )).unwrap();
+        let server = rouille::Server::new("localhost:0", |request| {
+            router!(request,
+                (GET) ["/301"] => Response::redirect_301("/301"),
+                (GET) ["/304"] => Response::text("").with_status_code(304),
+                _ => Response::empty_404()
+            )
+        })
+        .unwrap();
         let port = server.server_addr().port();
-        thread::spawn(|| { server.run(); });
+        thread::spawn(|| {
+            server.run();
+        });
         port
     };
 }
