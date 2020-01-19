@@ -1,4 +1,3 @@
-use std::net::TcpListener;
 use std::net::TcpStream;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -9,14 +8,13 @@ use rouille::{router, Response};
 
 lazy_static! {
     static ref STARTED: u16 = {
-        let port = TcpListener::bind("localhost:0").unwrap().local_addr().unwrap().port();
-        thread::spawn(move || {
-            rouille::start_server(format!("localhost:{}", port), move |request| router!(request,
-                (GET) ["/301"] => Response::redirect_301("/301"),
-                (GET) ["/304"] => Response::text("").with_status_code(304),
-                _ => Response::empty_404()
-            ))
-        });
+        let server = rouille::Server::new("localhost:0", |request| router!(request,
+            (GET) ["/301"] => Response::redirect_301("/301"),
+            (GET) ["/304"] => Response::text("").with_status_code(304),
+            _ => Response::empty_404()
+        )).unwrap();
+        let port = server.server_addr().port();
+        thread::spawn(|| { server.run(); });
 
         let start = Instant::now();
         let timeout = Duration::from_secs(10);
