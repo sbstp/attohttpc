@@ -1,9 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
-use std::borrow::Borrow;
-use std::borrow::Cow;
-use std::convert::From;
-use std::convert::TryInto;
+use std::borrow::{Borrow, Cow};
+use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
 use std::time::Duration;
@@ -72,6 +70,7 @@ pub struct RequestBuilder<B = [u8; 0]> {
     follow_redirects: bool,
     connect_timeout: Duration,
     read_timeout: Duration,
+    timeout: Option<Duration>,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
@@ -117,6 +116,7 @@ impl RequestBuilder {
             follow_redirects: true,
             connect_timeout: Duration::from_secs(30),
             read_timeout: Duration::from_secs(30),
+            timeout: None,
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
@@ -256,6 +256,7 @@ impl<B> RequestBuilder<B> {
             follow_redirects: self.follow_redirects,
             connect_timeout: self.connect_timeout,
             read_timeout: self.read_timeout,
+            timeout: self.timeout,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
@@ -349,6 +350,14 @@ impl<B> RequestBuilder<B> {
         self
     }
 
+    /// Sets a timeout for the whole request.
+    ///
+    /// Applies after a TCP connection is established. Defaults to no timeout.
+    pub fn timeout(mut self, duration: Duration) -> Self {
+        self.timeout = Some(duration);
+        self
+    }
+
     /// Set the default charset to use while parsing the response of this `Request`.
     ///
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
@@ -420,6 +429,7 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
             follow_redirects: self.follow_redirects,
             connect_timeout: self.connect_timeout,
             read_timeout: self.read_timeout,
+            timeout: self.timeout,
             #[cfg(feature = "charsets")]
             default_charset: self.default_charset,
             #[cfg(feature = "compress")]
@@ -459,6 +469,7 @@ pub struct PreparedRequest<B> {
     follow_redirects: bool,
     connect_timeout: Duration,
     read_timeout: Duration,
+    timeout: Option<Duration>,
     #[cfg(feature = "charsets")]
     pub(crate) default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
@@ -484,6 +495,7 @@ impl PreparedRequest<Vec<u8>> {
             follow_redirects: true,
             connect_timeout: Duration::from_secs(30),
             read_timeout: Duration::from_secs(30),
+            timeout: None,
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
@@ -613,6 +625,7 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 url: &url,
                 connect_timeout: self.connect_timeout,
                 read_timeout: self.read_timeout,
+                timeout: self.timeout,
                 #[cfg(feature = "tls")]
                 accept_invalid_certs: self.accept_invalid_certs,
                 #[cfg(feature = "tls")]
