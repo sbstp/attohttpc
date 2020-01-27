@@ -68,6 +68,7 @@ impl BaseStream {
                 let (tx, rx) = mpsc::channel();
                 thread::spawn(move || {
                     if let Err(mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(timeout) {
+                        drop(rx);
                         let _ = stream.shutdown(Shutdown::Both);
                     }
                 });
@@ -112,9 +113,9 @@ impl Read for BaseStream {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
-            BaseStream::Plain { stream, .. } => stream.read(buf),
+            BaseStream::Plain { stream, timeout } => read_timeout(stream, buf, timeout),
             #[cfg(feature = "tls")]
-            BaseStream::Tls { stream, .. } => stream.read(buf),
+            BaseStream::Tls { stream, timeout } => read_timeout(stream, buf, timeout),
             #[cfg(test)]
             BaseStream::Mock(s) => s.read(buf),
         }
@@ -143,4 +144,16 @@ impl Write for BaseStream {
             _ => Ok(()),
         }
     }
+}
+
+fn read_timeout(mut stream: impl Read, buf: &mut [u8], timeout: &Option<mpsc::Sender<()>>) -> io::Result<usize> {
+    let read = stream.read(buf)?;
+
+    if let Some(timeout) = timeout {
+        if read == 0 && !buf.is_empty() && timeout.send(()).is_err() {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+    }
+
+    Ok(read)
 }

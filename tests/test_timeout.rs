@@ -46,7 +46,7 @@ fn request_fails_due_to_timeout() {
     match result {
         Err(err) => match err.kind() {
             attohttpc::ErrorKind::Io(err) => match err.kind() {
-                io::ErrorKind::UnexpectedEof => (),
+                io::ErrorKind::TimedOut => (),
                 err => panic!("Unexpected I/O error: {:?}", err),
             },
             err => panic!("Unexpected error: {:?}", err),
