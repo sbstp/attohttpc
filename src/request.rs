@@ -4,6 +4,8 @@ use std::borrow::{Borrow, Cow};
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
+#[cfg(feature = "tls-rustls")]
+use std::sync::Arc;
 use std::time::Duration;
 
 #[cfg(feature = "compress")]
@@ -12,12 +14,16 @@ use http::{
     header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, HOST, USER_AGENT},
     HeaderMap, Method, StatusCode, Version,
 };
+#[cfg(feature = "tls-rustls")]
+use rustls::ClientConfig;
 use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
+#[cfg(feature = "tls-rustls")]
+use crate::skip_debug::SkipDebug;
 use crate::streams::{BaseStream, ConnectInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -79,6 +85,8 @@ pub struct RequestBuilder<B = [u8; 0]> {
     accept_invalid_certs: bool,
     #[cfg(feature = "tls")]
     accept_invalid_hostnames: bool,
+    #[cfg(feature = "tls-rustls")]
+    client_config: SkipDebug<Option<Arc<ClientConfig>>>,
 }
 
 impl RequestBuilder {
@@ -125,6 +133,8 @@ impl RequestBuilder {
             accept_invalid_certs: false,
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: false,
+            #[cfg(feature = "tls-rustls")]
+            client_config: None.into(),
         })
     }
 }
@@ -265,6 +275,8 @@ impl<B> RequestBuilder<B> {
             accept_invalid_certs: self.accept_invalid_certs,
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: self.accept_invalid_hostnames,
+            #[cfg(feature = "tls-rustls")]
+            client_config: self.client_config,
         }
     }
 
@@ -407,6 +419,16 @@ impl<B> RequestBuilder<B> {
         self.accept_invalid_hostnames = accept_invalid_hostnames;
         self
     }
+
+    /// Sets the TLS client configuration
+    ///
+    /// Defaults to a configuration using the root certificates
+    /// from the webpki-roots crate.
+    #[cfg(feature = "tls-rustls")]
+    pub fn client_config(mut self, client_config: impl Into<Arc<ClientConfig>>) -> Self {
+        self.client_config = Some(client_config.into()).into();
+        self
+    }
 }
 
 impl<B: AsRef<[u8]>> RequestBuilder<B> {
@@ -438,6 +460,8 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
             accept_invalid_certs: self.accept_invalid_certs,
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: self.accept_invalid_hostnames,
+            #[cfg(feature = "tls-rustls")]
+            client_config: self.client_config,
         };
 
         header_insert(&mut prepped.headers, CONNECTION, "close")?;
@@ -478,6 +502,8 @@ pub struct PreparedRequest<B> {
     accept_invalid_certs: bool,
     #[cfg(feature = "tls")]
     accept_invalid_hostnames: bool,
+    #[cfg(feature = "tls-rustls")]
+    client_config: SkipDebug<Option<Arc<ClientConfig>>>,
 }
 
 #[cfg(test)]
@@ -504,6 +530,8 @@ impl PreparedRequest<Vec<u8>> {
             accept_invalid_certs: false,
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: false,
+            #[cfg(feature = "tls-rustls")]
+            client_config: None.into(),
         }
     }
 }
@@ -630,6 +658,8 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 accept_invalid_certs: self.accept_invalid_certs,
                 #[cfg(feature = "tls")]
                 accept_invalid_hostnames: self.accept_invalid_hostnames,
+                #[cfg(feature = "tls-rustls")]
+                client_config: self.client_config.clone().0,
             };
             let mut stream = BaseStream::connect(&info)?;
             self.write_request(&mut stream, &url)?;

@@ -131,3 +131,22 @@ where
 {
     RequestBuilder::new(Method::TRACE, base_url)
 }
+
+mod skip_debug {
+    use std::fmt;
+
+    #[derive(Clone)]
+    pub struct SkipDebug<T>(pub T);
+
+    impl<T> fmt::Debug for SkipDebug<T> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "...")
+        }
+    }
+
+    impl<T> From<T> for SkipDebug<T> {
+        fn from(val: T) -> SkipDebug<T> {
+            SkipDebug(val)
+        }
+    }
+}

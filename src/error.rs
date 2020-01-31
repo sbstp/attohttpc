@@ -70,6 +70,9 @@ pub enum ErrorKind {
     /// TLS error encountered while connecting to an https server.
     #[cfg(feature = "tls")]
     Tls(native_tls::Error),
+    /// Invalid DNS name used for TLS certificate verification
+    #[cfg(feature = "tls-rustls")]
+    InvalidDNSName(webpki::InvalidDNSNameError),
 }
 
 /// A type that contains all the errors that can possibly occur while accessing an HTTP server.
@@ -107,6 +110,8 @@ impl Display for Error {
             UrlEncoded(ref e) => write!(w, "URL Encoding Error: {}", e),
             #[cfg(feature = "tls")]
             Tls(ref e) => write!(w, "Tls Error: {}", e),
+            #[cfg(feature = "tls-rustls")]
+            InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
         }
     }
 }
@@ -122,6 +127,8 @@ impl StdError for Error {
             Json(ref e) => Some(e),
             #[cfg(feature = "tls")]
             Tls(ref e) => Some(e),
+            #[cfg(feature = "tls-rustls")]
+            InvalidDNSName(ref e) => Some(e),
             _ => None,
         }
     }
@@ -155,6 +162,13 @@ impl From<http::header::InvalidHeaderValue> for Error {
 impl From<native_tls::Error> for Error {
     fn from(err: native_tls::Error) -> Error {
         Error(Box::new(ErrorKind::Tls(err)))
+    }
+}
+
+#[cfg(feature = "tls-rustls")]
+impl From<webpki::InvalidDNSNameError> for Error {
+    fn from(err: webpki::InvalidDNSNameError) -> Error {
+        Error(Box::new(ErrorKind::InvalidDNSName(err)))
     }
 }
 
