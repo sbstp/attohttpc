@@ -55,6 +55,206 @@ where
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct BaseSettings {
+    pub headers: HeaderMap,
+    pub max_redirections: u32,
+    pub follow_redirects: bool,
+    pub connect_timeout: Duration,
+    pub read_timeout: Duration,
+    pub timeout: Option<Duration>,
+    #[cfg(feature = "charsets")]
+    pub default_charset: Option<Charset>,
+    #[cfg(feature = "compress")]
+    pub allow_compression: bool,
+    #[cfg(feature = "tls")]
+    pub accept_invalid_certs: bool,
+    #[cfg(feature = "tls")]
+    pub accept_invalid_hostnames: bool,
+}
+
+impl BaseSettings {
+    fn new() -> BaseSettings {
+        BaseSettings {
+            headers: HeaderMap::new(),
+            max_redirections: 5,
+            follow_redirects: true,
+            connect_timeout: Duration::from_secs(30),
+            read_timeout: Duration::from_secs(30),
+            timeout: None,
+            #[cfg(feature = "charsets")]
+            default_charset: None,
+            #[cfg(feature = "compress")]
+            allow_compression: true,
+            #[cfg(feature = "tls")]
+            accept_invalid_certs: false,
+            #[cfg(feature = "tls")]
+            accept_invalid_hostnames: false,
+        }
+    }
+}
+
+macro_rules! impl_base_settings {
+    () => {
+            /// Modify a header for this `Request`.
+            ///
+            /// If the header is already present, the value will be replaced. If you wish to append a new header,
+            /// use `header_append`.
+            ///
+            /// # Panics
+            /// This method will panic if the value is invalid.
+            pub fn header<H, V>(self, header: H, value: V) -> Self
+            where
+                H: IntoHeaderName,
+                V: TryInto<HeaderValue>,
+                Error: From<V::Error>,
+            {
+                self.try_header(header, value).expect("invalid header value")
+            }
+
+            /// Modify a header for this `Request`.
+            ///
+            /// If the header is already present, the value will be replaced. If you wish to append a new header,
+            /// use `header_append`.
+            ///
+            /// # Panics
+            /// This method will panic if the value is invalid.
+            pub fn header_append<H, V>(self, header: H, value: V) -> Self
+            where
+                H: IntoHeaderName,
+                V: TryInto<HeaderValue>,
+                Error: From<V::Error>,
+            {
+                self.try_header_append(header, value)
+                    .expect("invalid header value")
+            }
+
+            /// Modify a header for this `Request`.
+            ///
+            /// If the header is already present, the value will be replaced. If you wish to append a new header,
+            /// use `header_append`.
+            pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<Self>
+            where
+                H: IntoHeaderName,
+                V: TryInto<HeaderValue>,
+                Error: From<V::Error>,
+            {
+                header_insert(&mut self.base_settings.headers, header, value)?;
+                Ok(self)
+            }
+
+            /// Append a new header to this `Request`.
+            ///
+            /// The new header is always appended to the `Request`, even if the header already exists.
+            pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
+            where
+                H: IntoHeaderName,
+                V: TryInto<HeaderValue>,
+                Error: From<V::Error>,
+            {
+                header_append(&mut self.base_settings.headers, header, value)?;
+                Ok(self)
+            }
+
+            /// Set the maximum number of redirections this `Request` can perform.
+            pub fn max_redirections(mut self, max_redirections: u32) -> Self {
+                self.base_settings.max_redirections = max_redirections;
+                self
+            }
+
+            /// Sets if this `Request` should follow redirects, 3xx codes.
+            ///
+            /// This value defaults to true.
+            pub fn follow_redirects(mut self, follow_redirects: bool) -> Self {
+                self.base_settings.follow_redirects = follow_redirects;
+                self
+            }
+
+            /// Sets a connect timeout for this request.
+            ///
+            /// The default is 30 seconds.
+            pub fn connect_timeout(mut self, duration: Duration) -> Self {
+                self.base_settings.connect_timeout = duration;
+                self
+            }
+
+            /// Sets a read timeout for this request.
+            ///
+            /// The default is 30 seconds.
+            pub fn read_timeout(mut self, duration: Duration) -> Self {
+                self.base_settings.read_timeout = duration;
+                self
+            }
+
+            /// Sets a timeout for the whole request.
+            ///
+            /// Applies after a TCP connection is established. Defaults to no timeout.
+            pub fn timeout(mut self, duration: Duration) -> Self {
+                self.base_settings.timeout = Some(duration);
+                self
+            }
+
+            /// Set the default charset to use while parsing the response of this `Request`.
+            ///
+            /// If the response does not say which charset it uses, this charset will be used to decode the request.
+            /// This value defaults to `None`, in which case ISO-8859-1 is used.
+            #[cfg(feature = "charsets")]
+            pub fn default_charset(mut self, default_charset: Option<Charset>) -> Self {
+                self.base_settings.default_charset = default_charset;
+                self
+            }
+
+            /// Sets if this `Request` will announce that it accepts compression.
+            ///
+            /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
+            /// compression, the server might choose not to compress the content.
+            #[cfg(feature = "compress")]
+            pub fn allow_compression(mut self, allow_compression: bool) -> Self {
+                self.base_settings.allow_compression = allow_compression;
+                self
+            }
+
+            /// Sets if this `Request` will accept invalid TLS certificates.
+            ///
+            /// Accepting invalid certificates implies that invalid hostnames are accepted
+            /// as well.
+            ///
+            /// The default value is `false`.
+            ///
+            /// # Danger
+            /// Use this setting with care. This will accept **any** TLS certificate valid or not.
+            /// If you are using self signed certificates, it is much safer to add their root CA
+            /// to the list of trusted root CAs by your system.
+            #[cfg(feature = "tls")]
+            pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
+                self.base_settings.accept_invalid_certs = accept_invalid_certs;
+                self
+            }
+
+            /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
+            ///
+            /// The default value is `false`.
+            ///
+            /// # Danger
+            /// Use this setting with care. This will accept TLS certificates that do not match
+            /// the hostname.
+            #[cfg(feature = "tls")]
+            pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
+                self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
+                self
+            }
+    };
+}
+
+/// oy
+pub struct Session {
+    base_settings: BaseSettings,
+}
+
+impl Session {
+    impl_base_settings!();
+}
+
 /// `Request` is the main way of performing requests.
 ///
 /// You can create a `RequestBuilder` the hard way using the `new` or `try_new` method,
@@ -64,21 +264,8 @@ where
 pub struct RequestBuilder<B = [u8; 0]> {
     url: Url,
     method: Method,
-    headers: HeaderMap,
     body: B,
-    max_redirections: u32,
-    follow_redirects: bool,
-    connect_timeout: Duration,
-    read_timeout: Duration,
-    timeout: Option<Duration>,
-    #[cfg(feature = "charsets")]
-    pub(crate) default_charset: Option<Charset>,
-    #[cfg(feature = "compress")]
-    allow_compression: bool,
-    #[cfg(feature = "tls")]
-    accept_invalid_certs: bool,
-    #[cfg(feature = "tls")]
-    accept_invalid_hostnames: bool,
+    base_settings: BaseSettings,
 }
 
 impl RequestBuilder {
@@ -110,21 +297,8 @@ impl RequestBuilder {
         Ok(Self {
             url,
             method,
-            headers: HeaderMap::new(),
             body: [],
-            max_redirections: 5,
-            follow_redirects: true,
-            connect_timeout: Duration::from_secs(30),
-            read_timeout: Duration::from_secs(30),
-            timeout: None,
-            #[cfg(feature = "charsets")]
-            default_charset: None,
-            #[cfg(feature = "compress")]
-            allow_compression: true,
-            #[cfg(feature = "tls")]
-            accept_invalid_certs: false,
-            #[cfg(feature = "tls")]
-            accept_invalid_hostnames: false,
+            base_settings: BaseSettings::new(),
         })
     }
 }
@@ -164,65 +338,6 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Modify a header for this `Request`.
-    ///
-    /// If the header is already present, the value will be replaced. If you wish to append a new header,
-    /// use `header_append`.
-    ///
-    /// # Panics
-    /// This method will panic if the value is invalid.
-    pub fn header<H, V>(self, header: H, value: V) -> Self
-    where
-        H: IntoHeaderName,
-        V: TryInto<HeaderValue>,
-        Error: From<V::Error>,
-    {
-        self.try_header(header, value).expect("invalid header value")
-    }
-
-    /// Modify a header for this `Request`.
-    ///
-    /// If the header is already present, the value will be replaced. If you wish to append a new header,
-    /// use `header_append`.
-    ///
-    /// # Panics
-    /// This method will panic if the value is invalid.
-    pub fn header_append<H, V>(self, header: H, value: V) -> Self
-    where
-        H: IntoHeaderName,
-        V: TryInto<HeaderValue>,
-        Error: From<V::Error>,
-    {
-        self.try_header_append(header, value).expect("invalid header value")
-    }
-
-    /// Modify a header for this `Request`.
-    ///
-    /// If the header is already present, the value will be replaced. If you wish to append a new header,
-    /// use `header_append`.
-    pub fn try_header<H, V>(mut self, header: H, value: V) -> Result<Self>
-    where
-        H: IntoHeaderName,
-        V: TryInto<HeaderValue>,
-        Error: From<V::Error>,
-    {
-        header_insert(&mut self.headers, header, value)?;
-        Ok(self)
-    }
-
-    /// Append a new header to this `Request`.
-    ///
-    /// The new header is always appended to the `Request`, even if the header already exists.
-    pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
-    where
-        H: IntoHeaderName,
-        V: TryInto<HeaderValue>,
-        Error: From<V::Error>,
-    {
-        header_append(&mut self.headers, header, value)?;
-        Ok(self)
-    }
-
     /// Enable HTTP basic authentication.
     ///
     /// This is available only on Linux and when TLS support is enabled.
@@ -250,21 +365,8 @@ impl<B> RequestBuilder<B> {
         RequestBuilder {
             url: self.url,
             method: self.method,
-            headers: self.headers,
             body,
-            max_redirections: self.max_redirections,
-            follow_redirects: self.follow_redirects,
-            connect_timeout: self.connect_timeout,
-            read_timeout: self.read_timeout,
-            timeout: self.timeout,
-            #[cfg(feature = "charsets")]
-            default_charset: self.default_charset,
-            #[cfg(feature = "compress")]
-            allow_compression: self.allow_compression,
-            #[cfg(feature = "tls")]
-            accept_invalid_certs: self.accept_invalid_certs,
-            #[cfg(feature = "tls")]
-            accept_invalid_hostnames: self.accept_invalid_hostnames,
+            base_settings: self.base_settings,
         }
     }
 
@@ -280,7 +382,8 @@ impl<B> RequestBuilder<B> {
             }
         }
 
-        self.headers
+        self.base_settings
+            .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
         self.body(Text(body))
@@ -290,7 +393,8 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
     pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
-        self.headers
+        self.base_settings
+            .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
         self.body(body)
@@ -302,7 +406,8 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "json")]
     pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
         let body = serde_json::to_vec(value)?;
-        self.headers
+        self.base_settings
+            .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
         Ok(self.body(body))
@@ -314,99 +419,14 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "form")]
     pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
-        self.headers
+        self.base_settings
+            .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
         Ok(self.body(body))
     }
 
-    /// Set the maximum number of redirections this `Request` can perform.
-    pub fn max_redirections(mut self, max_redirections: u32) -> Self {
-        self.max_redirections = max_redirections;
-        self
-    }
-
-    /// Sets if this `Request` should follow redirects, 3xx codes.
-    ///
-    /// This value defaults to true.
-    pub fn follow_redirects(mut self, follow_redirects: bool) -> Self {
-        self.follow_redirects = follow_redirects;
-        self
-    }
-
-    /// Sets a connect timeout for this request.
-    ///
-    /// The default is 30 seconds.
-    pub fn connect_timeout(mut self, duration: Duration) -> Self {
-        self.connect_timeout = duration;
-        self
-    }
-
-    /// Sets a read timeout for this request.
-    ///
-    /// The default is 30 seconds.
-    pub fn read_timeout(mut self, duration: Duration) -> Self {
-        self.read_timeout = duration;
-        self
-    }
-
-    /// Sets a timeout for the whole request.
-    ///
-    /// Applies after a TCP connection is established. Defaults to no timeout.
-    pub fn timeout(mut self, duration: Duration) -> Self {
-        self.timeout = Some(duration);
-        self
-    }
-
-    /// Set the default charset to use while parsing the response of this `Request`.
-    ///
-    /// If the response does not say which charset it uses, this charset will be used to decode the request.
-    /// This value defaults to `None`, in which case ISO-8859-1 is used.
-    #[cfg(feature = "charsets")]
-    pub fn default_charset(mut self, default_charset: Option<Charset>) -> Self {
-        self.default_charset = default_charset;
-        self
-    }
-
-    /// Sets if this `Request` will announce that it accepts compression.
-    ///
-    /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
-    /// compression, the server might choose not to compress the content.
-    #[cfg(feature = "compress")]
-    pub fn allow_compression(mut self, allow_compression: bool) -> Self {
-        self.allow_compression = allow_compression;
-        self
-    }
-
-    /// Sets if this `Request` will accept invalid TLS certificates.
-    ///
-    /// Accepting invalid certificates implies that invalid hostnames are accepted
-    /// as well.
-    ///
-    /// The default value is `false`.
-    ///
-    /// # Danger
-    /// Use this setting with care. This will accept **any** TLS certificate valid or not.
-    /// If you are using self signed certificates, it is much safer to add their root CA
-    /// to the list of trusted root CAs by your system.
-    #[cfg(feature = "tls")]
-    pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
-        self.accept_invalid_certs = accept_invalid_certs;
-        self
-    }
-
-    /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
-    ///
-    /// The default value is `false`.
-    ///
-    /// # Danger
-    /// Use this setting with care. This will accept TLS certificates that do not match
-    /// the hostname.
-    #[cfg(feature = "tls")]
-    pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
-        self.accept_invalid_hostnames = accept_invalid_hostnames;
-        self
-    }
+    impl_base_settings!();
 }
 
 impl<B: AsRef<[u8]>> RequestBuilder<B> {
@@ -423,31 +443,26 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
-            headers: self.headers,
             body: self.body,
-            max_redirections: self.max_redirections,
-            follow_redirects: self.follow_redirects,
-            connect_timeout: self.connect_timeout,
-            read_timeout: self.read_timeout,
-            timeout: self.timeout,
-            #[cfg(feature = "charsets")]
-            default_charset: self.default_charset,
-            #[cfg(feature = "compress")]
-            allow_compression: self.allow_compression,
-            #[cfg(feature = "tls")]
-            accept_invalid_certs: self.accept_invalid_certs,
-            #[cfg(feature = "tls")]
-            accept_invalid_hostnames: self.accept_invalid_hostnames,
+            base_settings: self.base_settings,
         };
 
-        header_insert(&mut prepped.headers, CONNECTION, "close")?;
+        header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
         prepped.set_compression()?;
         if prepped.has_body() {
-            header_insert(&mut prepped.headers, CONTENT_LENGTH, prepped.body.as_ref().len())?;
+            header_insert(
+                &mut prepped.base_settings.headers,
+                CONTENT_LENGTH,
+                prepped.body.as_ref().len(),
+            )?;
         }
 
-        header_insert_if_missing(&mut prepped.headers, ACCEPT, "*/*")?;
-        header_insert_if_missing(&mut prepped.headers, USER_AGENT, format!("attohttpc/{}", VERSION))?;
+        header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
+        header_insert_if_missing(
+            &mut prepped.base_settings.headers,
+            USER_AGENT,
+            format!("attohttpc/{}", VERSION),
+        )?;
 
         Ok(prepped)
     }
@@ -463,21 +478,8 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
 pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
-    headers: HeaderMap,
     body: B,
-    max_redirections: u32,
-    follow_redirects: bool,
-    connect_timeout: Duration,
-    read_timeout: Duration,
-    timeout: Option<Duration>,
-    #[cfg(feature = "charsets")]
-    pub(crate) default_charset: Option<Charset>,
-    #[cfg(feature = "compress")]
-    allow_compression: bool,
-    #[cfg(feature = "tls")]
-    accept_invalid_certs: bool,
-    #[cfg(feature = "tls")]
-    accept_invalid_hostnames: bool,
+    pub(crate) base_settings: BaseSettings,
 }
 
 #[cfg(test)]
@@ -489,21 +491,8 @@ impl PreparedRequest<Vec<u8>> {
         PreparedRequest {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
-            headers: HeaderMap::new(),
             body: Vec::new(),
-            max_redirections: 5,
-            follow_redirects: true,
-            connect_timeout: Duration::from_secs(30),
-            read_timeout: Duration::from_secs(30),
-            timeout: None,
-            #[cfg(feature = "charsets")]
-            default_charset: None,
-            #[cfg(feature = "compress")]
-            allow_compression: true,
-            #[cfg(feature = "tls")]
-            accept_invalid_certs: false,
-            #[cfg(feature = "tls")]
-            accept_invalid_hostnames: false,
+            base_settings: BaseSettings::new(),
         }
     }
 }
@@ -516,8 +505,8 @@ impl<B> PreparedRequest<B> {
 
     #[cfg(feature = "compress")]
     fn set_compression(&mut self) -> Result {
-        if self.allow_compression {
-            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
+        if self.base_settings.allow_compression {
+            header_insert(&mut self.base_settings.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
         Ok(())
     }
@@ -540,7 +529,7 @@ impl<B> PreparedRequest<B> {
     where
         W: Write,
     {
-        for (key, value) in self.headers.iter() {
+        for (key, value) in self.base_settings.headers.iter() {
             write!(writer, "{}: ", key.as_str())?;
             writer.write_all(value.as_bytes())?;
             write!(writer, "\r\n")?;
@@ -561,7 +550,7 @@ impl<B> PreparedRequest<B> {
 
     /// Get the headers of this request.
     pub fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.base_settings.headers
     }
 }
 
@@ -616,20 +605,14 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
         let mut url = Cow::Borrowed(&self.url);
-        set_host(&mut self.headers, &url)?;
+        set_host(&mut self.base_settings.headers, &url)?;
 
         let mut redirections = 0;
 
         loop {
             let info = ConnectInfo {
                 url: &url,
-                connect_timeout: self.connect_timeout,
-                read_timeout: self.read_timeout,
-                timeout: self.timeout,
-                #[cfg(feature = "tls")]
-                accept_invalid_certs: self.accept_invalid_certs,
-                #[cfg(feature = "tls")]
-                accept_invalid_hostnames: self.accept_invalid_hostnames,
+                base_settings: &self.base_settings,
             };
             let mut stream = BaseStream::connect(&info)?;
             self.write_request(&mut stream, &url)?;
@@ -645,12 +628,12 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 | StatusCode::PERMANENT_REDIRECT => true,
                 _ => false,
             };
-            if !self.follow_redirects || !is_redirect {
+            if !self.base_settings.follow_redirects || !is_redirect {
                 return Ok(resp);
             }
 
             redirections += 1;
-            if redirections > self.max_redirections {
+            if redirections > self.base_settings.max_redirections {
                 return Err(ErrorKind::TooManyRedirections.into());
             }
 
@@ -662,7 +645,7 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
             url = Cow::Owned(self.base_redirect_url(location, &url)?);
-            set_host(&mut self.headers, &url)?;
+            set_host(&mut self.base_settings.headers, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
@@ -726,10 +709,10 @@ fn test_header_append() {
 #[cfg(feature = "tls")]
 fn test_accept_invalid_certs_disabled_by_default() {
     let builder = RequestBuilder::new(Method::GET, "https://localhost:7900");
-    assert_eq!(builder.accept_invalid_certs, false);
-    assert_eq!(builder.accept_invalid_hostnames, false);
+    assert_eq!(builder.base_settings.accept_invalid_certs, false);
+    assert_eq!(builder.base_settings.accept_invalid_hostnames, false);
 
     let prepped = builder.prepare();
-    assert_eq!(prepped.accept_invalid_certs, false);
-    assert_eq!(prepped.accept_invalid_hostnames, false);
+    assert_eq!(prepped.base_settings.accept_invalid_certs, false);
+    assert_eq!(prepped.base_settings.accept_invalid_hostnames, false);
 }

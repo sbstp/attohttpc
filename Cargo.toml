@@ -39,7 +39,7 @@ compress = ["flate2"]
 tls = ["native-tls", "openssl"]
 json = ["serde", "serde_json"]
 form = ["serde", "serde_urlencoded"]
-default = ["compress", "tls"]
+default = ["compress", "tls", "json", "charsets", "form"]
 
 [package.metadata.docs.rs]
 all-features = true

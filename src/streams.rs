@@ -4,24 +4,18 @@ use std::io::{self, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
 
 #[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 use url::Url;
 
 use crate::happy;
+use crate::request::BaseSettings;
 use crate::{ErrorKind, Result};
 
-pub struct ConnectInfo<'u> {
-    pub url: &'u Url,
-    pub connect_timeout: Duration,
-    pub read_timeout: Duration,
-    pub timeout: Option<Duration>,
-    #[cfg(feature = "tls")]
-    pub accept_invalid_certs: bool,
-    #[cfg(feature = "tls")]
-    pub accept_invalid_hostnames: bool,
+pub struct ConnectInfo<'a> {
+    pub url: &'a Url,
+    pub base_settings: &'a BaseSettings,
 }
 
 #[derive(Debug)]
@@ -59,9 +53,10 @@ impl BaseStream {
     }
 
     fn connect_tcp(host: &str, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
-        let stream = happy::connect((host, port), info.connect_timeout)?;
-        stream.set_read_timeout(Some(info.read_timeout))?;
+        let stream = happy::connect((host, port), info.base_settings.connect_timeout)?;
+        stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
         let timeout = info
+            .base_settings
             .timeout
             .map(|timeout| -> Result<mpsc::Sender<()>> {
                 let stream = stream.try_clone()?;
@@ -85,8 +80,8 @@ impl BaseStream {
         info: &ConnectInfo,
     ) -> Result<(TlsStream<TcpStream>, Option<mpsc::Sender<()>>)> {
         let connector = TlsConnector::builder()
-            .danger_accept_invalid_certs(info.accept_invalid_certs)
-            .danger_accept_invalid_hostnames(info.accept_invalid_hostnames)
+            .danger_accept_invalid_certs(info.base_settings.accept_invalid_certs)
+            .danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames)
             .build()?;
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
         let stream = match connector.connect(host, stream) {
