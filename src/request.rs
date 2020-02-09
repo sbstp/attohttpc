@@ -1,5 +1,5 @@
-#![allow(dead_code)]
 #![allow(clippy::write_with_newline)]
+
 use std::borrow::{Borrow, Cow};
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
@@ -55,7 +55,7 @@ where
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BaseSettings {
     pub headers: HeaderMap,
     pub max_redirections: u32,
@@ -73,8 +73,8 @@ pub struct BaseSettings {
     pub accept_invalid_hostnames: bool,
 }
 
-impl BaseSettings {
-    fn new() -> BaseSettings {
+impl Default for BaseSettings {
+    fn default() -> Self {
         BaseSettings {
             headers: HeaderMap::new(),
             max_redirections: 5,
@@ -247,11 +247,83 @@ macro_rules! impl_base_settings {
 }
 
 /// oy
+#[derive(Debug)]
 pub struct Session {
     base_settings: BaseSettings,
 }
 
 impl Session {
+    /// make new
+    pub fn new() -> Session {
+        Session {
+            base_settings: BaseSettings::default(),
+        }
+    }
+
+    /// Create a new `RequestBuilder` with the GET method and this Session's settings applied on it.
+    pub fn get<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::GET, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the POST method and this Session's settings applied on it.
+    pub fn post<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::POST, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the PUT method and this Session's settings applied on it.
+    pub fn put<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::PUT, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the DELETE method and this Session's settings applied on it.
+    pub fn delete<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::DELETE, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the HEAD method and this Session's settings applied on it.
+    pub fn head<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::HEAD, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the OPTIONS method and this Session's settings applied on it.
+    pub fn options<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::OPTIONS, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the PATCH method and this Session's settings applied on it.
+    pub fn patch<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::PATCH, base_url, self.base_settings.clone())
+    }
+
+    /// Create a new `RequestBuilder` with the TRACE method and this Session's settings applied on it.
+    pub fn trace<U>(&self, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(Method::TRACE, base_url, self.base_settings.clone())
+    }
+
     impl_base_settings!();
 }
 
@@ -288,6 +360,20 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
+        Self::try_with_settings(method, base_url, BaseSettings::default())
+    }
+
+    fn with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Self
+    where
+        U: AsRef<str>,
+    {
+        Self::try_with_settings(method, base_url, base_settings).expect("invalid url or method")
+    }
+
+    fn try_with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Result<Self>
+    where
+        U: AsRef<str>,
+    {
         let url = Url::parse(base_url.as_ref()).map_err(|_| ErrorKind::InvalidBaseUrl)?;
 
         if method == Method::CONNECT {
@@ -298,7 +384,7 @@ impl RequestBuilder {
             url,
             method,
             body: [],
-            base_settings: BaseSettings::new(),
+            base_settings: base_settings,
         })
     }
 }
@@ -492,7 +578,7 @@ impl PreparedRequest<Vec<u8>> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             body: Vec::new(),
-            base_settings: BaseSettings::new(),
+            base_settings: BaseSettings::default(),
         }
     }
 }
