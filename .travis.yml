@@ -5,4 +5,5 @@ rust:
   - nightly
 script:
   - /bin/sh run-tests.sh
+  - rustup component add clippy
   - cargo clippy
