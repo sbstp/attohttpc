@@ -17,7 +17,7 @@ use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder}
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
 /// `Session` are applied to every request created from this `Session`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Session {
     base_settings: BaseSettings,
 }

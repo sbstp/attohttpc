@@ -1,5 +1,3 @@
-#![allow(clippy::write_with_newline)]
-
 use std::borrow::Borrow;
 use std::convert::{From, TryInto};
 use std::str;
@@ -80,7 +78,7 @@ impl RequestBuilder {
             url,
             method,
             body: [],
-            base_settings: base_settings,
+            base_settings,
         })
     }
 }

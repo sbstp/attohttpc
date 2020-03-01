@@ -5,3 +5,4 @@ rust:
   - nightly
 script:
   - /bin/sh run-tests.sh
+  - cargo clippy
