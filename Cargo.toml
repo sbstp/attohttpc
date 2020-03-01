@@ -43,7 +43,7 @@ tls = ["native-tls", "openssl"]
 tls-rustls = ["rustls", "webpki", "webpki-roots"]
 json = ["serde", "serde_json"]
 form = ["serde", "serde_urlencoded"]
-default = ["compress", "tls", "json", "charsets", "form"]
+default = ["compress", "tls"]
 
 [package.metadata.docs.rs]
 all-features = true
