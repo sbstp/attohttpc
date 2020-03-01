@@ -1,5 +1,3 @@
-//#![allow(clippy::write_with_newline)]
-
 use std::borrow::Cow;
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
