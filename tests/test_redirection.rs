@@ -1,37 +1,32 @@
-use std::net::TcpStream;
 use std::thread;
-use std::time::{Duration, Instant};
 
 use attohttpc::ErrorKind;
 use lazy_static::lazy_static;
-use rouille::Response;
+use rouille::{router, Response};
 
 lazy_static! {
-    static ref STARTED: bool = {
-        thread::spawn(move || {
-            rouille::start_server("localhost:55123", move |_| Response::redirect_301("/"));
+    static ref STARTED: u16 = {
+        let server = rouille::Server::new("localhost:0", |request| {
+            router!(request,
+                (GET) ["/301"] => Response::redirect_301("/301"),
+                (GET) ["/304"] => Response::text("").with_status_code(304),
+                _ => Response::empty_404()
+            )
+        })
+        .unwrap();
+        let port = server.server_addr().port();
+        thread::spawn(|| {
+            server.run();
         });
-
-        let start = Instant::now();
-        let timeout = Duration::from_secs(10);
-
-        // Wait until server is ready. 10s timeout in case of error creating server.
-        while TcpStream::connect(("localhost", 55123)).is_err() {
-            if start.elapsed() > timeout {
-                panic!("time out in server creation");
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        true
+        port
     };
 }
 
 #[test]
 fn test_redirection_default() {
-    let _ = *STARTED;
+    let port = *STARTED;
 
-    match attohttpc::get("http://localhost:55123/").send() {
+    match attohttpc::get(format!("http://localhost:{}/301", port)).send() {
         Err(err) => match err.kind() {
             ErrorKind::TooManyRedirections => (),
             _ => panic!(),
@@ -42,9 +37,12 @@ fn test_redirection_default() {
 
 #[test]
 fn test_redirection_0() {
-    let _ = *STARTED;
+    let port = *STARTED;
 
-    match attohttpc::get("http://localhost:55123/").max_redirections(0).send() {
+    match attohttpc::get(format!("http://localhost:{}/301", port))
+        .max_redirections(0)
+        .send()
+    {
         Err(err) => match err.kind() {
             ErrorKind::TooManyRedirections => (),
             _ => panic!(),
@@ -55,12 +53,22 @@ fn test_redirection_0() {
 
 #[test]
 fn test_redirection_disallowed() {
-    let _ = *STARTED;
+    let port = *STARTED;
 
-    let resp = attohttpc::get("http://localhost:55123/")
+    let resp = attohttpc::get(format!("http://localhost:{}/301", port))
         .follow_redirects(false)
         .send()
         .unwrap();
 
     assert!(resp.status().is_redirection());
+}
+
+#[test]
+fn test_redirection_not_redirect() {
+    let port = *STARTED;
+
+    match attohttpc::get(format!("http://localhost:{}/304", port)).send() {
+        Ok(_) => (),
+        _ => panic!(),
+    }
 }

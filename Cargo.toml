@@ -1,6 +1,6 @@
 [package]
 name = "attohttpc"
-version = "0.8.0"
+version = "0.11.1"
 authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -19,11 +19,15 @@ lazy_static = "1"
 log = "0.4"
 url = "2"
 encoding_rs = { version = "0.8", optional = true }
+encoding_rs_io = { version = "0.1", optional = true }
 flate2 = { version = "1.0", optional = true }
 native-tls = { version = "0.2", optional = true }
+rustls = { version = "0.16", optional = true }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 serde_urlencoded = { version = "0.6", optional = true }
+webpki = { version = "0.21", optional = true }
+webpki-roots = { version = "0.18", optional = true }
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = { version = "0.10.26", optional = true }
@@ -33,9 +37,10 @@ env_logger = "0.7"
 rouille = "3"
 
 [features]
-charsets = ["encoding_rs"]
+charsets = ["encoding_rs", "encoding_rs_io"]
 compress = ["flate2"]
 tls = ["native-tls", "openssl"]
+tls-rustls = ["rustls", "webpki", "webpki-roots"]
 json = ["serde", "serde_json"]
 form = ["serde", "serde_urlencoded"]
 default = ["compress", "tls"]
@@ -66,4 +71,14 @@ required-features = ["json"]
 [[example]]
 name = "post"
 path = "examples/post.rs"
+required-features = ["tls"]
+
+[[example]]
+name = "charset"
+path = "examples/charset.rs"
+required-features = ["charsets"]
+
+[[test]]
+name = "test_invalid_certs"
+path = "tests/test_invalid_certs.rs"
 required-features = ["tls"]

@@ -5,7 +5,6 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
 
-const DEFAULT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(10);
 const RACE_DELAY: Duration = Duration::from_millis(200);
 
 /// This function implements a basic form of the happy eyeballs RFC to quickly connect
@@ -13,11 +12,10 @@ const RACE_DELAY: Duration = Duration::from_millis(200);
 /// against each other and the first to connect successfully wins the race.
 ///
 /// If the timeout is not provided, a default timeout of 10 seconds is used.
-pub fn connect<A>(addrs: A, timeout: impl Into<Option<Duration>>) -> io::Result<TcpStream>
+pub fn connect<A>(addrs: A, timeout: Duration) -> io::Result<TcpStream>
 where
     A: ToSocketAddrs,
 {
-    let timeout = timeout.into().unwrap_or(DEFAULT_CONNECTION_TIMEOUT);
     let addrs: Vec<_> = addrs.to_socket_addrs()?.collect();
 
     if let [addr] = &addrs[..] {

@@ -7,7 +7,9 @@
 //! asynchronous stack to provide a crate that's as small as possible. Features are provided behind feature flags when
 //! possible to allow users to get just what they need.
 //!
-//! # Quick usage
+//! Check out the [repository](https://github.com/sbstp/attohttpc) for more information and examples.
+//!
+//! # Quick start
 //! ```no_run
 //! # #[cfg(feature = "json")]
 //! # use serde_json::json;
@@ -20,7 +22,7 @@
 //! let resp = attohttpc::post("https://my-api.org/do/something")
 //!     .header("X-My-Header", "foo")   // set a header for the request
 //!     .param("qux", "baz")            // set a query parameter
-//!     .json(&obj)?                    // set the request body
+//!     .json(&obj)?                    // set the request body (json feature required)
 //!     .send()?;                       // send the request
 //!
 //! // Check if the status is a 2XX code.
@@ -39,10 +41,16 @@
 //! * `charsets` support for decoding more text encodings than just UTF-8
 //! * `compress` support for decompressing response bodies (**default**)
 //! * `json` support for serialization and deserialization
+//! * `form` support for url encoded forms (does not include support for multipart)
 //! * `tls` support for tls connections (**default**)
+//! * `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
 //!
-//! Check out the [repository](https://github.com/sbstp/attohttpc) for more general information
-//! and examples.
+//! # Activating a feature
+//! To activate a feature, specify it in your `Cargo.toml` file like so
+//! ```toml
+//! attohttpc = { version = "...", features = ["json", "form", ...] }
+//! ```
+//!
 
 #[macro_use]
 extern crate log;
@@ -57,7 +65,7 @@ mod streams;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 pub use crate::parsing::{Response, ResponseReader};
-pub use crate::request::{PreparedRequest, RequestBuilder};
+pub use crate::request::{PreparedRequest, RequestBuilder, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
 pub use http::Method;
@@ -130,4 +138,23 @@ where
     U: AsRef<str>,
 {
     RequestBuilder::new(Method::TRACE, base_url)
+}
+
+mod skip_debug {
+    use std::fmt;
+
+    #[derive(Clone)]
+    pub struct SkipDebug<T>(pub T);
+
+    impl<T> fmt::Debug for SkipDebug<T> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "...")
+        }
+    }
+
+    impl<T> From<T> for SkipDebug<T> {
+        fn from(val: T) -> SkipDebug<T> {
+            SkipDebug(val)
+        }
+    }
 }

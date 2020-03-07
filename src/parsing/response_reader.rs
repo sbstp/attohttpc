@@ -63,7 +63,7 @@ impl ResponseReader {
     ) -> ResponseReader {
         ResponseReader {
             inner: reader,
-            charset: get_charset(&headers, request.default_charset),
+            charset: get_charset(&headers, request.base_settings.default_charset),
         }
     }
 
