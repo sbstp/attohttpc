@@ -1,9 +1,11 @@
 use std::io;
 use std::iter::{self, FusedIterator};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{TcpStream, IpAddr, ToSocketAddrs};
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use url::Host;
 
 const RACE_DELAY: Duration = Duration::from_millis(200);
 
@@ -12,11 +14,13 @@ const RACE_DELAY: Duration = Duration::from_millis(200);
 /// against each other and the first to connect successfully wins the race.
 ///
 /// If the timeout is not provided, a default timeout of 10 seconds is used.
-pub fn connect<A>(addrs: A, timeout: Duration) -> io::Result<TcpStream>
-where
-    A: ToSocketAddrs,
+pub fn connect(host: Host<&str>, port: u16, timeout: Duration) -> io::Result<TcpStream>
 {
-    let addrs: Vec<_> = addrs.to_socket_addrs()?.collect();
+    let addrs: Vec<_> = match host {
+        Host::Domain(domain) => (domain, port).to_socket_addrs()?.collect(),
+        Host::Ipv4(ip) => return TcpStream::connect_timeout(&(IpAddr::V4(ip), port).into(), timeout),
+        Host::Ipv6(ip) => return TcpStream::connect_timeout(&(IpAddr::V6(ip), port).into(), timeout),
+    };
 
     if let [addr] = &addrs[..] {
         debug!("DNS returned only one address, using fast path");
