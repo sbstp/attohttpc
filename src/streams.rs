@@ -11,7 +11,7 @@ use std::thread;
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 #[cfg(feature = "tls-rustls")]
 use rustls::{ClientConfig, ClientSession, Session, StreamOwned};
-use url::Url;
+use url::{Url, Host};
 #[cfg(feature = "tls-rustls")]
 use webpki::DNSNameRef;
 #[cfg(feature = "tls-rustls")]
@@ -50,7 +50,7 @@ pub enum BaseStream {
 
 impl BaseStream {
     pub fn connect(info: &ConnectInfo) -> Result<BaseStream> {
-        let host = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
+        let host = info.url.host().ok_or(ErrorKind::InvalidUrlHost)?;
         let port = info.url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
 
         debug!("trying to connect to {}:{}", host, port);
@@ -67,8 +67,8 @@ impl BaseStream {
         }
     }
 
-    fn connect_tcp(host: &str, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
-        let stream = happy::connect((host, port), info.base_settings.connect_timeout)?;
+    fn connect_tcp(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
+        let stream = happy::connect(host, port, info.base_settings.connect_timeout)?;
         stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
         let timeout = info
             .base_settings
@@ -89,13 +89,14 @@ impl BaseStream {
     }
 
     #[cfg(feature = "tls")]
-    fn connect_tls(host: &str, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+    fn connect_tls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
         let connector = TlsConnector::builder()
             .danger_accept_invalid_certs(info.base_settings.accept_invalid_certs)
             .danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames)
             .build()?;
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
-        let stream = match connector.connect(host, stream) {
+        let host_str = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
+        let stream = match connector.connect(host_str, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),
             Err(HandshakeError::WouldBlock(mut stream)) => loop {
@@ -110,8 +111,9 @@ impl BaseStream {
     }
 
     #[cfg(feature = "tls-rustls")]
-    fn connect_rustls(host: &str, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
-        let name = DNSNameRef::try_from_ascii_str(host)?;
+    fn connect_rustls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+        let host_str = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
+        let name = DNSNameRef::try_from_ascii_str(host_str)?;
         let (mut stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
 
         let mut session = match &info.base_settings.client_config.0 {
