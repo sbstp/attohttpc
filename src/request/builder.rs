@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::convert::{From, TryInto};
+use std::fs;
 use std::str;
 #[cfg(feature = "tls-rustls")]
 use std::sync::Arc;
@@ -173,6 +174,17 @@ impl<B> RequestBuilder<B> {
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
         self.body(body::Bytes(body))
+    }
+
+    /// Set the body of this request using a local file.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
+    pub fn file(mut self, body: fs::File) -> RequestBuilder<impl Body> {
+        self.base_settings
+            .headers
+            .entry(http::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/octet-stream"));
+        self.body(body::File(body))
     }
 
     /// Set the body of this request to be the JSON representation of the given object.

@@ -1,5 +1,6 @@
 use std::convert::TryInto;
-use std::io::{Result as IoResult, Write};
+use std::fs;
+use std::io::{copy, Result as IoResult, Seek, SeekFrom, Write};
 
 /// The kinds of request bodies currently supported by this crate.
 #[derive(Debug, Clone, Copy)]
@@ -60,5 +61,22 @@ impl<B: AsRef<[u8]>> Body for Bytes<B> {
 
     fn write<W: Write>(&mut self, mut writer: W) -> IoResult<()> {
         writer.write_all(self.0.as_ref())
+    }
+}
+
+/// A request body backed by a local file
+#[derive(Debug)]
+pub struct File(pub fs::File);
+
+impl Body for File {
+    fn kind(&mut self) -> IoResult<BodyKind> {
+        let len = self.0.seek(SeekFrom::End(0))?;
+        Ok(BodyKind::KnownLength(len))
+    }
+
+    fn write<W: Write>(&mut self, mut writer: W) -> IoResult<()> {
+        self.0.seek(SeekFrom::Start(0))?;
+        copy(&mut self.0, &mut writer)?;
+        Ok(())
     }
 }
