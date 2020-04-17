@@ -61,6 +61,8 @@ pub enum ErrorKind {
     InvalidResponse(InvalidResponseKind),
     /// Too many redirections
     TooManyRedirections,
+    /// Status code indicates failure
+    StatusCode(http::StatusCode),
     /// JSON decoding/encoding error.
     #[cfg(feature = "json")]
     Json(serde_json::Error),
@@ -104,6 +106,7 @@ impl Display for Error {
             InvalidUrlPort => write!(w, "URL is missing a port"),
             InvalidResponse(ref k) => write!(w, "InvalidResponse: {}", k),
             TooManyRedirections => write!(w, "Too many redirections"),
+            StatusCode(ref sc) => write!(w, "Status code {} indicates failure", sc),
             #[cfg(feature = "json")]
             Json(ref e) => write!(w, "Json Error: {}", e),
             #[cfg(feature = "form")]

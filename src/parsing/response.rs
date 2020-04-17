@@ -6,7 +6,7 @@ use http::{
     HeaderMap, StatusCode,
 };
 
-use crate::error::{InvalidResponseKind, Result};
+use crate::error::{ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::buffers::{self, trim_byte};
 use crate::parsing::{body_reader::BodyReader, compressed_reader::CompressedReader, ResponseReader};
 use crate::request::PreparedRequest;
@@ -106,6 +106,15 @@ impl Response {
     #[inline]
     pub fn is_success(&self) -> bool {
         self.status.is_success()
+    }
+
+    /// Returns error variant if the status code was not a success code.
+    pub fn error_for_status(self) -> Result<Self> {
+        if self.is_success() {
+            Ok(self)
+        } else {
+            Err(ErrorKind::StatusCode(self.status).into())
+        }
     }
 
     /// Split this `Response` into a tuple of `StatusCode`, `HeaderMap`, `ResponseReader`.
