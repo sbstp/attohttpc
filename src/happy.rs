@@ -1,6 +1,6 @@
 use std::io;
 use std::iter::{self, FusedIterator};
-use std::net::{TcpStream, IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -14,8 +14,7 @@ const RACE_DELAY: Duration = Duration::from_millis(200);
 /// against each other and the first to connect successfully wins the race.
 ///
 /// If the timeout is not provided, a default timeout of 10 seconds is used.
-pub fn connect(host: Host<&str>, port: u16, timeout: Duration) -> io::Result<TcpStream>
-{
+pub fn connect(host: Host<&str>, port: u16, timeout: Duration) -> io::Result<TcpStream> {
     let addrs: Vec<_> = match host {
         Host::Domain(domain) => (domain, port).to_socket_addrs()?.collect(),
         Host::Ipv4(ip) => return TcpStream::connect_timeout(&(IpAddr::V4(ip), port).into(), timeout),

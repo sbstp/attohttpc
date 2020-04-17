@@ -11,7 +11,7 @@ use std::thread;
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
 #[cfg(feature = "tls-rustls")]
 use rustls::{ClientConfig, ClientSession, Session, StreamOwned};
-use url::{Url, Host};
+use url::{Host, Url};
 #[cfg(feature = "tls-rustls")]
 use webpki::DNSNameRef;
 #[cfg(feature = "tls-rustls")]
@@ -55,6 +55,7 @@ impl BaseStream {
 
         debug!("trying to connect to {}:{}", host, port);
 
+        #[allow(unreachable_patterns)]
         match info.url.scheme() {
             "http" => {
                 BaseStream::connect_tcp(host, port, info).map(|(stream, timeout)| BaseStream::Plain { stream, timeout })
