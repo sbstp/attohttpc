@@ -3,5 +3,16 @@ rust:
   - stable
   - beta
   - nightly
+
+jobs:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
+
+before_install:
+  - rustup component add rustfmt clippy
+
 script:
-  - /bin/sh run-tests.sh
+  - cargo fmt -- --check
+  - cargo clippy --all-features --all-targets -- --deny warnings
+  - ./run-tests.sh
