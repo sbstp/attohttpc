@@ -17,7 +17,10 @@ use url::Url;
 use crate::charsets::Charset;
 use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
-use crate::request::{header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest};
+use crate::request::{
+    body::{self, Body, BodyKind},
+    header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -27,7 +30,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// or use one of the simpler constructors available in the crate root or on the `Session` struct,
 /// such as `get`, `post`, etc.
 #[derive(Debug)]
-pub struct RequestBuilder<B = [u8; 0]> {
+pub struct RequestBuilder<B = body::Empty> {
     url: Url,
     method: Method,
     body: B,
@@ -77,7 +80,7 @@ impl RequestBuilder {
         Ok(Self {
             url,
             method,
-            body: [],
+            body: body::Empty,
             base_settings,
         })
     }
@@ -141,7 +144,7 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    fn body(self, body: impl Body) -> RequestBuilder<impl Body> {
         RequestBuilder {
             url: self.url,
             method: self.method,
@@ -153,57 +156,49 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl AsRef<[u8]>> {
-        struct Text<B1>(B1);
-
-        impl<B1: AsRef<str>> AsRef<[u8]> for Text<B1> {
-            fn as_ref(&self) -> &[u8] {
-                self.0.as_ref().as_bytes()
-            }
-        }
-
+    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl Body> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self.body(Text(body))
+        self.body(body::Text(body))
     }
 
     /// Set the body of this request to be bytes.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl Body> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
-        self.body(body)
+        self.body(body::Bytes(body))
     }
 
     /// Set the body of this request to be the JSON representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl Body>> {
         let body = serde_json::to_vec(value)?;
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        Ok(self.body(body))
+        Ok(self.body(body::Bytes(body)))
     }
 
     /// Set the body of this request to be the URL-encoded representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl Body>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-        Ok(self.body(body))
+        Ok(self.body(body::Bytes(body)))
     }
 
     //
@@ -368,7 +363,7 @@ impl<B> RequestBuilder<B> {
     }
 }
 
-impl<B: AsRef<[u8]>> RequestBuilder<B> {
+impl<B: Body> RequestBuilder<B> {
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     ///
     /// # Panics
@@ -388,12 +383,11 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
 
         header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
         prepped.set_compression()?;
-        if prepped.has_body() {
-            header_insert(
-                &mut prepped.base_settings.headers,
-                CONTENT_LENGTH,
-                prepped.body.as_ref().len(),
-            )?;
+        match prepped.body.kind()? {
+            BodyKind::Empty => (),
+            BodyKind::KnownLength(len) => {
+                header_insert(&mut prepped.base_settings.headers, CONTENT_LENGTH, len)?;
+            }
         }
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
