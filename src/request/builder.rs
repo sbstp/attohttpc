@@ -145,7 +145,7 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body(self, body: impl Body) -> RequestBuilder<impl Body> {
+    fn body<B1: Body>(self, body: B1) -> RequestBuilder<B1> {
         RequestBuilder {
             url: self.url,
             method: self.method,
@@ -157,7 +157,7 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl Body> {
+    pub fn text<B1: AsRef<str>>(mut self, body: B1) -> RequestBuilder<body::Text<B1>> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
@@ -168,7 +168,7 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be bytes.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl Body> {
+    pub fn bytes<B1: AsRef<[u8]>>(mut self, body: B1) -> RequestBuilder<body::Bytes<B1>> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
@@ -179,7 +179,7 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request using a local file.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn file(mut self, body: fs::File) -> RequestBuilder<impl Body> {
+    pub fn file(mut self, body: fs::File) -> RequestBuilder<body::File> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
