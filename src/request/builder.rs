@@ -145,7 +145,11 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body<B1: Body>(self, body: B1) -> RequestBuilder<B1> {
+    /// Set the body of this request.
+    ///
+    /// The [BodyKind enum](crate::body::BodyKind) and [Body trait](crate::body::Body)
+    /// determine how to implement custom request body types.
+    pub fn body<B1: Body>(self, body: B1) -> RequestBuilder<B1> {
         RequestBuilder {
             url: self.url,
             method: self.method,
