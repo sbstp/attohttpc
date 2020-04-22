@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
@@ -15,13 +14,16 @@ use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::{BaseStream, ConnectInfo};
 
+/// Contains types to describe request bodies
+pub mod body;
 mod builder;
 mod session;
 mod settings;
 
+use body::{Body, BodyKind};
 pub use builder::RequestBuilder;
 pub use session::Session;
-pub use settings::BaseSettings;
+pub(crate) use settings::BaseSettings;
 
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
@@ -66,7 +68,7 @@ pub struct PreparedRequest<B> {
 }
 
 #[cfg(test)]
-impl PreparedRequest<Vec<u8>> {
+impl PreparedRequest<body::Empty> {
     pub(crate) fn new<U>(method: Method, base_url: U) -> Self
     where
         U: AsRef<str>,
@@ -74,7 +76,7 @@ impl PreparedRequest<Vec<u8>> {
         PreparedRequest {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
-            body: Vec::new(),
+            body: body::Empty,
             base_settings: BaseSettings::default(),
         }
     }
@@ -137,19 +139,13 @@ impl<B> PreparedRequest<B> {
     }
 }
 
-impl<B: AsRef<[u8]>> PreparedRequest<B> {
+impl<B: Body> PreparedRequest<B> {
     /// Get the body of the request.
-    ///
-    /// If no body was provided, the slice will be empty.
-    pub fn body(&self) -> &[u8] {
-        self.body.as_ref()
+    pub fn body(&self) -> &B {
+        &self.body
     }
 
-    fn has_body(&self) -> bool {
-        !self.body.as_ref().is_empty() && self.method != Method::TRACE
-    }
-
-    fn write_request<W>(&self, writer: W, url: &Url) -> Result
+    fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
     where
         W: Write,
     {
@@ -175,9 +171,12 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
         self.write_headers(&mut writer)?;
 
-        if self.has_body() {
-            debug!("writing out body of length {}", self.body.as_ref().len());
-            writer.write_all(self.body.as_ref())?;
+        match self.body.kind()? {
+            BodyKind::Empty => (),
+            BodyKind::KnownLength(len) => {
+                debug!("writing out body of length {}", len);
+                self.body.write(&mut writer)?;
+            }
         }
 
         writer.flush()?;
@@ -187,7 +186,7 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
-        let mut url = Cow::Borrowed(&self.url);
+        let mut url = self.url.clone();
         set_host(&mut self.base_settings.headers, &url)?;
 
         let mut redirections = 0;
@@ -227,7 +226,7 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 .ok_or(InvalidResponseKind::LocationHeader)?;
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
-            url = Cow::Owned(self.base_redirect_url(location, &url)?);
+            url = self.base_redirect_url(location, &url)?;
             set_host(&mut self.base_settings.headers, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
