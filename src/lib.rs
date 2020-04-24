@@ -65,7 +65,7 @@ mod streams;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 pub use crate::parsing::{Response, ResponseReader};
-pub use crate::request::{body, PreparedRequest, RequestBuilder, Session};
+pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
 pub use http::Method;

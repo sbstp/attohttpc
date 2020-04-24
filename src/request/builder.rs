@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use http::{
-    header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, USER_AGENT},
+    header::{HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, USER_AGENT},
     Method,
 };
 #[cfg(feature = "tls-rustls")]
@@ -22,8 +22,6 @@ use crate::request::{
     body::{self, Body, BodyKind},
     header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest,
 };
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `RequestBuilder` is the main way of building requests.
 ///
@@ -221,7 +219,7 @@ impl<B> RequestBuilder<B> {
     // Settings
     //
 
-    /// Modify a header for this `Request`.
+    /// Modify a header for this request.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
@@ -237,7 +235,7 @@ impl<B> RequestBuilder<B> {
         self.try_header(header, value).expect("invalid header value")
     }
 
-    /// Modify a header for this `Request`.
+    /// Modify a header for this request.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
@@ -253,7 +251,7 @@ impl<B> RequestBuilder<B> {
         self.try_header_append(header, value).expect("invalid header value")
     }
 
-    /// Modify a header for this `Request`.
+    /// Modify a header for this request.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
@@ -267,9 +265,9 @@ impl<B> RequestBuilder<B> {
         Ok(self)
     }
 
-    /// Append a new header to this `Request`.
+    /// Append a new header to this request.
     ///
-    /// The new header is always appended to the `Request`, even if the header already exists.
+    /// The new header is always appended to the request, even if the header already exists.
     pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
@@ -280,13 +278,13 @@ impl<B> RequestBuilder<B> {
         Ok(self)
     }
 
-    /// Set the maximum number of redirections this `Request` can perform.
+    /// Set the maximum number of redirections this request can perform.
     pub fn max_redirections(mut self, max_redirections: u32) -> Self {
         self.base_settings.max_redirections = max_redirections;
         self
     }
 
-    /// Sets if this `Request` should follow redirects, 3xx codes.
+    /// Sets if this request should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
     pub fn follow_redirects(mut self, follow_redirects: bool) -> Self {
@@ -318,7 +316,7 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Set the default charset to use while parsing the response of this `Request`.
+    /// Set the default charset to use while parsing the response of this request.
     ///
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
@@ -328,9 +326,9 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Sets if this `Request` will announce that it accepts compression.
+    /// Sets if this request will announce that it accepts compression.
     ///
-    /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
+    /// This value defaults to true. Note that this only lets the browser know that this request supports
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "compress")]
     pub fn allow_compression(mut self, allow_compression: bool) -> Self {
@@ -338,7 +336,7 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Sets if this `Request` will accept invalid TLS certificates.
+    /// Sets if this request will accept invalid TLS certificates.
     ///
     /// Accepting invalid certificates implies that invalid hostnames are accepted
     /// as well.
@@ -355,7 +353,7 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
+    /// Sets if this request will accept an invalid hostname in a TLS certificate.
     ///
     /// The default value is `false`.
     ///
@@ -410,7 +408,7 @@ impl<B: Body> RequestBuilder<B> {
         header_insert_if_missing(
             &mut prepped.base_settings.headers,
             USER_AGENT,
-            format!("attohttpc/{}", VERSION),
+            format!("attohttpc/{}", env!("CARGO_PKG_VERSION")),
         )?;
 
         Ok(prepped)
@@ -419,6 +417,39 @@ impl<B: Body> RequestBuilder<B> {
     /// Send this request directly.
     pub fn send(self) -> Result<Response> {
         self.try_prepare()?.send()
+    }
+}
+
+impl<B> RequestBuilder<B> {
+    /// Inspect the properties of this request
+    pub fn inspect(&self) -> RequestInspector<'_, B> {
+        RequestInspector(self)
+    }
+}
+
+/// Allows to inspect the properties of a request before preparing it.
+#[derive(Debug)]
+pub struct RequestInspector<'a, B>(&'a RequestBuilder<B>);
+
+impl<B> RequestInspector<'_, B> {
+    /// Access the current URL
+    pub fn url(&self) -> &Url {
+        &self.0.url
+    }
+
+    /// Access the current method
+    pub fn method(&self) -> &Method {
+        &self.0.method
+    }
+
+    /// Access the current body
+    pub fn body(&self) -> &B {
+        &self.0.body
+    }
+
+    /// Acess the current headers
+    pub fn headers(&self) -> &HeaderMap {
+        &self.0.base_settings.headers
     }
 }
 
