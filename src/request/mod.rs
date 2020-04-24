@@ -21,7 +21,7 @@ mod session;
 mod settings;
 
 use body::{Body, BodyKind};
-pub use builder::RequestBuilder;
+pub use builder::{RequestBuilder, RequestInspector};
 pub use session::Session;
 pub(crate) use settings::BaseSettings;
 
@@ -133,6 +133,11 @@ impl<B> PreparedRequest<B> {
         &self.method
     }
 
+    /// Get the body of the request.
+    pub fn body(&self) -> &B {
+        &self.body
+    }
+
     /// Get the headers of this request.
     pub fn headers(&self) -> &HeaderMap {
         &self.base_settings.headers
@@ -140,11 +145,6 @@ impl<B> PreparedRequest<B> {
 }
 
 impl<B: Body> PreparedRequest<B> {
-    /// Get the body of the request.
-    pub fn body(&self) -> &B {
-        &self.body
-    }
-
     fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
     where
         W: Write,
