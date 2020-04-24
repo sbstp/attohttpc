@@ -19,6 +19,8 @@ pub trait Body {
     fn kind(&mut self) -> IoResult<BodyKind>;
 
     /// Write out the request body into the given writer
+    ///
+    /// This method can be called multiple times if a request is redirected.
     fn write<W: Write>(&mut self, writer: W) -> IoResult<()>;
 }
 
