@@ -9,6 +9,8 @@ pub enum BodyKind {
     Empty,
     /// A request body with a known length
     KnownLength(u64),
+    /// A request body that is transferred using chunked encoding
+    Chunked,
 }
 
 /// A generic rewindable request body
@@ -78,5 +80,26 @@ impl Body for File {
         self.0.seek(SeekFrom::Start(0))?;
         copy(&mut self.0, &mut writer)?;
         Ok(())
+    }
+}
+
+pub(crate) struct ChunkedWriter<W>(pub W);
+
+impl<W: Write> ChunkedWriter<W> {
+    pub fn close(mut self) -> IoResult<()> {
+        self.0.write_all(b"0\r\n\r\n")
+    }
+}
+
+impl<W: Write> Write for ChunkedWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+        write!(self.0, "{:x}\r\n", buf.len())?;
+        self.0.write_all(buf)?;
+        write!(self.0, "\r\n")?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> IoResult<()> {
+        self.0.flush()
     }
 }
