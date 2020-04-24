@@ -7,7 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use http::{
-    header::{HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, USER_AGENT},
+    header::{
+        HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING, USER_AGENT,
+    },
     Method,
 };
 #[cfg(feature = "tls-rustls")]
@@ -401,6 +403,9 @@ impl<B: Body> RequestBuilder<B> {
             BodyKind::Empty => (),
             BodyKind::KnownLength(len) => {
                 header_insert(&mut prepped.base_settings.headers, CONTENT_LENGTH, len)?;
+            }
+            BodyKind::Chunked => {
+                header_insert(&mut prepped.base_settings.headers, TRANSFER_ENCODING, "chunked")?;
             }
         }
 

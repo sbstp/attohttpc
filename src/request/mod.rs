@@ -177,6 +177,12 @@ impl<B: Body> PreparedRequest<B> {
                 debug!("writing out body of length {}", len);
                 self.body.write(&mut writer)?;
             }
+            BodyKind::Chunked => {
+                debug!("writing out chunked body");
+                let mut writer = body::ChunkedWriter(&mut writer);
+                self.body.write(&mut writer)?;
+                writer.close()?;
+            }
         }
 
         writer.flush()?;
