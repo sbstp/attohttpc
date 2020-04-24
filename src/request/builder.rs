@@ -195,7 +195,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl Body>> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_json::to_vec(value)?;
         self.base_settings
             .headers
@@ -204,11 +204,23 @@ impl<B> RequestBuilder<B> {
         Ok(self.body(body::Bytes(body)))
     }
 
+    /// Set the body of this request to stream out a JSON representation of the given object.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
+    #[cfg(feature = "json")]
+    pub fn json_streaming<T: serde::Serialize>(mut self, value: T) -> RequestBuilder<body::Json<T>> {
+        self.base_settings
+            .headers
+            .entry(http::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        self.body(body::Json(value))
+    }
+
     /// Set the body of this request to be the URL-encoded representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl Body>> {
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.base_settings
             .headers

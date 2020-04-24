@@ -105,3 +105,33 @@ impl<W: Write> Write for ChunkedWriter<W> {
         self.0.flush()
     }
 }
+
+#[cfg(feature = "json")]
+mod json {
+    use super::*;
+
+    use std::io::BufWriter;
+
+    use serde::ser::Serialize;
+    use serde_json::ser::to_writer;
+
+    /// A request body for streaming out JSON
+    #[derive(Debug, Clone)]
+    pub struct Json<B>(pub B);
+
+    impl<B: Serialize> Body for Json<B> {
+        fn kind(&mut self) -> IoResult<BodyKind> {
+            Ok(BodyKind::Chunked)
+        }
+
+        fn write<W: Write>(&mut self, writer: W) -> IoResult<()> {
+            let mut writer = BufWriter::new(writer);
+            to_writer(&mut writer, &self.0)?;
+            writer.flush()?;
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "json")]
+pub use json::Json;
