@@ -427,14 +427,14 @@ impl<B: Body> RequestBuilder<B> {
 
 impl<B> RequestBuilder<B> {
     /// Inspect the properties of this request
-    pub fn inspect(&self) -> RequestInspector<'_, B> {
+    pub fn inspect(&mut self) -> RequestInspector<'_, B> {
         RequestInspector(self)
     }
 }
 
 /// Allows to inspect the properties of a request before preparing it.
 #[derive(Debug)]
-pub struct RequestInspector<'a, B>(&'a RequestBuilder<B>);
+pub struct RequestInspector<'a, B>(&'a mut RequestBuilder<B>);
 
 impl<B> RequestInspector<'_, B> {
     /// Access the current URL
@@ -448,8 +448,8 @@ impl<B> RequestInspector<'_, B> {
     }
 
     /// Access the current body
-    pub fn body(&self) -> &B {
-        &self.0.body
+    pub fn body(&mut self) -> &mut B {
+        &mut self.0.body
     }
 
     /// Acess the current headers
