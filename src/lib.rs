@@ -44,6 +44,7 @@
 //! * `form` support for url encoded forms (does not include support for multipart)
 //! * `tls` support for tls connections (**default**)
 //! * `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+//! * `multipart-form` support for multipart forms (does not include support for url encoding)
 //!
 //! # Activating a feature
 //! To activate a feature, specify it in your `Cargo.toml` file like so
