@@ -75,11 +75,13 @@ pub enum ErrorKind {
     /// Invalid DNS name used for TLS certificate verification
     #[cfg(feature = "tls-rustls")]
     InvalidDNSName(webpki::InvalidDNSNameError),
+    /// Invalid mime type in a Multipart form
+    InvalidMimeType(String),
 }
 
 /// A type that contains all the errors that can possibly occur while accessing an HTTP server.
 #[derive(Debug)]
-pub struct Error(Box<ErrorKind>);
+pub struct Error(pub(crate) Box<ErrorKind>);
 
 impl Error {
     /// Get a reference to the `ErrorKind` inside.
@@ -115,6 +117,7 @@ impl Display for Error {
             Tls(ref e) => write!(w, "Tls Error: {}", e),
             #[cfg(feature = "tls-rustls")]
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
+            InvalidMimeType(ref e) => write!(w, "Invalid mime type: {}", e),
         }
     }
 }
