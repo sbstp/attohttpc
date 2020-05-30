@@ -7,18 +7,16 @@ use std::io::{copy, prelude::*, Cursor, Error as IoError, Result as IoResult};
 
 /// A file to be uploaded as part of a multipart form.
 #[derive(Debug, Clone)]
-pub struct MultipartFile {
-    name: String,
-    file: Vec<u8>,
-    filename: Option<String>,
+pub struct MultipartFile<'key, 'data> {
+    name: &'key str,
+    file: &'data [u8],
+    filename: Option<&'key str>,
     mime: Option<Mime>,
 }
 
-impl MultipartFile {
+impl<'key, 'data> MultipartFile<'key, 'data> {
     /// Constructs a new `MultipartFile` from the name and contents.
-    pub fn new(name: impl AsRef<str>, file: impl AsRef<[u8]>) -> Self {
-        let name = name.as_ref().to_owned();
-        let file = file.as_ref().to_owned();
+    pub fn new(name: &'key str, file: &'data [u8]) -> Self {
         Self {
             name,
             file,
@@ -44,9 +42,9 @@ impl MultipartFile {
     }
 
     /// Sets the filename of the file.
-    pub fn with_filename(self, filename: impl AsRef<str>) -> Self {
+    pub fn with_filename(self, filename: &'key str) -> Self {
         Self {
-            filename: Some(filename.as_ref().to_owned()),
+            filename: Some(filename),
             ..self
         }
     }
@@ -54,33 +52,31 @@ impl MultipartFile {
 
 /// A builder for creating a `Multipart` body.
 #[derive(Debug, Clone, Default)]
-pub struct MultipartBuilder {
-    text: Vec<(String, String)>,
-    files: Vec<MultipartFile>,
+pub struct MultipartBuilder<'key, 'data> {
+    text: Vec<(&'key str, &'data str)>,
+    files: Vec<MultipartFile<'key, 'data>>,
 }
 
-impl MultipartBuilder {
+impl<'key, 'data> MultipartBuilder<'key, 'data> {
     /// Creates a new `MultipartBuilder`.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Adds a text field to the form.
-    pub fn with_text(mut self, name: impl AsRef<str>, text: impl AsRef<str>) -> Self {
-        let name = name.as_ref().to_string();
-        let text = text.as_ref().to_string();
+    pub fn with_text(mut self, name: &'key str, text: &'data str) -> Self {
         self.text.push((name, text));
         self
     }
 
     /// Adds a `MultipartFile` to the form.
-    pub fn with_file(mut self, file: MultipartFile) -> Self {
+    pub fn with_file(mut self, file: MultipartFile<'key, 'data>) -> Self {
         self.files.push(file);
         self
     }
 
     /// Creates a `Multipart` to be used as a body.
-    pub fn build(self) -> Result<Multipart> {
+    pub fn build(self) -> Result<Multipart<'data>> {
         let mut mp = mp::lazy::Multipart::new();
         for (k, v) in self.text {
             mp.add_text(k, v);
@@ -94,11 +90,11 @@ impl MultipartBuilder {
 }
 
 /// A multipart form created using `MultipartBuilder`.
-pub struct Multipart {
-    data: mp::lazy::PreparedFields<'static>,
+pub struct Multipart<'data> {
+    data: mp::lazy::PreparedFields<'data>,
 }
 
-impl Body for Multipart {
+impl Body for Multipart<'_> {
     fn kind(&mut self) -> IoResult<BodyKind> {
         match self.data.content_len() {
             Some(len) => Ok(BodyKind::KnownLength(len)),
@@ -116,7 +112,7 @@ impl Body for Multipart {
     }
 }
 
-impl fmt::Debug for Multipart {
+impl fmt::Debug for Multipart<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Multipart").finish()
     }
