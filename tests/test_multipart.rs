@@ -22,7 +22,7 @@ fn start_server() -> (u16, Receiver<Option<String>>) {
                 .and_then(|ct: Mime| async move {
                     ct.get_param("boundary")
                         .map(ToString::to_string)
-                        .ok_or_else(|| warp::reject::reject())
+                        .ok_or_else(warp::reject::reject)
                 })
                 .and(warp::body::bytes())
                 .map(|boundary, bytes| Multipart::with_body(Cursor::new(bytes), boundary)),
