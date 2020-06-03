@@ -37,6 +37,8 @@ openssl = { version = "0.10.26", optional = true }
 env_logger = "0.7"
 lazy_static = "1"
 rouille = "3"
+warp = "0.2.3"
+tokio = { version = "0.2.21", features = ["io-driver", "time", "rt-threaded"] }
 
 [features]
 charsets = ["encoding_rs", "encoding_rs_io"]
@@ -90,3 +92,8 @@ required-features = ["multipart-form"]
 name = "test_invalid_certs"
 path = "tests/test_invalid_certs.rs"
 required-features = ["tls"]
+
+[[test]]
+name = "test_multipart"
+path = "tests/test_multipart.rs"
+required-features = ["multipart-form"]
