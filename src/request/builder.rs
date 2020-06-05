@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use http::{
     header::{
-        HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING, USER_AGENT,
+        HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING,
+        USER_AGENT,
     },
     Method,
 };
@@ -419,6 +420,10 @@ impl<B: Body> RequestBuilder<B> {
             BodyKind::Chunked => {
                 header_insert(&mut prepped.base_settings.headers, TRANSFER_ENCODING, "chunked")?;
             }
+        }
+
+        if let Some(typ) = prepped.body.content_type()? {
+            header_insert(&mut prepped.base_settings.headers, CONTENT_TYPE, typ)?;
         }
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;

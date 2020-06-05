@@ -22,6 +22,11 @@ pub trait Body {
     ///
     /// This method can be called multiple times if a request is redirected.
     fn write<W: Write>(&mut self, writer: W) -> IoResult<()>;
+
+    /// Gets the content type this body is tied to if it has one.
+    fn content_type(&mut self) -> IoResult<Option<String>> {
+        Ok(None)
+    }
 }
 
 /// An empty request body

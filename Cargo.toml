@@ -27,6 +27,8 @@ serde_json = { version = "1", optional = true }
 serde_urlencoded = { version = "0.6", optional = true }
 webpki = { version = "0.21", optional = true }
 webpki-roots = { version = "0.19", optional = true }
+multipart = { version = "0.16.1", optional = true }
+mime = { version = "0.2", optional = true }
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = { version = "0.10.26", optional = true }
@@ -35,6 +37,8 @@ openssl = { version = "0.10.26", optional = true }
 env_logger = "0.7"
 lazy_static = "1"
 rouille = "3"
+warp = "0.2.3"
+tokio = { version = "0.2.21", features = ["io-driver", "time", "rt-threaded"] }
 
 [features]
 charsets = ["encoding_rs", "encoding_rs_io"]
@@ -44,6 +48,7 @@ tls-rustls = ["rustls", "webpki", "webpki-roots"]
 json = ["serde", "serde_json"]
 form = ["serde", "serde_urlencoded"]
 default = ["compress", "tls"]
+multipart-form = ["multipart", "mime"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -78,7 +83,17 @@ name = "charset"
 path = "examples/charset.rs"
 required-features = ["charsets"]
 
+[[example]]
+name = "multipart"
+path = "examples/multipart.rs"
+required-features = ["multipart-form"]
+
 [[test]]
 name = "test_invalid_certs"
 path = "tests/test_invalid_certs.rs"
 required-features = ["tls"]
+
+[[test]]
+name = "test_multipart"
+path = "tests/test_multipart.rs"
+required-features = ["multipart-form"]
