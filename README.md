@@ -22,6 +22,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `form` support for url encoded forms (does not include support for multipart)
 * `tls` support for tls connections (**default**)
 * `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+* `multipart-form` support for multipart forms (does not include support for url encoding)
 
 ## Usage
 See the `examples/` folder in the repository for more use cases.
