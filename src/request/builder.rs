@@ -250,10 +250,9 @@ impl<B> RequestBuilder<B> {
         self.try_header(header, value).expect("invalid header value")
     }
 
-    /// Modify a header for this request.
+    /// Append a new header for this request.
     ///
-    /// If the header is already present, the value will be replaced. If you wish to append a new header,
-    /// use `header_append`.
+    /// The new header is always appended to the request, even if the header already exists.
     ///
     /// # Panics
     /// This method will panic if the value is invalid.
