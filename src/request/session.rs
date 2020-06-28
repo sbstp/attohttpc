@@ -17,6 +17,8 @@ use native_tls::Certificate;
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
+#[cfg(feature = "tls")]
+use crate::skip_debug::SkipDebug;
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
 /// `Session` are applied to every request created from this `Session`.
@@ -242,7 +244,7 @@ impl Session {
     /// Adds a root certificate that will be trusted.
     #[cfg(feature = "tls")]
     pub fn add_root_certificate(&mut self, cert: Certificate) {
-        self.base_settings.root_certificates.push(cert.into());
+        self.base_settings.root_certificates.push(SkipDebug(cert));
     }
 
     /// Sets the TLS client configuration
