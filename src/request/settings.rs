@@ -8,8 +8,11 @@ use rustls::ClientConfig;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
-#[cfg(feature = "tls-rustls")]
+#[cfg(any(feature = "tls-rustls", feature = "tls"))]
 use crate::skip_debug::SkipDebug;
+
+#[cfg(feature = "tls")]
+use native_tls::Certificate;
 
 #[derive(Clone, Debug)]
 pub struct BaseSettings {
@@ -27,6 +30,8 @@ pub struct BaseSettings {
     pub accept_invalid_certs: bool,
     #[cfg(feature = "tls")]
     pub accept_invalid_hostnames: bool,
+    #[cfg(feature = "tls")]
+    pub root_certificates: SkipDebug<Vec<Certificate>>,
     #[cfg(feature = "tls-rustls")]
     pub client_config: SkipDebug<Option<Arc<ClientConfig>>>,
 }
@@ -48,6 +53,8 @@ impl Default for BaseSettings {
             accept_invalid_certs: false,
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: false,
+            #[cfg(feature = "tls")]
+            root_certificates: SkipDebug(Vec::new()),
             #[cfg(feature = "tls-rustls")]
             client_config: None.into(),
         }

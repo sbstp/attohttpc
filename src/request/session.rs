@@ -10,6 +10,9 @@ use std::sync::Arc;
 #[cfg(feature = "tls-rustls")]
 use rustls::ClientConfig;
 
+#[cfg(feature = "tls")]
+use native_tls::Certificate;
+
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
@@ -235,6 +238,12 @@ impl Session {
     #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
         self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
+    }
+
+    /// Adds a root certificate that will be trusted.
+    #[cfg(feature = "tls")]
+    pub fn add_root_certificate(&mut self, cert: Certificate) {
+        self.base_settings.root_certificates.0.push(cert);
     }
 
     /// Sets the TLS client configuration

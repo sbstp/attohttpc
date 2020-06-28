@@ -91,10 +91,13 @@ impl BaseStream {
 
     #[cfg(feature = "tls")]
     fn connect_tls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
-        let connector = TlsConnector::builder()
-            .danger_accept_invalid_certs(info.base_settings.accept_invalid_certs)
-            .danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames)
-            .build()?;
+        let mut connector_builder = TlsConnector::builder();
+        connector_builder.danger_accept_invalid_certs(info.base_settings.accept_invalid_certs);
+        connector_builder.danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames);
+        for cert in &info.base_settings.root_certificates.0 {
+            connector_builder.add_root_certificate(cert.clone());
+        }
+        let connector = connector_builder.build()?;
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
         let host_str = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         let stream = match connector.connect(host_str, stream) {

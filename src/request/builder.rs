@@ -13,6 +13,8 @@ use http::{
     },
     Method,
 };
+#[cfg(feature = "tls")]
+use native_tls::Certificate;
 #[cfg(feature = "tls-rustls")]
 use rustls::ClientConfig;
 use url::Url;
@@ -379,6 +381,13 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
         self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
+        self
+    }
+
+    /// Adds a root certificate that will be trusted.
+    #[cfg(feature = "tls")]
+    pub fn add_root_certificate(mut self, cert: Certificate) -> Self {
+        self.base_settings.root_certificates.0.push(cert);
         self
     }
 
