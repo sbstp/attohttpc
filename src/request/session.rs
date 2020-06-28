@@ -157,6 +157,8 @@ impl Session {
     }
 
     /// Set the maximum number of redirections this `Request` can perform.
+    ///
+    /// The default is 5.
     pub fn max_redirections(&mut self, max_redirections: u32) {
         self.base_settings.max_redirections = max_redirections;
     }
