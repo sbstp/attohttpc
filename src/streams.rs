@@ -94,8 +94,8 @@ impl BaseStream {
         let mut connector_builder = TlsConnector::builder();
         connector_builder.danger_accept_invalid_certs(info.base_settings.accept_invalid_certs);
         connector_builder.danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames);
-        for cert in &info.base_settings.root_certificates {
-            connector_builder.add_root_certificate(cert.0.clone());
+        for cert in &info.base_settings.root_certificates.0 {
+            connector_builder.add_root_certificate(cert.clone());
         }
         let connector = connector_builder.build()?;
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;

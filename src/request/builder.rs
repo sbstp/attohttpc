@@ -27,8 +27,6 @@ use crate::request::{
     body::{self, Body, BodyKind},
     header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest,
 };
-#[cfg(feature = "tls")]
-use crate::skip_debug::SkipDebug;
 
 /// `RequestBuilder` is the main way of building requests.
 ///
@@ -388,7 +386,7 @@ impl<B> RequestBuilder<B> {
     /// Adds a root certificate that will be trusted.
     #[cfg(feature = "tls")]
     pub fn add_root_certificate(mut self, cert: Certificate) -> Self {
-        self.base_settings.root_certificates.push(SkipDebug(cert));
+        self.base_settings.root_certificates.0.push(cert);
         self
     }
 

@@ -31,7 +31,7 @@ pub struct BaseSettings {
     #[cfg(feature = "tls")]
     pub accept_invalid_hostnames: bool,
     #[cfg(feature = "tls")]
-    pub root_certificates: Vec<SkipDebug<Certificate>>,
+    pub root_certificates: SkipDebug<Vec<Certificate>>,
     #[cfg(feature = "tls-rustls")]
     pub client_config: SkipDebug<Option<Arc<ClientConfig>>>,
 }
@@ -54,7 +54,7 @@ impl Default for BaseSettings {
             #[cfg(feature = "tls")]
             accept_invalid_hostnames: false,
             #[cfg(feature = "tls")]
-            root_certificates: Vec::new(),
+            root_certificates: SkipDebug(Vec::new()),
             #[cfg(feature = "tls-rustls")]
             client_config: None.into(),
         }
