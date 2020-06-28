@@ -56,6 +56,8 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(feature = "tls")]
+mod certificate;
 #[cfg(feature = "charsets")]
 pub mod charsets;
 mod error;
