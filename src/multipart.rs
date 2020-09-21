@@ -33,7 +33,7 @@ impl<'key, 'data> MultipartFile<'key, 'data> {
         let mime_str = mime_type.as_ref();
         let mime: Mime = match mime_str.parse() {
             Ok(mime) => mime,
-            Err(()) => return Err(Error(Box::new(ErrorKind::InvalidMimeType(mime_str.to_string())))),
+            Err(error) => return Err(Error(Box::new(ErrorKind::InvalidMimeType(error.to_string())))),
         };
         Ok(Self {
             mime: Some(mime),

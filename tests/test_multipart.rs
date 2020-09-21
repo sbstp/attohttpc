@@ -21,7 +21,7 @@ fn start_server() -> (u16, Receiver<Option<String>>) {
             warp::header::<Mime>("content-type")
                 .and_then(|ct: Mime| async move {
                     ct.get_param("boundary")
-                        .map(ToString::to_string)
+                        .map(|mime| mime.to_string())
                         .ok_or_else(warp::reject::reject)
                 })
                 .and(warp::body::bytes())
@@ -42,12 +42,7 @@ fn start_server() -> (u16, Receiver<Option<String>>) {
                 } else if !found_file
                     && &*entry.headers.name == "file"
                     && entry.headers.filename.as_deref() == Some("hello.txt")
-                    && entry
-                        .headers
-                        .content_type
-                        .as_ref()
-                        .map(|x| x.to_string() == "text/plain")
-                        == Some(true)
+                    && entry.headers.content_type.as_ref().map(|x| x.as_ref() == "text/plain") == Some(true)
                     && buf == "Hello, world!"
                 {
                     found_file = true;
