@@ -1,6 +1,6 @@
 #[cfg(test)]
 use std::io::Cursor;
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::mpsc;
 #[cfg(feature = "tls-rustls")]
@@ -17,10 +17,10 @@ use webpki::DNSNameRef;
 #[cfg(feature = "tls-rustls")]
 use webpki_roots::TLS_SERVER_ROOTS;
 
-use crate::happy;
-use crate::request::BaseSettings;
 #[cfg(feature = "tls-rustls")]
 use crate::skip_debug::SkipDebug;
+use crate::{happy, Error};
+use crate::{parsing::response::parse_response_head, request::BaseSettings};
 use crate::{ErrorKind, Result};
 
 pub struct ConnectInfo<'a> {
@@ -44,31 +44,58 @@ pub enum BaseStream {
         stream: SkipDebug<Box<StreamOwned<ClientSession, TcpStream>>>,
         timeout: Option<mpsc::Sender<()>>,
     },
+    Tunnel {
+        stream: Box<BufReader<BaseStream>>,
+    },
     #[cfg(test)]
     Mock(Cursor<Vec<u8>>),
 }
 
 impl BaseStream {
     pub fn connect(info: &ConnectInfo) -> Result<BaseStream> {
-        let host = info.url.host().ok_or(ErrorKind::InvalidUrlHost)?;
-        let port = info.url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
+        let proxy = info.base_settings.proxy_settings.for_url(info.url);
+        let connect_url = proxy.unwrap_or(info.url);
+
+        let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
+        let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
+        let is_tunnel = proxy.is_some() && info.url.scheme() == "https";
 
         debug!("trying to connect to {}:{}", host, port);
 
         #[allow(unreachable_patterns)]
-        match info.url.scheme() {
-            "http" => {
-                BaseStream::connect_tcp(host, port, info).map(|(stream, timeout)| BaseStream::Plain { stream, timeout })
-            }
+        let mut stream = match connect_url.scheme() {
+            "http" => BaseStream::connect_tcp(&host, port, info)
+                .map(|(stream, timeout)| BaseStream::Plain { stream, timeout }),
             #[cfg(feature = "tls")]
-            "https" => BaseStream::connect_tls(host, port, info),
+            "https" => BaseStream::connect_tls(&host, port, info),
             #[cfg(feature = "tls-rustls")]
             "https" => BaseStream::connect_rustls(host, port, info),
             _ => Err(ErrorKind::InvalidBaseUrl.into()),
+        }?;
+
+        if is_tunnel {
+            let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
+            let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
+            write!(stream, "CONNECT {}:{} HTTP/1.1", host, port)?;
+
+            let mut stream = BufReader::new(stream);
+            let (status, _) = parse_response_head(&mut stream)?;
+
+            if !status.is_success() {
+                return Err(Error(Box::new(ErrorKind::ConnectError)));
+            }
+
+            // TODO perform TLS handshake
+
+            Ok(BaseStream::Tunnel {
+                stream: Box::new(stream),
+            })
+        } else {
+            Ok(stream)
         }
     }
 
-    fn connect_tcp(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
+    fn connect_tcp(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
         let stream = happy::connect(host, port, info.base_settings.connect_timeout)?;
         stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
         let timeout = info
@@ -90,7 +117,7 @@ impl BaseStream {
     }
 
     #[cfg(feature = "tls")]
-    fn connect_tls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+    fn connect_tls(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
         let mut connector_builder = TlsConnector::builder();
         connector_builder.danger_accept_invalid_certs(info.base_settings.accept_invalid_certs);
         connector_builder.danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames);
@@ -99,8 +126,8 @@ impl BaseStream {
         }
         let connector = connector_builder.build()?;
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
-        let host_str = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
-        let stream = match connector.connect(host_str, stream) {
+        let host_str = host.to_string();
+        let stream = match connector.connect(&host_str, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),
             Err(HandshakeError::WouldBlock(mut stream)) => loop {
@@ -116,7 +143,7 @@ impl BaseStream {
 
     #[cfg(feature = "tls-rustls")]
     fn connect_rustls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
-        let host_str = info.url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
+        let host_str = host.to_string();
         let name = DNSNameRef::try_from_ascii_str(host_str)?;
         let (mut stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
 
@@ -159,6 +186,7 @@ impl Read for BaseStream {
                 let res = read_timeout(&mut stream.0, buf, timeout);
                 handle_close_notify(res, &mut stream.0)
             }
+            BaseStream::Tunnel { stream } => stream.read(buf),
             #[cfg(test)]
             BaseStream::Mock(s) => s.read(buf),
         }
@@ -174,6 +202,7 @@ impl Write for BaseStream {
             BaseStream::Tls { stream, .. } => stream.write(buf),
             #[cfg(feature = "tls-rustls")]
             BaseStream::Rustls { stream, .. } => stream.0.write(buf),
+            BaseStream::Tunnel { stream } => stream.get_mut().write(buf),
             #[cfg(test)]
             _ => Ok(0),
         }
@@ -187,6 +216,7 @@ impl Write for BaseStream {
             BaseStream::Tls { stream, .. } => stream.flush(),
             #[cfg(feature = "tls-rustls")]
             BaseStream::Rustls { stream, .. } => stream.0.flush(),
+            BaseStream::Tunnel { stream } => stream.get_mut().flush(),
             #[cfg(test)]
             _ => Ok(()),
         }

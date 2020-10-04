@@ -146,28 +146,39 @@ impl<B> PreparedRequest<B> {
 }
 
 impl<B: Body> PreparedRequest<B> {
-    fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
+    fn write_request<W>(&mut self, writer: W, url: &Url, proxy: Option<&Url>) -> Result
     where
         W: Write,
     {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
 
-        if let Some(query) = url.query() {
-            debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
+        match (proxy, url.scheme(), url.query()) {
+            // A proxy is set and the scheme is http, we must send a complete url to the proxy.
+            (Some(_), "http", _) => {
+                debug!("{} {} {:?}", self.method.as_str(), url, version);
 
-            write!(
-                writer,
-                "{} {}?{} {:?}\r\n",
-                self.method.as_str(),
-                url.path(),
-                query,
-                version,
-            )?;
-        } else {
-            debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
+                write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
+            }
+            // A proxy could be set and we have a query string, so we write the path + query string.
+            (_, _, Some(query)) => {
+                debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
 
-            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version)?;
+                write!(
+                    writer,
+                    "{} {}?{} {:?}\r\n",
+                    self.method.as_str(),
+                    url.path(),
+                    query,
+                    version,
+                )?;
+            }
+            // A proxy could be set and there is no query string, so we write just the path.
+            (_, _, None) => {
+                debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
+
+                write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version)?;
+            }
         }
 
         self.write_headers(&mut writer)?;
@@ -199,12 +210,21 @@ impl<B: Body> PreparedRequest<B> {
         let mut redirections = 0;
 
         loop {
+            // If a proxy is set and the url is using http, we must connect to the proxy and send
+            // a request with an authority instead of a path.
+            //
+            // If a proxy is set and the url is using https, we must connect to the proxy using
+            // the CONNECT method, and then send https traffic on the socket after the CONNECT
+            // handshake.
+
+            let proxy = self.base_settings.proxy_settings.for_url(&url).cloned();
+
             let info = ConnectInfo {
                 url: &url,
                 base_settings: &self.base_settings,
             };
             let mut stream = BaseStream::connect(&info)?;
-            self.write_request(&mut stream, &url)?;
+            self.write_request(&mut stream, &url, proxy.as_ref())?;
             let resp = parse_response(stream, self)?;
 
             debug!("status code {}", resp.status().as_u16());
@@ -253,8 +273,13 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
 
 #[cfg(test)]
 mod test {
-    use super::{header_append, header_insert, header_insert_if_missing};
     use http::header::{HeaderMap, HeaderValue, USER_AGENT};
+    use http::Method;
+    use url::Url;
+
+    use super::BaseSettings;
+    use super::{header_append, header_insert, header_insert_if_missing, PreparedRequest};
+    use crate::body::Empty;
 
     #[test]
     fn test_header_insert_exists() {
@@ -297,5 +322,43 @@ mod test {
         for val in vals {
             assert!(val == "hello" || val == "world");
         }
+    }
+
+    #[test]
+    fn test_http_url_with_http_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
+    }
+
+    #[test]
+    fn test_http_url_with_https_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
     }
 }

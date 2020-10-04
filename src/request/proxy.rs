@@ -17,11 +17,38 @@ fn get_env(name: &str) -> Option<String> {
     }
 }
 
+fn get_env_url(name: &str) -> Option<Url> {
+    match get_env(name) {
+        Some(val) => match Url::parse(&val) {
+            Ok(url) => match url.scheme() {
+                "http" | "https" => Some(url),
+                _ => {
+                    warn!(
+                        "Environment variable {} contains unsupported proxy scheme: {}",
+                        name.to_ascii_uppercase(),
+                        url.scheme()
+                    );
+                    None
+                }
+            },
+            Err(err) => {
+                warn!(
+                    "Environment variable {} contains invalid URL: {}",
+                    name.to_ascii_uppercase(),
+                    err
+                );
+                None
+            }
+        },
+        None => None,
+    }
+}
+
 /// Contains proxy settings and utilities to find which proxy to use for a given URL.
 #[derive(Clone, Debug)]
 pub struct ProxySettings {
-    http_proxy: Option<String>,
-    https_proxy: Option<String>,
+    http_proxy: Option<Url>,
+    https_proxy: Option<Url>,
     no_proxy_patterns: Vec<WildMatch>,
 }
 
@@ -36,8 +63,8 @@ impl ProxySettings {
     /// Only `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are supported.
     /// `NO_PROXY` supports wildcard patterns.
     pub fn from_env() -> ProxySettings {
-        let http_proxy = get_env("http_proxy");
-        let https_proxy = get_env("https_proxy");
+        let http_proxy = get_env_url("http_proxy");
+        let https_proxy = get_env_url("https_proxy");
         let no_proxy = get_env("no_proxy");
 
         let no_proxy_patterns = no_proxy
@@ -55,12 +82,12 @@ impl ProxySettings {
     ///
     /// None is returned if there is no proxy configured for the scheme of if the hostname
     /// matches a pattern in the no proxy list.
-    pub fn for_url(&self, url: &Url) -> Option<&str> {
+    pub fn for_url(&self, url: &Url) -> Option<&Url> {
         if let Some(host) = url.host_str() {
             if !self.no_proxy_patterns.iter().any(|x| x.is_match(host)) {
                 return match url.scheme() {
-                    "http" => self.http_proxy.as_ref().map(|x| x.as_str()),
-                    "https" => self.https_proxy.as_ref().map(|x| x.as_str()),
+                    "http" => self.http_proxy.as_ref(),
+                    "https" => self.https_proxy.as_ref(),
                     _ => None,
                 };
             }
@@ -88,20 +115,18 @@ impl ProxySettingsBuilder {
     }
 
     /// Set the proxy for http requests.
-    pub fn http_proxy<V, S>(mut self, val: V) -> Self
+    pub fn http_proxy<V>(mut self, val: V) -> Self
     where
-        V: Into<Option<S>>,
-        S: Into<String>,
+        V: Into<Option<Url>>,
     {
         self.inner.http_proxy = val.into().map(|x| x.into());
         self
     }
 
     /// Set the proxy for https requests.
-    pub fn https_proxy<V, S>(mut self, val: V) -> Self
+    pub fn https_proxy<V>(mut self, val: V) -> Self
     where
-        V: Into<Option<S>>,
-        S: Into<String>,
+        V: Into<Option<Url>>,
     {
         self.inner.https_proxy = val.into().map(|x| x.into());
         self
@@ -120,19 +145,19 @@ impl ProxySettingsBuilder {
 #[test]
 fn test_proxy_for_url() {
     let s = ProxySettings {
-        http_proxy: Some("http://proxy1:3128".into()),
-        https_proxy: Some("http://proxy2:3128".into()),
+        http_proxy: Some("http://proxy1:3128".parse().unwrap()),
+        https_proxy: Some("http://proxy2:3128".parse().unwrap()),
         no_proxy_patterns: vec![WildMatch::new("*.com")],
     };
 
     assert_eq!(
         s.for_url(&Url::parse("http://google.ca").unwrap()),
-        Some("http://proxy1:3128")
+        Some(&"http://proxy1:3128".parse().unwrap())
     );
 
     assert_eq!(
         s.for_url(&Url::parse("https://google.ca").unwrap()),
-        Some("http://proxy2:3128")
+        Some(&"http://proxy2:3128".parse().unwrap())
     );
 
     assert_eq!(s.for_url(&Url::parse("https://reddit.com").unwrap()), None);
