@@ -17,6 +17,7 @@ use crate::streams::{BaseStream, ConnectInfo};
 /// Contains types to describe request bodies
 pub mod body;
 mod builder;
+mod proxy;
 mod session;
 mod settings;
 

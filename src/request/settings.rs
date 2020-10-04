@@ -8,6 +8,7 @@ use rustls::ClientConfig;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+use crate::request::proxy::ProxySettings;
 #[cfg(any(feature = "tls-rustls", feature = "tls"))]
 use crate::skip_debug::SkipDebug;
 
@@ -22,6 +23,7 @@ pub struct BaseSettings {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub timeout: Option<Duration>,
+    pub proxy_settings: ProxySettings,
     #[cfg(feature = "charsets")]
     pub default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
@@ -45,6 +47,7 @@ impl Default for BaseSettings {
             connect_timeout: Duration::from_secs(30),
             read_timeout: Duration::from_secs(30),
             timeout: None,
+            proxy_settings: ProxySettings::from_env(),
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
