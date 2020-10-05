@@ -1,32 +1,39 @@
 #[cfg(test)]
 use std::io::Cursor;
-use std::io::{self, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::mpsc;
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 use std::sync::Arc;
 use std::thread;
 
 #[cfg(feature = "tls")]
 use native_tls::{HandshakeError, TlsConnector, TlsStream};
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 use rustls::{ClientConfig, ClientSession, Session, StreamOwned};
 use url::{Host, Url};
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 use webpki::DNSNameRef;
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 use webpki_roots::TLS_SERVER_ROOTS;
 
-#[cfg(feature = "tls-rustls")]
+use crate::happy;
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+use crate::parsing::buffers::BufReader2;
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+use crate::parsing::response::parse_response_head;
+use crate::request::BaseSettings;
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 use crate::skip_debug::SkipDebug;
-use crate::{happy, Error};
-use crate::{parsing::response::parse_response_head, request::BaseSettings};
 use crate::{ErrorKind, Result};
 
 pub struct ConnectInfo<'a> {
     pub url: &'a Url,
     pub base_settings: &'a BaseSettings,
 }
+
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+type RustlsStream<T> = SkipDebug<StreamOwned<ClientSession, T>>;
 
 #[derive(Debug)]
 pub enum BaseStream {
@@ -39,13 +46,17 @@ pub enum BaseStream {
         stream: TlsStream<TcpStream>,
         timeout: Option<mpsc::Sender<()>>,
     },
-    #[cfg(feature = "tls-rustls")]
+    #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
     Rustls {
-        stream: SkipDebug<Box<StreamOwned<ClientSession, TcpStream>>>,
+        stream: RustlsStream<TcpStream>,
         timeout: Option<mpsc::Sender<()>>,
     },
+    #[cfg(any(feature = "tls", feature = "tls-rustls"))]
     Tunnel {
-        stream: Box<BufReader<BaseStream>>,
+        #[cfg(feature = "tls")]
+        stream: Box<TlsStream<BufReader2<BaseStream>>>,
+        #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+        stream: Box<RustlsStream<BufReader2<BaseStream>>>,
     },
     #[cfg(test)]
     Mock(Cursor<Vec<u8>>),
@@ -56,43 +67,50 @@ impl BaseStream {
         let proxy = info.base_settings.proxy_settings.for_url(info.url);
         let connect_url = proxy.unwrap_or(info.url);
 
+        // If TLS is not enabled by cargo features, we cannot support
+        // https tunnels.
+        #[cfg(all(not(feature = "tls"), not(feature = "tls-rustls")))]
+        if proxy.map(|x| x.scheme()) == Some("https") {
+            return Err(ErrorKind::InvalidProxy.into());
+        }
+
         let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
         let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
-        let is_tunnel = proxy.is_some() && info.url.scheme() == "https";
 
         debug!("trying to connect to {}:{}", host, port);
 
-        #[allow(unreachable_patterns)]
         let mut stream = match connect_url.scheme() {
             "http" => BaseStream::connect_tcp(&host, port, info)
                 .map(|(stream, timeout)| BaseStream::Plain { stream, timeout }),
-            #[cfg(feature = "tls")]
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
             "https" => BaseStream::connect_tls(&host, port, info),
-            #[cfg(feature = "tls-rustls")]
-            "https" => BaseStream::connect_rustls(host, port, info),
             _ => Err(ErrorKind::InvalidBaseUrl.into()),
         }?;
 
-        if is_tunnel {
+        #[cfg(any(feature = "tls", feature = "tls-rustls"))]
+        if proxy.is_some() && info.url.scheme() == "https" {
             let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
             let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
             write!(stream, "CONNECT {}:{} HTTP/1.1", host, port)?;
 
-            let mut stream = BufReader::new(stream);
+            let mut stream = BufReader2::new(stream);
             let (status, _) = parse_response_head(&mut stream)?;
 
             if !status.is_success() {
-                return Err(Error(Box::new(ErrorKind::ConnectError)));
+                return Err(ErrorKind::ConnectError.into());
             }
 
-            // TODO perform TLS handshake
+            let stream = BaseStream::handshake_tls(&host, info.base_settings, stream)?;
 
-            Ok(BaseStream::Tunnel {
+            return Ok(BaseStream::Tunnel {
+                #[cfg(feature = "tls")]
                 stream: Box::new(stream),
-            })
-        } else {
-            Ok(stream)
+                #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+                stream: Box::new(SkipDebug(stream)),
+            });
         }
+
+        Ok(stream)
     }
 
     fn connect_tcp(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
@@ -118,15 +136,34 @@ impl BaseStream {
 
     #[cfg(feature = "tls")]
     fn connect_tls(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+        let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
+        let stream = BaseStream::handshake_tls(host, info.base_settings, stream)?;
+        Ok(BaseStream::Tls { stream, timeout })
+    }
+
+    #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+    fn connect_tls(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+        let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
+        let stream = BaseStream::handshake_tls(host, info.base_settings, stream)?;
+        Ok(BaseStream::Rustls {
+            stream: SkipDebug(stream),
+            timeout,
+        })
+    }
+
+    #[cfg(feature = "tls")]
+    fn handshake_tls<S>(host: &Host<&str>, base_settings: &BaseSettings, stream: S) -> Result<TlsStream<S>>
+    where
+        S: Read + Write,
+    {
         let mut connector_builder = TlsConnector::builder();
-        connector_builder.danger_accept_invalid_certs(info.base_settings.accept_invalid_certs);
-        connector_builder.danger_accept_invalid_hostnames(info.base_settings.accept_invalid_hostnames);
-        for cert in &info.base_settings.root_certificates.0 {
+        connector_builder.danger_accept_invalid_certs(base_settings.accept_invalid_certs);
+        connector_builder.danger_accept_invalid_hostnames(base_settings.accept_invalid_hostnames);
+        for cert in &base_settings.root_certificates.0 {
             connector_builder.add_root_certificate(cert.clone());
         }
         let connector = connector_builder.build()?;
-        let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
-        let host_str = host.to_string();
+        let host_str = host.to_string(); // TODO check domain vs IP
         let stream = match connector.connect(&host_str, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),
@@ -138,16 +175,23 @@ impl BaseStream {
                 }
             },
         };
-        Ok(BaseStream::Tls { stream, timeout })
+
+        Ok(stream)
     }
 
-    #[cfg(feature = "tls-rustls")]
-    fn connect_rustls(host: Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
+    #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+    fn handshake_tls<S>(
+        host: &Host<&str>,
+        base_settings: &BaseSettings,
+        mut stream: S,
+    ) -> Result<StreamOwned<ClientSession, S>>
+    where
+        S: Read + Write,
+    {
         let host_str = host.to_string();
-        let name = DNSNameRef::try_from_ascii_str(host_str)?;
-        let (mut stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
+        let name = DNSNameRef::try_from_ascii_str(&host_str)?;
 
-        let mut session = match &info.base_settings.client_config.0 {
+        let mut session = match &base_settings.client_config.0 {
             Some(client_config) => ClientSession::new(client_config, name),
             None => {
                 let mut client_config = ClientConfig::new();
@@ -162,10 +206,7 @@ impl BaseStream {
             }
         }
 
-        Ok(BaseStream::Rustls {
-            stream: SkipDebug(Box::new(StreamOwned::new(session, stream))),
-            timeout,
-        })
+        Ok(StreamOwned::new(session, stream))
     }
 
     #[cfg(test)]
@@ -181,11 +222,12 @@ impl Read for BaseStream {
             BaseStream::Plain { stream, timeout } => read_timeout(stream, buf, timeout),
             #[cfg(feature = "tls")]
             BaseStream::Tls { stream, timeout } => read_timeout(stream, buf, timeout),
-            #[cfg(feature = "tls-rustls")]
+            #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
             BaseStream::Rustls { stream, timeout } => {
                 let res = read_timeout(&mut stream.0, buf, timeout);
                 handle_close_notify(res, &mut stream.0)
             }
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
             BaseStream::Tunnel { stream } => stream.read(buf),
             #[cfg(test)]
             BaseStream::Mock(s) => s.read(buf),
@@ -200,9 +242,10 @@ impl Write for BaseStream {
             BaseStream::Plain { stream, .. } => stream.write(buf),
             #[cfg(feature = "tls")]
             BaseStream::Tls { stream, .. } => stream.write(buf),
-            #[cfg(feature = "tls-rustls")]
+            #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
             BaseStream::Rustls { stream, .. } => stream.0.write(buf),
-            BaseStream::Tunnel { stream } => stream.get_mut().write(buf),
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
+            BaseStream::Tunnel { stream } => stream.write(buf),
             #[cfg(test)]
             _ => Ok(0),
         }
@@ -214,9 +257,10 @@ impl Write for BaseStream {
             BaseStream::Plain { stream, .. } => stream.flush(),
             #[cfg(feature = "tls")]
             BaseStream::Tls { stream, .. } => stream.flush(),
-            #[cfg(feature = "tls-rustls")]
+            #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
             BaseStream::Rustls { stream, .. } => stream.0.flush(),
-            BaseStream::Tunnel { stream } => stream.get_mut().flush(),
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
+            BaseStream::Tunnel { stream } => stream.flush(),
             #[cfg(test)]
             _ => Ok(()),
         }
@@ -235,7 +279,7 @@ fn read_timeout(stream: &mut impl Read, buf: &mut [u8], timeout: &Option<mpsc::S
     Ok(read)
 }
 
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
 fn handle_close_notify(
     res: io::Result<usize>,
     stream: &mut StreamOwned<ClientSession, TcpStream>,

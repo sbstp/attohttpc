@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read, Write};
 
 pub fn read_line<R>(reader: &mut BufReader<R>, buf: &mut Vec<u8>, max_buf_len: u64) -> io::Result<usize>
 where
@@ -42,6 +42,51 @@ pub fn trim_byte_left(byte: u8, buf: &[u8]) -> &[u8] {
 
 pub fn trim_byte_right(byte: u8, buf: &[u8]) -> &[u8] {
     buf.iter().rposition(|b| *b != byte).map_or(&[], |n| &buf[..=n])
+}
+
+#[derive(Debug)]
+pub struct BufReader2<R> {
+    inner: BufReader<R>,
+}
+
+impl<R: Read> BufReader2<R> {
+    pub fn new(inner: R) -> BufReader2<R> {
+        BufReader2 {
+            inner: BufReader::new(inner),
+        }
+    }
+}
+
+impl<R: Read> Read for BufReader2<R> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl<R: Write> Write for BufReader2<R> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.inner.get_mut().write(buf)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.get_mut().flush()
+    }
+}
+
+impl<R> std::ops::Deref for BufReader2<R> {
+    type Target = BufReader<R>;
+    fn deref(&self) -> &BufReader<R> {
+        &self.inner
+    }
+}
+
+impl<R> std::ops::DerefMut for BufReader2<R> {
+    fn deref_mut(&mut self) -> &mut BufReader<R> {
+        &mut self.inner
+    }
 }
 
 #[test]

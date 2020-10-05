@@ -59,6 +59,8 @@ pub enum ErrorKind {
     InvalidUrlHost,
     /// The URL scheme is unknown and the port is missing.
     InvalidUrlPort,
+    /// The proxy cannot be used.
+    InvalidProxy,
     /// Server sent an invalid response.
     InvalidResponse(InvalidResponseKind),
     /// Too many redirections
@@ -109,6 +111,7 @@ impl Display for Error {
             InvalidBaseUrl => write!(w, "Invalid base URL"),
             InvalidUrlHost => write!(w, "URL is missing a host"),
             InvalidUrlPort => write!(w, "URL is missing a port"),
+            ErrorKind::InvalidProxy => write!(w, "Proxy cannot be used"),
             InvalidResponse(ref k) => write!(w, "InvalidResponse: {}", k),
             TooManyRedirections => write!(w, "Too many redirections"),
             StatusCode(ref sc) => write!(w, "Status code {} indicates failure", sc),

@@ -70,6 +70,7 @@ pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
 pub use crate::parsing::{Response, ResponseReader};
+pub use crate::request::proxy::ProxySettings;
 pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
@@ -160,6 +161,20 @@ mod skip_debug {
     impl<T> From<T> for SkipDebug<T> {
         fn from(val: T) -> SkipDebug<T> {
             SkipDebug(val)
+        }
+    }
+
+    impl<T> std::ops::Deref for SkipDebug<T> {
+        type Target = T;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl<T> std::ops::DerefMut for SkipDebug<T> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
         }
     }
 }
