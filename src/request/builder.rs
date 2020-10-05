@@ -25,7 +25,9 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
 use crate::request::{
     body::{self, Body, BodyKind},
-    header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest,
+    header_append, header_insert, header_insert_if_missing,
+    proxy::ProxySettings,
+    BaseSettings, PreparedRequest,
 };
 
 /// `RequestBuilder` is the main way of building requests.
@@ -331,6 +333,14 @@ impl<B> RequestBuilder<B> {
     /// Applies after a TCP connection is established. Defaults to no timeout.
     pub fn timeout(mut self, duration: Duration) -> Self {
         self.base_settings.timeout = Some(duration);
+        self
+    }
+
+    /// Sets the proxy settigns for this request.
+    ///
+    /// If left untouched, the defaults are to use system proxy settings found in environment variables.
+    pub fn proxy_settings(mut self, settings: ProxySettings) -> Self {
+        self.base_settings.proxy_settings = settings;
         self
     }
 

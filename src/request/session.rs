@@ -1,21 +1,19 @@
 use std::convert::TryInto;
+#[cfg(feature = "tls-rustls")]
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::header::{HeaderValue, IntoHeaderName};
 use http::Method;
-
-#[cfg(feature = "tls-rustls")]
-use std::sync::Arc;
-
-#[cfg(feature = "tls-rustls")]
-use rustls::ClientConfig;
-
 #[cfg(feature = "tls")]
 use native_tls::Certificate;
+#[cfg(feature = "tls-rustls")]
+use rustls::ClientConfig;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
+use crate::request::proxy::ProxySettings;
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
@@ -192,6 +190,13 @@ impl Session {
     /// Applies after a TCP connection is established. Defaults to no timeout.
     pub fn timeout(&mut self, duration: Duration) {
         self.base_settings.timeout = Some(duration);
+    }
+
+    /// Sets the proxy settigns for this request.
+    ///
+    /// If left untouched, the defaults are to use system proxy settings found in environment variables.
+    pub fn proxy_settings(&mut self, settings: ProxySettings) {
+        self.base_settings.proxy_settings = settings;
     }
 
     /// Set the default charset to use while parsing the response of this `Request`.
