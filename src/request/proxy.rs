@@ -140,6 +140,11 @@ impl ProxySettingsBuilder {
         self.inner.no_proxy_patterns.push(WildMatch::new(pattern.as_ref()));
         self
     }
+
+    /// Build the settings.
+    pub fn build(self) -> ProxySettings {
+        self.inner
+    }
 }
 
 #[test]

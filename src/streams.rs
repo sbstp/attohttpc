@@ -79,7 +79,7 @@ impl BaseStream {
 
         debug!("trying to connect to {}:{}", host, port);
 
-        let mut stream = match connect_url.scheme() {
+        let stream = match connect_url.scheme() {
             "http" => BaseStream::connect_tcp(&host, port, info)
                 .map(|(stream, timeout)| BaseStream::Plain { stream, timeout }),
             #[cfg(any(feature = "tls", feature = "tls-rustls"))]
@@ -88,29 +88,53 @@ impl BaseStream {
         }?;
 
         #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-        if proxy.is_some() && info.url.scheme() == "https" {
-            let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
-            let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
-            write!(stream, "CONNECT {}:{} HTTP/1.1", host, port)?;
-
-            let mut stream = BufReader2::new(stream);
-            let (status, _) = parse_response_head(&mut stream)?;
-
-            if !status.is_success() {
-                return Err(ErrorKind::ConnectError.into());
+        if let Some(proxy_url) = proxy {
+            if info.url.scheme() == "https" {
+                return BaseStream::initiate_tunnel(stream, proxy_url, info.url, info.base_settings);
             }
-
-            let stream = BaseStream::handshake_tls(&host, info.base_settings, stream)?;
-
-            return Ok(BaseStream::Tunnel {
-                #[cfg(feature = "tls")]
-                stream: Box::new(stream),
-                #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
-                stream: Box::new(SkipDebug(stream)),
-            });
         }
 
         Ok(stream)
+    }
+
+    fn initiate_tunnel(
+        mut stream: BaseStream,
+        proxy_url: &Url,
+        remote_url: &Url,
+        base_settings: &BaseSettings,
+    ) -> Result<BaseStream> {
+        let remote_host = remote_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
+        let remote_port = remote_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
+        let proxy_host = proxy_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
+        let proxy_port = proxy_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
+
+        debug!(
+            "tunnelling to {}:{} via {}:{}",
+            remote_host, remote_port, proxy_host, proxy_port,
+        );
+
+        write!(stream, "CONNECT {}:{} HTTP/1.1\r\n", remote_host, remote_port)?;
+        write!(stream, "Host: {}:{}\r\n\r\n", proxy_host, proxy_port)?;
+
+        let mut stream = BufReader2::new(stream);
+        let (status, _) = parse_response_head(&mut stream)?;
+
+        if !status.is_success() {
+            // TODO improve error handling
+            let mut buf = String::new();
+            stream.read_to_string(&mut buf).unwrap();
+            println!("{} -- {}", status, buf);
+            return Err(ErrorKind::ConnectError.into());
+        }
+
+        let stream = BaseStream::handshake_tls(&remote_host, &base_settings, stream)?;
+
+        return Ok(BaseStream::Tunnel {
+            #[cfg(feature = "tls")]
+            stream: Box::new(stream),
+            #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+            stream: Box::new(SkipDebug(stream)),
+        });
     }
 
     fn connect_tcp(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {

@@ -205,7 +205,7 @@ impl<B: Body> PreparedRequest<B> {
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
         let mut url = self.url.clone();
-        set_host(&mut self.base_settings.headers, &url)?;
+        set_host(&mut self.base_settings.headers, &url)?; // TODO update when redirected
 
         let mut redirections = 0;
 
