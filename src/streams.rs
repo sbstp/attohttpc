@@ -70,7 +70,7 @@ impl BaseStream {
     ) -> Result<BaseStream> {
         let remote_host = remote_url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         let remote_port = remote_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
-        let proxy_host = proxy_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
+        let proxy_host = proxy_url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
         let proxy_port = proxy_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
 
         debug!(
@@ -79,26 +79,31 @@ impl BaseStream {
         );
 
         write!(stream, "CONNECT {}:{} HTTP/1.1\r\n", remote_host, remote_port)?;
-        write!(stream, "Host: {}:{}\r\n\r\n", proxy_host, proxy_port)?;
+        write!(stream, "Host: {}:{}\r\n", proxy_host, proxy_port)?;
+        write!(stream, "Connection: close\r\n")?;
+        write!(stream, "\r\n")?;
 
         let mut stream = BufReader2::new(stream);
         let (status, _) = parse_response_head(&mut stream)?;
 
         if !status.is_success() {
-            // TODO improve error handling
-            let mut buf = String::new();
-            stream.read_to_string(&mut buf).unwrap();
-            println!("{} -- {}", status, buf);
-            return Err(ErrorKind::ConnectError.into());
+            // Error initializaing tunnel, get status code and up to 10 KiB of data from the body.
+            let mut buf = Vec::with_capacity(2048);
+            stream.take(10 * 1024).read_to_end(&mut buf)?;
+            let err = ErrorKind::ConnectError {
+                status_code: status,
+                body: buf,
+            };
+            return Err(err.into());
         }
 
         let mut handshaker = TlsHandshaker::new();
         apply_base_settings(&mut handshaker, base_settings);
         let stream = handshaker.handshake(remote_host, stream)?;
 
-        return Ok(BaseStream::Tunnel {
+        Ok(BaseStream::Tunnel {
             stream: Box::new(stream),
-        });
+        })
     }
 
     fn connect_tcp(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
