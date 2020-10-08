@@ -97,6 +97,7 @@ impl BaseStream {
         Ok(stream)
     }
 
+    #[cfg(any(feature = "tls", feature = "tls-rustls"))]
     fn initiate_tunnel(
         mut stream: BaseStream,
         proxy_url: &Url,

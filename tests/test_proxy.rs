@@ -1,25 +1,15 @@
-use std::thread;
+mod tools;
 
-use flume::unbounded;
-use rouille;
 use url::Url;
 
-#[test]
-fn test_http_url() {
-    let (sender, receiver) = unbounded();
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[tokio::test(threaded_scheduler)]
+async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
+    let remote_port = tools::start_hello_world_server(false).await?;
+    let remote_url = format!("http://localhost:{}", remote_port);
 
-    let server = rouille::Server::new("localhost:0", move |request| {
-        sender.send(request.url()).unwrap();
-        rouille::Response::text("hello")
-    })
-    .unwrap();
-
-    let port = server.server_addr().port();
-    thread::spawn(|| {
-        server.run();
-    });
-
-    let proxy_url = Url::parse(&format!("http://localhost:{}", port)).unwrap();
+    let proxy_port = tools::start_proxy_server(false).await?;
+    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -29,40 +19,81 @@ fn test_http_url() {
     let mut sess = attohttpc::Session::new();
     sess.proxy_settings(settings);
 
-    // Request with http
-    sess.get("http://reddit.com/").send().unwrap();
-    let url = receiver.recv().unwrap();
-    assert_eq!(url, "http://reddit.com/");
-}
-
-// TODO: use hyper https://github.com/hyperium/hyper/blob/35825c4614b22c95ad9e214eb1d2849f89c82598/examples/http_proxy.rs
-#[test]
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
-fn test_https_url() {
-    use tiny_http::{Response, Server, ServerConfig, SslConfig};
-
-    let conf = ServerConfig {
-        addr: "localhost:0",
-        ssl: Some(SslConfig {
-            certificate: include_bytes!("cert.pem").to_vec(),
-            private_key: include_bytes!("key.pem").to_vec(),
-        }),
-    };
-
-    let remote_server = Server::new(conf).unwrap();
-    let remote_port = remote_server.server_addr().port();
-
-    thread::spawn(move || {
-        for req in remote_server.incoming_requests() {
-            req.respond(Response::new(200.into(), vec![], "hello".as_bytes(), None, None))
-                .unwrap();
-        }
-    });
-
-    let resp = attohttpc::get(format!("https://localhost:{}", remote_port))
-        .danger_accept_invalid_certs(true)
-        .send()
-        .unwrap();
+    let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
 
     assert_eq!(resp.text().unwrap(), "hello");
+
+    Ok(())
+}
+
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[tokio::test(threaded_scheduler)]
+async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
+    let remote_port = tools::start_hello_world_server(false).await?;
+    let remote_url = format!("http://localhost:{}", remote_port);
+
+    let proxy_port = tools::start_proxy_server(true).await?;
+    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+
+    let settings = attohttpc::ProxySettingsBuilder::new()
+        .http_proxy(proxy_url.clone())
+        .https_proxy(proxy_url.clone())
+        .build();
+
+    let mut sess = attohttpc::Session::new();
+    sess.proxy_settings(settings);
+
+    let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
+
+    assert_eq!(resp.text().unwrap(), "hello");
+
+    Ok(())
+}
+
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[tokio::test(threaded_scheduler)]
+async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
+    let remote_port = tools::start_hello_world_server(true).await?;
+    let remote_url = format!("https://localhost:{}", remote_port);
+
+    let proxy_port = tools::start_proxy_server(false).await?;
+    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
+
+    let settings = attohttpc::ProxySettingsBuilder::new()
+        .http_proxy(proxy_url.clone())
+        .https_proxy(proxy_url.clone())
+        .build();
+
+    let mut sess = attohttpc::Session::new();
+    sess.proxy_settings(settings);
+
+    let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
+
+    assert_eq!(resp.text().unwrap(), "hello");
+
+    Ok(())
+}
+
+#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[tokio::test(threaded_scheduler)]
+async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
+    let remote_port = tools::start_hello_world_server(true).await?;
+    let remote_url = format!("https://localhost:{}", remote_port);
+
+    let proxy_port = tools::start_proxy_server(true).await?;
+    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+
+    let settings = attohttpc::ProxySettingsBuilder::new()
+        .http_proxy(proxy_url.clone())
+        .https_proxy(proxy_url.clone())
+        .build();
+
+    let mut sess = attohttpc::Session::new();
+    sess.proxy_settings(settings);
+
+    let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
+
+    assert_eq!(resp.text().unwrap(), "hello");
+
+    Ok(())
 }

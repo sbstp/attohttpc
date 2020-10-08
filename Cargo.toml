@@ -32,15 +32,22 @@ webpki-roots = {version = "0.19", optional = true}
 wildmatch = "1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = {version = "0.10.26", optional = true}
+openssl = {version = "0.10", optional = true}
 
 [dev-dependencies]
+anyhow = "1"
 env_logger = "0.7"
 flume = "0.9"
+futures = "0.3"
+futures-util = "0.3"
+hyper = "0.13"
 lazy_static = "1"
+# TODO remove
 rouille = "3"
+# TODO remove
 tiny_http = {version = "0.7", features = ["ssl"]}
-tokio = {version = "0.2.21", features = ["io-driver", "time", "rt-threaded"]}
+tokio = {version = "0.2", features = ["dns", "io-driver", "macros", "time", "rt-threaded"]}
+tokio-rustls = "0.14"
 warp = "0.2.3"
 
 [features]
