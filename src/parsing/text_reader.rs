@@ -53,10 +53,7 @@ fn test_stream_decoder_latin1() {
 
 #[test]
 fn test_string_reader_large_buffer_latin1() {
-    let mut buf = vec![];
-    for _ in 0..10_000 {
-        buf.push(201);
-    }
+    let buf = vec![201; 10_000];
     let mut reader = TextReader::new(&buf[..], crate::charsets::WINDOWS_1252);
 
     let mut text = String::new();
