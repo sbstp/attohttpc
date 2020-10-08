@@ -81,6 +81,8 @@ pub enum ErrorKind {
     InvalidDNSName(webpki::InvalidDNSNameError),
     /// Invalid mime type in a Multipart form
     InvalidMimeType(String),
+    /// TLS was not enabled by features.
+    TlsDisabled,
 }
 
 /// A type that contains all the errors that can possibly occur while accessing an HTTP server.
@@ -111,7 +113,7 @@ impl Display for Error {
             InvalidBaseUrl => write!(w, "Invalid base URL"),
             InvalidUrlHost => write!(w, "URL is missing a host"),
             InvalidUrlPort => write!(w, "URL is missing a port"),
-            ErrorKind::InvalidProxy => write!(w, "Proxy cannot be used"),
+            InvalidProxy => write!(w, "Proxy cannot be used"),
             InvalidResponse(ref k) => write!(w, "InvalidResponse: {}", k),
             TooManyRedirections => write!(w, "Too many redirections"),
             StatusCode(ref sc) => write!(w, "Status code {} indicates failure", sc),
@@ -124,6 +126,7 @@ impl Display for Error {
             #[cfg(feature = "tls-rustls")]
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
             InvalidMimeType(ref e) => write!(w, "Invalid mime type: {}", e),
+            TlsDisabled => write!(w, "TLS is disabled, activate tls or tls-rustls feature"),
         }
     }
 }

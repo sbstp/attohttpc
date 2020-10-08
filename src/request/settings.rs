@@ -24,14 +24,13 @@ pub struct BaseSettings {
     pub read_timeout: Duration,
     pub timeout: Option<Duration>,
     pub proxy_settings: ProxySettings,
+    pub accept_invalid_certs: bool,
+    pub accept_invalid_hostnames: bool,
+
     #[cfg(feature = "charsets")]
     pub default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
     pub allow_compression: bool,
-    #[cfg(feature = "tls")]
-    pub accept_invalid_certs: bool,
-    #[cfg(feature = "tls")]
-    pub accept_invalid_hostnames: bool,
     #[cfg(feature = "tls")]
     pub root_certificates: SkipDebug<Vec<Certificate>>,
     #[cfg(feature = "tls-rustls")]
@@ -48,14 +47,13 @@ impl Default for BaseSettings {
             read_timeout: Duration::from_secs(30),
             timeout: None,
             proxy_settings: ProxySettings::from_env(),
+            accept_invalid_certs: false,
+            accept_invalid_hostnames: false,
+
             #[cfg(feature = "charsets")]
             default_charset: None,
             #[cfg(feature = "compress")]
             allow_compression: true,
-            #[cfg(feature = "tls")]
-            accept_invalid_certs: false,
-            #[cfg(feature = "tls")]
-            accept_invalid_hostnames: false,
             #[cfg(feature = "tls")]
             root_certificates: SkipDebug(Vec::new()),
             #[cfg(feature = "tls-rustls")]

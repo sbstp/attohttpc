@@ -375,7 +375,6 @@ impl<B> RequestBuilder<B> {
     /// Use this setting with care. This will accept **any** TLS certificate valid or not.
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
         self.base_settings.accept_invalid_certs = accept_invalid_certs;
         self
@@ -388,7 +387,6 @@ impl<B> RequestBuilder<B> {
     /// # Danger
     /// Use this setting with care. This will accept TLS certificates that do not match
     /// the hostname.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
         self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
         self

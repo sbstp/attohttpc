@@ -65,6 +65,7 @@ mod multipart;
 mod parsing;
 mod request;
 mod streams;
+mod tls;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
