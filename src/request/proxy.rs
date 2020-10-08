@@ -68,7 +68,7 @@ impl ProxySettings {
         let no_proxy = get_env("no_proxy");
 
         let no_proxy_patterns = no_proxy
-            .map(|x| x.split(",").map(|pat| WildMatch::new(pat.trim())).collect::<Vec<_>>())
+            .map(|x| x.split(',').map(|pat| WildMatch::new(pat.trim())).collect::<Vec<_>>())
             .unwrap_or_default();
 
         ProxySettings {
@@ -119,7 +119,7 @@ impl ProxySettingsBuilder {
     where
         V: Into<Option<Url>>,
     {
-        self.inner.http_proxy = val.into().map(|x| x.into());
+        self.inner.http_proxy = val.into();
         self
     }
 
@@ -128,7 +128,7 @@ impl ProxySettingsBuilder {
     where
         V: Into<Option<Url>>,
     {
-        self.inner.https_proxy = val.into().map(|x| x.into());
+        self.inner.https_proxy = val.into();
         self
     }
 
@@ -144,6 +144,12 @@ impl ProxySettingsBuilder {
     /// Build the settings.
     pub fn build(self) -> ProxySettings {
         self.inner
+    }
+}
+
+impl Default for ProxySettingsBuilder {
+    fn default() -> Self {
+        ProxySettingsBuilder::new()
     }
 }
 

@@ -12,7 +12,7 @@ async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
-        .https_proxy(proxy_url.clone())
+        .https_proxy(proxy_url)
         .build();
 
     let mut sess = attohttpc::Session::new();
@@ -36,7 +36,7 @@ async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
-        .https_proxy(proxy_url.clone())
+        .https_proxy(proxy_url)
         .build();
 
     let mut sess = attohttpc::Session::new();
@@ -60,7 +60,7 @@ async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
-        .https_proxy(proxy_url.clone())
+        .https_proxy(proxy_url)
         .build();
 
     let mut sess = attohttpc::Session::new();
@@ -84,7 +84,7 @@ async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
-        .https_proxy(proxy_url.clone())
+        .https_proxy(proxy_url)
         .build();
 
     let mut sess = attohttpc::Session::new();
