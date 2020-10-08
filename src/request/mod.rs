@@ -229,14 +229,14 @@ impl<B: Body> PreparedRequest<B> {
 
             debug!("status code {}", resp.status().as_u16());
 
-            let is_redirect = match resp.status() {
+            let is_redirect = matches!(
+                resp.status(),
                 StatusCode::MOVED_PERMANENTLY
-                | StatusCode::FOUND
-                | StatusCode::SEE_OTHER
-                | StatusCode::TEMPORARY_REDIRECT
-                | StatusCode::PERMANENT_REDIRECT => true,
-                _ => false,
-            };
+                    | StatusCode::FOUND
+                    | StatusCode::SEE_OTHER
+                    | StatusCode::TEMPORARY_REDIRECT
+                    | StatusCode::PERMANENT_REDIRECT
+            );
             if !self.base_settings.follow_redirects || !is_redirect {
                 return Ok(resp);
             }
