@@ -6,6 +6,8 @@ use native_tls::HandshakeError;
 
 use crate::Result;
 
+pub type Certificate = native_tls::Certificate;
+
 pub struct TlsHandshaker {
     inner: native_tls::TlsConnectorBuilder,
 }
@@ -23,6 +25,11 @@ impl TlsHandshaker {
 
     pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
         self.inner.danger_accept_invalid_hostnames(accept_invalid_hostnames);
+    }
+
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<()> {
+        self.inner.add_root_certificate(cert);
+        Ok(())
     }
 
     pub fn handshake<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>>

@@ -5,6 +5,8 @@ use std::marker::PhantomData;
 
 use crate::{ErrorKind, Result};
 
+pub type Certificate = ();
+
 pub struct TlsHandshaker {}
 
 impl TlsHandshaker {
@@ -15,6 +17,10 @@ impl TlsHandshaker {
     pub fn danger_accept_invalid_certs(&mut self, _accept_invalid_certs: bool) {}
 
     pub fn danger_accept_invalid_hostnames(&mut self, _accept_invalid_hostnames: bool) {}
+
+    pub fn add_root_certificate(&mut self, _cert: Certificate) -> Result<()> {
+        Ok(())
+    }
 
     pub fn handshake<S>(&self, _domain: &str, _stream: S) -> Result<TlsStream<S>>
     where

@@ -2,8 +2,6 @@ use std::borrow::Borrow;
 use std::convert::{From, TryInto};
 use std::fs;
 use std::str;
-#[cfg(feature = "tls-rustls")]
-use std::sync::Arc;
 use std::time::Duration;
 
 use http::{
@@ -13,10 +11,6 @@ use http::{
     },
     Method,
 };
-#[cfg(feature = "tls")]
-use native_tls::Certificate;
-#[cfg(feature = "tls-rustls")]
-use rustls::ClientConfig;
 use url::Url;
 
 #[cfg(feature = "charsets")]
@@ -29,6 +23,7 @@ use crate::request::{
     proxy::ProxySettings,
     BaseSettings, PreparedRequest,
 };
+use crate::tls::Certificate;
 
 /// `RequestBuilder` is the main way of building requests.
 ///
@@ -393,19 +388,8 @@ impl<B> RequestBuilder<B> {
     }
 
     /// Adds a root certificate that will be trusted.
-    #[cfg(feature = "tls")]
     pub fn add_root_certificate(mut self, cert: Certificate) -> Self {
         self.base_settings.root_certificates.0.push(cert);
-        self
-    }
-
-    /// Sets the TLS client configuration
-    ///
-    /// Defaults to a configuration using the root certificates
-    /// from the webpki-roots crate.
-    #[cfg(feature = "tls-rustls")]
-    pub fn client_config(mut self, client_config: impl Into<Arc<ClientConfig>>) -> Self {
-        self.base_settings.client_config = Some(client_config.into()).into();
         self
     }
 }

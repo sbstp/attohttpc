@@ -11,6 +11,8 @@ use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::Result;
 
+pub type Certificate = rustls::Certificate;
+
 pub struct TlsHandshaker {
     inner: ClientConfig,
     accept_invalid_certs: bool,
@@ -47,6 +49,11 @@ impl TlsHandshaker {
                 accept_invalid_certs: self.accept_invalid_certs,
                 accept_invalid_hostnames: self.accept_invalid_hostnames,
             }))
+    }
+
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<()> {
+        self.inner.root_store.add(&cert)?;
+        Ok(())
     }
 
     pub fn handshake<S>(&self, domain: &str, mut stream: S) -> Result<TlsStream<S>>
@@ -142,11 +149,21 @@ impl ServerCertVerifier for CustomCertVerifier {
         dns_name: DNSNameRef,
         ocsp_response: &[u8],
     ) -> std::result::Result<rustls::ServerCertVerified, rustls::TLSError> {
-        // TODO properly handle hostnames case
-        if self.accept_invalid_certs || self.accept_invalid_hostnames {
-            return Ok(ServerCertVerified::assertion());
-        }
-        self.upstream
+        match self
+            .upstream
             .verify_server_cert(roots, presented_certs, dns_name, ocsp_response)
+        {
+            Ok(verified) => Ok(verified),
+            Err(rustls::TLSError::WebPKIError(err)) => {
+                if self.accept_invalid_certs
+                    || (self.accept_invalid_hostnames && err == webpki::Error::CertNotValidForName)
+                {
+                    return Ok(ServerCertVerified::assertion());
+                }
+
+                Err(rustls::TLSError::WebPKIError(err))
+            }
+            Err(err) => Err(err),
+        }
     }
 }

@@ -86,6 +86,9 @@ pub enum ErrorKind {
     InvalidMimeType(String),
     /// TLS was not enabled by features.
     TlsDisabled,
+    /// WebPKI error.
+    #[cfg(feature = "tls-rustls")]
+    WebPKI(webpki::Error),
 }
 
 /// A type that contains all the errors that can possibly occur while accessing an HTTP server.
@@ -129,6 +132,8 @@ impl Display for Error {
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
             InvalidMimeType(ref e) => write!(w, "Invalid mime type: {}", e),
             TlsDisabled => write!(w, "TLS is disabled, activate tls or tls-rustls feature"),
+            #[cfg(feature = "tls-rustls")]
+            WebPKI(ref e) => write!(w, "WebPKI error: {}", e),
         }
     }
 }
@@ -224,6 +229,13 @@ impl From<Error> for io::Error {
 impl From<InvalidResponseKind> for io::Error {
     fn from(kind: InvalidResponseKind) -> io::Error {
         io::Error::new(io::ErrorKind::Other, Error(Box::new(ErrorKind::InvalidResponse(kind))))
+    }
+}
+
+#[cfg(feature = "tls-rustls")]
+impl From<webpki::Error> for Error {
+    fn from(err: webpki::Error) -> Error {
+        Error(Box::new(ErrorKind::WebPKI(err)))
     }
 }
 

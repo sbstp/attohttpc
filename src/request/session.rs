@@ -1,20 +1,15 @@
 use std::convert::TryInto;
-#[cfg(feature = "tls-rustls")]
-use std::sync::Arc;
 use std::time::Duration;
 
 use http::header::{HeaderValue, IntoHeaderName};
 use http::Method;
-#[cfg(feature = "tls")]
-use native_tls::Certificate;
-#[cfg(feature = "tls-rustls")]
-use rustls::ClientConfig;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
 use crate::request::proxy::ProxySettings;
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
+use crate::tls::Certificate;
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
 /// `Session` are applied to every request created from this `Session`.
@@ -244,17 +239,7 @@ impl Session {
     }
 
     /// Adds a root certificate that will be trusted.
-    #[cfg(feature = "tls")]
     pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.base_settings.root_certificates.0.push(cert);
-    }
-
-    /// Sets the TLS client configuration
-    ///
-    /// Defaults to a configuration using the root certificates
-    /// from the webpki-roots crate.
-    #[cfg(feature = "tls-rustls")]
-    pub fn client_config(&mut self, client_config: impl Into<Arc<ClientConfig>>) {
-        self.base_settings.client_config = Some(client_config.into()).into();
     }
 }
