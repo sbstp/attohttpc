@@ -45,26 +45,26 @@ pub fn trim_byte_right(byte: u8, buf: &[u8]) -> &[u8] {
 }
 
 #[derive(Debug)]
-pub struct BufReader2<R> {
+pub struct BufReaderWrite<R> {
     inner: BufReader<R>,
 }
 
-impl<R: Read> BufReader2<R> {
-    pub fn new(inner: R) -> BufReader2<R> {
-        BufReader2 {
+impl<R: Read> BufReaderWrite<R> {
+    pub fn new(inner: R) -> BufReaderWrite<R> {
+        BufReaderWrite {
             inner: BufReader::new(inner),
         }
     }
 }
 
-impl<R: Read> Read for BufReader2<R> {
+impl<R: Read> Read for BufReaderWrite<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }
 }
 
-impl<R: Write> Write for BufReader2<R> {
+impl<R: Write> Write for BufReaderWrite<R> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner.get_mut().write(buf)
@@ -76,14 +76,14 @@ impl<R: Write> Write for BufReader2<R> {
     }
 }
 
-impl<R> std::ops::Deref for BufReader2<R> {
+impl<R> std::ops::Deref for BufReaderWrite<R> {
     type Target = BufReader<R>;
     fn deref(&self) -> &BufReader<R> {
         &self.inner
     }
 }
 
-impl<R> std::ops::DerefMut for BufReader2<R> {
+impl<R> std::ops::DerefMut for BufReaderWrite<R> {
     fn deref_mut(&mut self) -> &mut BufReader<R> {
         &mut self.inner
     }

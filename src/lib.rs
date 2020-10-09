@@ -164,18 +164,4 @@ mod skip_debug {
             SkipDebug(val)
         }
     }
-
-    impl<T> std::ops::Deref for SkipDebug<T> {
-        type Target = T;
-
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
-    }
-
-    impl<T> std::ops::DerefMut for SkipDebug<T> {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.0
-        }
-    }
 }

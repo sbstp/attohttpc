@@ -153,32 +153,25 @@ impl<B: Body> PreparedRequest<B> {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
 
-        match (proxy, url.scheme(), url.query()) {
-            // A proxy is set and the scheme is http, we must send a complete url to the proxy.
-            (Some(_), "http", _) => {
-                debug!("{} {} {:?}", self.method.as_str(), url, version);
+        if proxy.is_some() && url.scheme() == "http" {
+            debug!("{} {} {:?}", self.method.as_str(), url, version);
 
-                write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
-            }
-            // A proxy could be set and we have a query string, so we write the path + query string.
-            (_, _, Some(query)) => {
-                debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
+        } else if let Some(query) = url.query() {
+            debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
 
-                write!(
-                    writer,
-                    "{} {}?{} {:?}\r\n",
-                    self.method.as_str(),
-                    url.path(),
-                    query,
-                    version,
-                )?;
-            }
-            // A proxy could be set and there is no query string, so we write just the path.
-            (_, _, None) => {
-                debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
+            write!(
+                writer,
+                "{} {}?{} {:?}\r\n",
+                self.method.as_str(),
+                url.path(),
+                query,
+                version,
+            )?;
+        } else {
+            debug!("{} {} {:?}", self.method.as_str(), url.path(), version);
 
-                write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version)?;
-            }
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url.path(), version)?;
         }
 
         self.write_headers(&mut writer)?;
@@ -205,7 +198,6 @@ impl<B: Body> PreparedRequest<B> {
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
         let mut url = self.url.clone();
-        set_host(&mut self.base_settings.headers, &url)?; // TODO update when redirected
 
         let mut redirections = 0;
 
@@ -219,11 +211,19 @@ impl<B: Body> PreparedRequest<B> {
 
             let proxy = self.base_settings.proxy_settings.for_url(&url).cloned();
 
+            // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
+            match (url.scheme(), &proxy) {
+                ("http", Some(proxy)) => set_host(&mut self.base_settings.headers, proxy)?,
+                _ => set_host(&mut self.base_settings.headers, &url)?,
+            };
+
             let info = ConnectInfo {
                 url: &url,
+                proxy: proxy.as_ref(),
                 base_settings: &self.base_settings,
             };
             let mut stream = BaseStream::connect(&info)?;
+
             self.write_request(&mut stream, &url, proxy.as_ref())?;
             let resp = parse_response(stream, self)?;
 
@@ -254,7 +254,6 @@ impl<B: Body> PreparedRequest<B> {
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
             url = self.base_redirect_url(location, &url)?;
-            set_host(&mut self.base_settings.headers, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }

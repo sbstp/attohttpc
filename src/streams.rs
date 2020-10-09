@@ -8,7 +8,7 @@ use std::thread;
 use url::{Host, Url};
 
 use crate::happy;
-use crate::parsing::buffers::BufReader2;
+use crate::parsing::buffers::BufReaderWrite;
 use crate::parsing::response::parse_response_head;
 use crate::request::BaseSettings;
 use crate::tls::{TlsHandshaker, TlsStream};
@@ -16,6 +16,7 @@ use crate::{ErrorKind, Result};
 
 pub struct ConnectInfo<'a> {
     pub url: &'a Url,
+    pub proxy: Option<&'a Url>,
     pub base_settings: &'a BaseSettings,
 }
 
@@ -30,7 +31,7 @@ pub enum BaseStream {
         timeout: Option<mpsc::Sender<()>>,
     },
     Tunnel {
-        stream: Box<TlsStream<BufReader2<BaseStream>>>,
+        stream: Box<TlsStream<BufReaderWrite<BaseStream>>>,
     },
     #[cfg(test)]
     Mock(Cursor<Vec<u8>>),
@@ -38,8 +39,7 @@ pub enum BaseStream {
 
 impl BaseStream {
     pub fn connect(info: &ConnectInfo) -> Result<BaseStream> {
-        let proxy = info.base_settings.proxy_settings.for_url(info.url);
-        let connect_url = proxy.unwrap_or(info.url);
+        let connect_url = info.proxy.unwrap_or(info.url);
 
         let host = connect_url.host().ok_or(ErrorKind::InvalidUrlHost)?;
         let port = connect_url.port_or_known_default().ok_or(ErrorKind::InvalidUrlPort)?;
@@ -53,7 +53,7 @@ impl BaseStream {
             _ => Err(ErrorKind::InvalidBaseUrl.into()),
         }?;
 
-        if let Some(proxy_url) = proxy {
+        if let Some(proxy_url) = info.proxy {
             if info.url.scheme() == "https" {
                 return BaseStream::initiate_tunnel(stream, proxy_url, info.url, info.base_settings);
             }
@@ -83,7 +83,7 @@ impl BaseStream {
         write!(stream, "Connection: close\r\n")?;
         write!(stream, "\r\n")?;
 
-        let mut stream = BufReader2::new(stream);
+        let mut stream = BufReaderWrite::new(stream);
         let (status, _) = parse_response_head(&mut stream)?;
 
         if !status.is_success() {
