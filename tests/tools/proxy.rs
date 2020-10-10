@@ -8,7 +8,7 @@ use futures_util::future::try_join;
 use hyper::server::conn::AddrIncoming;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Client, Method, Request, Response, Server};
+use hyper::{Body, Client, Method, Request, Response, Server, StatusCode};
 use tokio::net::TcpStream;
 
 use super::tls::{TlsAcceptor, TlsConfigBuilder};
@@ -123,15 +123,17 @@ async fn tunnel(upgraded: Upgraded, addr: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub async fn start_hello_world_server(tls: bool) -> Result<u16, hyper::Error> {
+pub async fn start_refusing_proxy_server(tls: bool) -> Result<u16, hyper::Error> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-
-    async fn handler(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        Ok(Response::new(Body::from("hello")))
-    }
 
     let bound = AddrIncoming::bind(&addr)?;
     let addr = bound.local_addr();
+
+    async fn handler(_req: Request<Body>) -> http::Result<Response<Body>> {
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Body::from("bad request"))
+    }
 
     if tls {
         let make_service = make_service_fn(move |_| async move { Ok::<_, Infallible>(service_fn(handler)) });

@@ -1,30 +1,30 @@
-use std::thread;
+use std::net::SocketAddr;
 
 use attohttpc::ErrorKind;
-use lazy_static::lazy_static;
-use rouille::{router, Response};
+use warp::Filter;
 
-lazy_static! {
-    static ref STARTED: u16 = {
-        let server = rouille::Server::new("localhost:0", |request| {
-            router!(request,
-                (GET) ["/301"] => Response::redirect_301("/301"),
-                (GET) ["/304"] => Response::text("").with_status_code(304),
-                _ => Response::empty_404()
-            )
-        })
-        .unwrap();
-        let port = server.server_addr().port();
-        thread::spawn(|| {
-            server.run();
-        });
-        port
-    };
+async fn make_server() -> Result<u16, anyhow::Error> {
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let incoming = tokio::net::TcpListener::bind(&addr).await?;
+    let local_addr = incoming.local_addr()?;
+
+    let a = warp::path("301").map(|| warp::redirect::redirect(http::Uri::from_static("/301")));
+    let b = warp::path("304").map(|| {
+        http::Response::builder()
+            .header("Location", "/304")
+            .status(http::StatusCode::NOT_MODIFIED)
+            .body("")
+    });
+
+    let server = warp::serve(a.or(b)).serve_incoming(incoming);
+    tokio::spawn(server);
+
+    Ok(local_addr.port())
 }
 
-#[test]
-fn test_redirection_default() {
-    let port = *STARTED;
+#[tokio::test(threaded_scheduler)]
+async fn test_redirection_default() -> Result<(), anyhow::Error> {
+    let port = make_server().await?;
 
     match attohttpc::get(format!("http://localhost:{}/301", port)).send() {
         Err(err) => match err.kind() {
@@ -33,11 +33,13 @@ fn test_redirection_default() {
         },
         _ => panic!(),
     }
+
+    Ok(())
 }
 
-#[test]
-fn test_redirection_0() {
-    let port = *STARTED;
+#[tokio::test(threaded_scheduler)]
+async fn test_redirection_0() -> Result<(), anyhow::Error> {
+    let port = make_server().await?;
 
     match attohttpc::get(format!("http://localhost:{}/301", port))
         .max_redirections(0)
@@ -49,11 +51,13 @@ fn test_redirection_0() {
         },
         _ => panic!(),
     }
+
+    Ok(())
 }
 
-#[test]
-fn test_redirection_disallowed() {
-    let port = *STARTED;
+#[tokio::test(threaded_scheduler)]
+async fn test_redirection_disallowed() -> Result<(), anyhow::Error> {
+    let port = make_server().await?;
 
     let resp = attohttpc::get(format!("http://localhost:{}/301", port))
         .follow_redirects(false)
@@ -61,14 +65,18 @@ fn test_redirection_disallowed() {
         .unwrap();
 
     assert!(resp.status().is_redirection());
+
+    Ok(())
 }
 
-#[test]
-fn test_redirection_not_redirect() {
-    let port = *STARTED;
+#[tokio::test(threaded_scheduler)]
+async fn test_redirection_not_redirect() -> Result<(), anyhow::Error> {
+    let port = make_server().await?;
 
     match attohttpc::get(format!("http://localhost:{}/304", port)).send() {
         Ok(_) => (),
         _ => panic!(),
     }
+
+    Ok(())
 }
