@@ -17,6 +17,7 @@ use crate::streams::{BaseStream, ConnectInfo};
 /// Contains types to describe request bodies
 pub mod body;
 mod builder;
+pub mod proxy;
 mod session;
 mod settings;
 
@@ -145,14 +146,18 @@ impl<B> PreparedRequest<B> {
 }
 
 impl<B: Body> PreparedRequest<B> {
-    fn write_request<W>(&mut self, writer: W, url: &Url) -> Result
+    fn write_request<W>(&mut self, writer: W, url: &Url, proxy: Option<&Url>) -> Result
     where
         W: Write,
     {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
 
-        if let Some(query) = url.query() {
+        if proxy.is_some() && url.scheme() == "http" {
+            debug!("{} {} {:?}", self.method.as_str(), url, version);
+
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
+        } else if let Some(query) = url.query() {
             debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
 
             write!(
@@ -193,29 +198,45 @@ impl<B: Body> PreparedRequest<B> {
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
         let mut url = self.url.clone();
-        set_host(&mut self.base_settings.headers, &url)?;
 
         let mut redirections = 0;
 
         loop {
+            // If a proxy is set and the url is using http, we must connect to the proxy and send
+            // a request with an authority instead of a path.
+            //
+            // If a proxy is set and the url is using https, we must connect to the proxy using
+            // the CONNECT method, and then send https traffic on the socket after the CONNECT
+            // handshake.
+
+            let proxy = self.base_settings.proxy_settings.for_url(&url).cloned();
+
+            // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
+            match (url.scheme(), &proxy) {
+                ("http", Some(proxy)) => set_host(&mut self.base_settings.headers, proxy)?,
+                _ => set_host(&mut self.base_settings.headers, &url)?,
+            };
+
             let info = ConnectInfo {
                 url: &url,
+                proxy: proxy.as_ref(),
                 base_settings: &self.base_settings,
             };
             let mut stream = BaseStream::connect(&info)?;
-            self.write_request(&mut stream, &url)?;
+
+            self.write_request(&mut stream, &url, proxy.as_ref())?;
             let resp = parse_response(stream, self)?;
 
             debug!("status code {}", resp.status().as_u16());
 
-            let is_redirect = match resp.status() {
+            let is_redirect = matches!(
+                resp.status(),
                 StatusCode::MOVED_PERMANENTLY
-                | StatusCode::FOUND
-                | StatusCode::SEE_OTHER
-                | StatusCode::TEMPORARY_REDIRECT
-                | StatusCode::PERMANENT_REDIRECT => true,
-                _ => false,
-            };
+                    | StatusCode::FOUND
+                    | StatusCode::SEE_OTHER
+                    | StatusCode::TEMPORARY_REDIRECT
+                    | StatusCode::PERMANENT_REDIRECT
+            );
             if !self.base_settings.follow_redirects || !is_redirect {
                 return Ok(resp);
             }
@@ -233,7 +254,6 @@ impl<B: Body> PreparedRequest<B> {
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
             url = self.base_redirect_url(location, &url)?;
-            set_host(&mut self.base_settings.headers, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
@@ -252,8 +272,13 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
 
 #[cfg(test)]
 mod test {
-    use super::{header_append, header_insert, header_insert_if_missing};
     use http::header::{HeaderMap, HeaderValue, USER_AGENT};
+    use http::Method;
+    use url::Url;
+
+    use super::BaseSettings;
+    use super::{header_append, header_insert, header_insert_if_missing, PreparedRequest};
+    use crate::body::Empty;
 
     #[test]
     fn test_header_insert_exists() {
@@ -296,5 +321,43 @@ mod test {
         for val in vals {
             assert!(val == "hello" || val == "world");
         }
+    }
+
+    #[test]
+    fn test_http_url_with_http_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
+    }
+
+    #[test]
+    fn test_http_url_with_https_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
     }
 }

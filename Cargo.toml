@@ -1,54 +1,58 @@
 [package]
-name = "attohttpc"
-version = "0.15.0"
 authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
+name = "attohttpc"
+version = "0.15.0"
 
-readme = "README.md"
+categories = ["network-programming", "web-programming", "web-programming::http-client"]
 description = "Small and lightweight HTTP client"
 documentation = "https://docs.rs/attohttpc"
 homepage = "https://github.com/sbstp/attohttpc"
-repository = "https://github.com/sbstp/attohttpc"
 keywords = ["http", "https", "client", "request", "response"]
-categories = ["network-programming", "web-programming", "web-programming::http-client"]
+readme = "README.md"
+repository = "https://github.com/sbstp/attohttpc"
 
 [dependencies]
+encoding_rs = {version = "0.8", optional = true}
+encoding_rs_io = {version = "0.1", optional = true}
+flate2 = {version = "1.0", optional = true}
 http = "0.2"
 log = "0.4"
+mime = {version = "0.3", optional = true}
+multipart = {version = "0.17.0", optional = true}
+native-tls = {version = "0.2", optional = true}
+rustls = {version = "0.18", features = ["dangerous_configuration"], optional = true}
+serde = {version = "1", optional = true}
+serde_json = {version = "1", optional = true}
+serde_urlencoded = {version = "0.6", optional = true}
 url = "2"
-encoding_rs = { version = "0.8", optional = true }
-encoding_rs_io = { version = "0.1", optional = true }
-flate2 = { version = "1.0", optional = true }
-native-tls = { version = "0.2", optional = true }
-rustls = { version = "0.17", optional = true }
-serde = { version = "1", optional = true }
-serde_json = { version = "1", optional = true }
-serde_urlencoded = { version = "0.6", optional = true }
-webpki = { version = "0.21", optional = true }
-webpki-roots = { version = "0.19", optional = true }
-multipart = { version = "0.17.0", optional = true }
-mime = { version = "0.3", optional = true }
+webpki = {version = "0.21", optional = true}
+webpki-roots = {version = "0.19", optional = true}
+wildmatch = "1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = { version = "0.10.26", optional = true }
+openssl = {version = "0.10", optional = true}
 
 [dev-dependencies]
+anyhow = "1"
 env_logger = "0.7"
-lazy_static = "1"
-rouille = "3"
+futures = "0.3"
+futures-util = "0.3"
+hyper = "0.13"
+tokio = {version = "0.2", features = ["dns", "io-driver", "macros", "time", "rt-threaded"]}
+tokio-rustls = "0.14"
 warp = "0.2.3"
-tokio = { version = "0.2.21", features = ["io-driver", "time", "rt-threaded"] }
 
 [features]
 charsets = ["encoding_rs", "encoding_rs_io"]
 compress = ["flate2"]
+default = ["compress", "tls"]
+form = ["serde", "serde_urlencoded"]
+json = ["serde", "serde_json"]
+multipart-form = ["multipart", "mime"]
 tls = ["native-tls", "openssl"]
 tls-rustls = ["rustls", "webpki", "webpki-roots"]
-json = ["serde", "serde_json"]
-form = ["serde", "serde_urlencoded"]
-default = ["compress", "tls"]
-multipart-form = ["multipart", "mime"]
 
 [package.metadata.docs.rs]
 all-features = true

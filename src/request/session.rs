@@ -4,19 +4,12 @@ use std::time::Duration;
 use http::header::{HeaderValue, IntoHeaderName};
 use http::Method;
 
-#[cfg(feature = "tls-rustls")]
-use std::sync::Arc;
-
-#[cfg(feature = "tls-rustls")]
-use rustls::ClientConfig;
-
-#[cfg(feature = "tls")]
-use native_tls::Certificate;
-
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
+use crate::request::proxy::ProxySettings;
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
+use crate::tls::Certificate;
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
 /// `Session` are applied to every request created from this `Session`.
@@ -194,6 +187,13 @@ impl Session {
         self.base_settings.timeout = Some(duration);
     }
 
+    /// Sets the proxy settigns for this request.
+    ///
+    /// If left untouched, the defaults are to use system proxy settings found in environment variables.
+    pub fn proxy_settings(&mut self, settings: ProxySettings) {
+        self.base_settings.proxy_settings = settings;
+    }
+
     /// Set the default charset to use while parsing the response of this `Request`.
     ///
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
@@ -223,7 +223,6 @@ impl Session {
     /// Use this setting with care. This will accept **any** TLS certificate valid or not.
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
         self.base_settings.accept_invalid_certs = accept_invalid_certs;
     }
@@ -235,23 +234,12 @@ impl Session {
     /// # Danger
     /// Use this setting with care. This will accept TLS certificates that do not match
     /// the hostname.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
         self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
     }
 
     /// Adds a root certificate that will be trusted.
-    #[cfg(feature = "tls")]
     pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.base_settings.root_certificates.0.push(cert);
-    }
-
-    /// Sets the TLS client configuration
-    ///
-    /// Defaults to a configuration using the root certificates
-    /// from the webpki-roots crate.
-    #[cfg(feature = "tls-rustls")]
-    pub fn client_config(&mut self, client_config: impl Into<Arc<ClientConfig>>) {
-        self.base_settings.client_config = Some(client_config.into()).into();
     }
 }

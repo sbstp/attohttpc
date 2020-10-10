@@ -1,9 +1,10 @@
-use mime::Mime;
-use multipart::server::Multipart;
 use std::io::{Cursor, Read};
 use std::net::SocketAddr;
 use std::sync::mpsc::{sync_channel, Receiver};
 use std::thread;
+
+use mime::Mime;
+use multipart::server::Multipart;
 use tokio::runtime::Builder;
 use warp::Filter;
 

@@ -65,11 +65,13 @@ mod multipart;
 mod parsing;
 mod request;
 mod streams;
+mod tls;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
 pub use crate::parsing::{Response, ResponseReader};
+pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
 pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
