@@ -53,8 +53,13 @@
 //! ```
 //!
 
-#[macro_use]
-extern crate log;
+macro_rules! debug {
+    ($($arg:tt)+) => { log::debug!(target: "attohttpc", $($arg)+) };
+}
+
+macro_rules! warn {
+    ($($arg:tt)+) => { log::warn!(target: "attohttpc", $($arg)+) };
+}
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
