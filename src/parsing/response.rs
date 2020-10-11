@@ -1,4 +1,4 @@
-use std::io::{BufReader, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::str;
 
 use http::{
@@ -226,6 +226,12 @@ impl Response {
         T: DeserializeOwned,
     {
         self.reader.json_utf8()
+    }
+}
+
+impl Read for Response {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.reader.read(buf)
     }
 }
 
