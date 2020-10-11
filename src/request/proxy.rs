@@ -80,7 +80,7 @@ impl ProxySettings {
 
     /// Get the proxy URL to use for the given URL.
     ///
-    /// None is returned if there is no proxy configured for the scheme of if the hostname
+    /// None is returned if there is no proxy configured for the scheme or if the hostname
     /// matches a pattern in the no proxy list.
     pub fn for_url(&self, url: &Url) -> Option<&Url> {
         if let Some(host) = url.host_str() {
