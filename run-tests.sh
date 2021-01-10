@@ -2,13 +2,8 @@
 
 set -exu
 
-unset http_proxy
-unset https_proxy
-unset no_proxy
-
-unset HTTP_PROXY
-unset HTTPS_PROXY
-unset NO_PROXY
+unset http_proxy https_proxy no_proxy
+unset HTTP_PROXY HTTPS_PROXY NO_PROXY
 
 cargo test --all-features
 cargo test --no-default-features
