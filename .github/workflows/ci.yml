@@ -4,10 +4,10 @@ on: push
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    stategy:
+    strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
