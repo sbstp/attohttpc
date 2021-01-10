@@ -25,6 +25,8 @@ use crate::request::{
 };
 use crate::tls::Certificate;
 
+const DEFAULT_USER_AGENT: &str = concat!("attohttpc/", env!("CARGO_PKG_VERSION"));
+
 /// `RequestBuilder` is the main way of building requests.
 ///
 /// You can create a `RequestBuilder` using the `new` or `try_new` method, but the recommended way
@@ -429,11 +431,7 @@ impl<B: Body> RequestBuilder<B> {
         }
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
-        header_insert_if_missing(
-            &mut prepped.base_settings.headers,
-            USER_AGENT,
-            format!("attohttpc/{}", env!("CARGO_PKG_VERSION")),
-        )?;
+        header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, DEFAULT_USER_AGENT)?;
 
         Ok(prepped)
     }
@@ -487,4 +485,178 @@ fn test_accept_invalid_certs_disabled_by_default() {
     let prepped = builder.prepare();
     assert_eq!(prepped.base_settings.accept_invalid_certs, false);
     assert_eq!(prepped.base_settings.accept_invalid_hostnames, false);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::header::HeaderMap;
+
+    #[test]
+    fn test_header_insert_exists() {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static("hello"));
+        header_insert(&mut headers, USER_AGENT, "world").unwrap();
+        assert_eq!(headers[USER_AGENT], "world");
+    }
+
+    #[test]
+    fn test_header_insert_missing() {
+        let mut headers = HeaderMap::new();
+        header_insert(&mut headers, USER_AGENT, "world").unwrap();
+        assert_eq!(headers[USER_AGENT], "world");
+    }
+
+    #[test]
+    fn test_header_insert_if_missing_exists() {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static("hello"));
+        header_insert_if_missing(&mut headers, USER_AGENT, "world").unwrap();
+        assert_eq!(headers[USER_AGENT], "hello");
+    }
+
+    #[test]
+    fn test_header_insert_if_missing_missing() {
+        let mut headers = HeaderMap::new();
+        header_insert_if_missing(&mut headers, USER_AGENT, "world").unwrap();
+        assert_eq!(headers[USER_AGENT], "world");
+    }
+
+    #[test]
+    fn test_header_append() {
+        let mut headers = HeaderMap::new();
+        header_append(&mut headers, USER_AGENT, "hello").unwrap();
+        header_append(&mut headers, USER_AGENT, "world").unwrap();
+
+        let vals: Vec<_> = headers.get_all(USER_AGENT).into_iter().collect();
+        assert_eq!(vals.len(), 2);
+        for val in vals {
+            assert!(val == "hello" || val == "world");
+        }
+    }
+
+    #[test]
+    fn test_request_builder_param() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+            .param("qux", "baz")
+            .prepare();
+
+        assert_eq!(prepped.url().as_str(), "http://localhost:1337/foo?qux=baz");
+    }
+
+    #[test]
+    fn test_request_builder_params() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+            .params(&[("qux", "baz"), ("foo", "bar")])
+            .prepare();
+
+        assert_eq!(prepped.url().as_str(), "http://localhost:1337/foo?qux=baz&foo=bar");
+    }
+
+    #[test]
+    fn test_request_builder_header_insert() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+            .header("hello", "world")
+            .prepare();
+
+        assert_eq!(prepped.headers()["hello"], "world");
+    }
+
+    #[test]
+    fn test_request_builder_header_append() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+            .header_append("hello", "world")
+            .header_append("hello", "!!!")
+            .prepare();
+
+        let vals: Vec<_> = prepped.headers().get_all("hello").into_iter().collect();
+        assert_eq!(vals.len(), 2);
+        for val in vals {
+            assert!(val == "world" || val == "!!!");
+        }
+    }
+
+    #[cfg(feature = "compress")]
+    fn assert_request_content(
+        builder: RequestBuilder,
+        status_line: &str,
+        mut header_lines: Vec<&str>,
+        body_lines: &[&str],
+    ) {
+        let mut buf = Vec::new();
+
+        let mut prepped = builder.prepare();
+        prepped
+            .write_request(&mut buf, &prepped.url().clone(), None)
+            .expect("error writing request");
+
+        let text = std::str::from_utf8(&buf).expect("cannot decode request as utf-8");
+        let lines: Vec<_> = text.lines().collect();
+
+        let req_status_line = lines[0];
+
+        let empty_line_pos = lines
+            .iter()
+            .position(|l| l.is_empty())
+            .expect("no empty line in request");
+        let mut req_header_lines = lines[1..empty_line_pos].to_vec();
+
+        let req_body_lines = &lines[empty_line_pos + 1..];
+
+        req_header_lines.sort_unstable();
+        header_lines.sort_unstable();
+
+        assert_eq!(req_status_line, status_line);
+        assert_eq!(req_header_lines, header_lines);
+        assert_eq!(req_body_lines, body_lines);
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_request_builder_write_request_no_query() {
+        assert_request_content(
+            RequestBuilder::new(Method::GET, "http://localhost:1337/foo"),
+            "GET /foo HTTP/1.1",
+            vec![
+                "connection: close",
+                "accept-encoding: gzip, deflate",
+                "accept: */*",
+                &format!("user-agent: {}", DEFAULT_USER_AGENT),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "compress")]
+    fn test_request_builder_write_request_with_query() {
+        assert_request_content(
+            RequestBuilder::new(Method::GET, "http://localhost:1337/foo").param("hello", "world"),
+            "GET /foo?hello=world HTTP/1.1",
+            vec![
+                "connection: close",
+                "accept-encoding: gzip, deflate",
+                "accept: */*",
+                &format!("user-agent: {}", DEFAULT_USER_AGENT),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_prepare_default_headers() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz").prepare();
+        assert_eq!(prepped.headers()[ACCEPT], "*/*");
+        assert_eq!(prepped.headers()[USER_AGENT], DEFAULT_USER_AGENT);
+    }
+
+    #[test]
+    fn test_prepare_custom_headers() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz")
+            .header(USER_AGENT, "foobaz")
+            .header("Accept", "nothing")
+            .prepare();
+        assert_eq!(prepped.headers()[ACCEPT], "nothing");
+        assert_eq!(prepped.headers()[USER_AGENT], "foobaz");
+    }
 }
