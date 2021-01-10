@@ -13,7 +13,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: ./run-tests.sh
+      - run: ./run-tests.bash
+        shell: bash
 
   clippy:
     runs-on: ubuntu-latest
@@ -23,4 +24,4 @@ jobs:
         with:
           toolchain: stable
       - run: rustup component add clippy
-      - run: ./clippy.sh
+      - run: ./clippy.bash
