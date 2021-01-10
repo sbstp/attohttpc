@@ -179,15 +179,27 @@ impl Write for BaseStream {
 }
 
 fn read_timeout(stream: &mut impl Read, buf: &mut [u8], timeout: &Option<mpsc::Sender<()>>) -> io::Result<usize> {
-    let read = stream.read(buf)?;
-
-    if let Some(timeout) = timeout {
-        if read == 0 && !buf.is_empty() && timeout.send(()).is_err() {
-            return Err(io::ErrorKind::TimedOut.into());
+    match stream.read(buf) {
+        Ok(0) => {
+            if let Some(timeout) = timeout {
+                // On Unix we get a 0 read when the connection is shutdown by the timeout thread.
+                if !buf.is_empty() && timeout.send(()).is_err() {
+                    return Err(io::ErrorKind::TimedOut.into());
+                }
+            }
+            Ok(0)
+        }
+        Ok(read) => Ok(read),
+        Err(err) => {
+            if let Some(timeout) = timeout {
+                // On Windows we get a ConnectionReset when the connection is shutdown by the timeout thread.
+                if err.kind() == io::ErrorKind::ConnectionReset && timeout.send(()).is_err() {
+                    return Err(io::ErrorKind::TimedOut.into());
+                }
+            }
+            Err(err)
         }
     }
-
-    Ok(read)
 }
 
 fn apply_base_settings(handshaker: &mut TlsHandshaker, base_settings: &BaseSettings) -> Result<()> {

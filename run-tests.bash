@@ -4,6 +4,10 @@ set -Eeuxo pipefail
 unset http_proxy https_proxy no_proxy
 unset HTTP_PROXY HTTPS_PROXY NO_PROXY
 
+mkdir -p .cargo
+echo "[term]" >> .cargo/config.toml
+echo "color = 'always'" >> .cargo/config.toml
+
 cargo test
 cargo test --all-features
 cargo test --no-default-features
