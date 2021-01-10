@@ -11,7 +11,6 @@ use http::{
     },
     Method,
 };
-use lazy_static::lazy_static;
 use url::Url;
 
 #[cfg(feature = "charsets")]
@@ -26,11 +25,7 @@ use crate::request::{
 };
 use crate::tls::Certificate;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-lazy_static! {
-    static ref DEFAULT_USER_AGENT: String = format!("attohttpc/{}", VERSION);
-}
+const DEFAULT_USER_AGENT: &str = concat!("attohttpc/", env!("CARGO_PKG_VERSION"));
 
 /// `RequestBuilder` is the main way of building requests.
 ///
@@ -436,7 +431,7 @@ impl<B: Body> RequestBuilder<B> {
         }
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
-        header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, &*DEFAULT_USER_AGENT)?;
+        header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, DEFAULT_USER_AGENT)?;
 
         Ok(prepped)
     }
@@ -581,6 +576,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "compress")]
     fn assert_request_content(
         builder: RequestBuilder,
         status_line: &str,
@@ -607,8 +603,8 @@ mod tests {
 
         let req_body_lines = &lines[empty_line_pos + 1..];
 
-        req_header_lines.sort();
-        header_lines.sort();
+        req_header_lines.sort_unstable();
+        header_lines.sort_unstable();
 
         assert_eq!(req_status_line, status_line);
         assert_eq!(req_header_lines, header_lines);
@@ -625,7 +621,7 @@ mod tests {
                 "connection: close",
                 "accept-encoding: gzip, deflate",
                 "accept: */*",
-                &format!("user-agent: {}", *DEFAULT_USER_AGENT),
+                &format!("user-agent: {}", DEFAULT_USER_AGENT),
             ],
             &[],
         );
@@ -641,7 +637,7 @@ mod tests {
                 "connection: close",
                 "accept-encoding: gzip, deflate",
                 "accept: */*",
-                &format!("user-agent: {}", *DEFAULT_USER_AGENT),
+                &format!("user-agent: {}", DEFAULT_USER_AGENT),
             ],
             &[],
         );
@@ -651,7 +647,7 @@ mod tests {
     fn test_prepare_default_headers() {
         let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo/qux/baz").prepare();
         assert_eq!(prepped.headers()[ACCEPT], "*/*");
-        assert_eq!(prepped.headers()[USER_AGENT], *DEFAULT_USER_AGENT);
+        assert_eq!(prepped.headers()[USER_AGENT], DEFAULT_USER_AGENT);
     }
 
     #[test]
