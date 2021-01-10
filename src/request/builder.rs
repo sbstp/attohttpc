@@ -1,24 +1,30 @@
 use std::borrow::Borrow;
 use std::convert::{From, TryInto};
+use std::fs;
 use std::str;
-#[cfg(feature = "tls-rustls")]
-use std::sync::Arc;
 use std::time::Duration;
 
 use http::{
-    header::{HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, USER_AGENT},
+    header::{
+        HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING,
+        USER_AGENT,
+    },
     Method,
 };
 use lazy_static::lazy_static;
-#[cfg(feature = "tls-rustls")]
-use rustls::ClientConfig;
 use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
-use crate::request::{header_append, header_insert, header_insert_if_missing, BaseSettings, PreparedRequest};
+use crate::request::{
+    body::{self, Body, BodyKind},
+    header_append, header_insert, header_insert_if_missing,
+    proxy::ProxySettings,
+    BaseSettings, PreparedRequest,
+};
+use crate::tls::Certificate;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -32,7 +38,7 @@ lazy_static! {
 /// or use one of the simpler constructors available in the crate root or on the `Session` struct,
 /// such as `get`, `post`, etc.
 #[derive(Debug)]
-pub struct RequestBuilder<B = [u8; 0]> {
+pub struct RequestBuilder<B = body::Empty> {
     url: Url,
     method: Method,
     body: B,
@@ -82,7 +88,7 @@ impl RequestBuilder {
         Ok(Self {
             url,
             method,
-            body: [],
+            body: body::Empty,
             base_settings,
         })
     }
@@ -146,7 +152,11 @@ impl<B> RequestBuilder<B> {
         self.header(http::header::AUTHORIZATION, format!("Bearer {}", token.into()))
     }
 
-    fn body(self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    /// Set the body of this request.
+    ///
+    /// The [BodyKind enum](crate::body::BodyKind) and [Body trait](crate::body::Body)
+    /// determine how to implement custom request body types.
+    pub fn body<B1: Body>(self, body: B1) -> RequestBuilder<B1> {
         RequestBuilder {
             url: self.url,
             method: self.method,
@@ -158,64 +168,79 @@ impl<B> RequestBuilder<B> {
     /// Set the body of this request to be text.
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
-    pub fn text(mut self, body: impl AsRef<str>) -> RequestBuilder<impl AsRef<[u8]>> {
-        struct Text<B1>(B1);
-
-        impl<B1: AsRef<str>> AsRef<[u8]> for Text<B1> {
-            fn as_ref(&self) -> &[u8] {
-                self.0.as_ref().as_bytes()
-            }
-        }
-
+    pub fn text<B1: AsRef<str>>(mut self, body: B1) -> RequestBuilder<body::Text<B1>> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
-        self.body(Text(body))
+        self.body(body::Text(body))
     }
 
     /// Set the body of this request to be bytes.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
-    pub fn bytes(mut self, body: impl AsRef<[u8]>) -> RequestBuilder<impl AsRef<[u8]>> {
+    pub fn bytes<B1: AsRef<[u8]>>(mut self, body: B1) -> RequestBuilder<body::Bytes<B1>> {
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
-        self.body(body)
+        self.body(body::Bytes(body))
+    }
+
+    /// Set the body of this request using a local file.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
+    pub fn file(mut self, body: fs::File) -> RequestBuilder<body::File> {
+        self.base_settings
+            .headers
+            .entry(http::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/octet-stream"));
+        self.body(body::File(body))
     }
 
     /// Set the body of this request to be the JSON representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_json::to_vec(value)?;
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        Ok(self.body(body))
+        Ok(self.body(body::Bytes(body)))
+    }
+
+    /// Set the body of this request to stream out a JSON representation of the given object.
+    ///
+    /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
+    #[cfg(feature = "json")]
+    pub fn json_streaming<T: serde::Serialize>(mut self, value: T) -> RequestBuilder<body::Json<T>> {
+        self.base_settings
+            .headers
+            .entry(http::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        self.body(body::Json(value))
     }
 
     /// Set the body of this request to be the URL-encoded representation of the given object.
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/x-www-form-urlencoded`.
     #[cfg(feature = "form")]
-    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<impl AsRef<[u8]>>> {
+    pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
         self.base_settings
             .headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-        Ok(self.body(body))
+        Ok(self.body(body::Bytes(body)))
     }
 
     //
     // Settings
     //
 
-    /// Modify a header for this `Request`.
+    /// Modify a header for this request.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
@@ -231,10 +256,9 @@ impl<B> RequestBuilder<B> {
         self.try_header(header, value).expect("invalid header value")
     }
 
-    /// Modify a header for this `Request`.
+    /// Append a new header for this request.
     ///
-    /// If the header is already present, the value will be replaced. If you wish to append a new header,
-    /// use `header_append`.
+    /// The new header is always appended to the request, even if the header already exists.
     ///
     /// # Panics
     /// This method will panic if the value is invalid.
@@ -247,7 +271,7 @@ impl<B> RequestBuilder<B> {
         self.try_header_append(header, value).expect("invalid header value")
     }
 
-    /// Modify a header for this `Request`.
+    /// Modify a header for this request.
     ///
     /// If the header is already present, the value will be replaced. If you wish to append a new header,
     /// use `header_append`.
@@ -261,9 +285,9 @@ impl<B> RequestBuilder<B> {
         Ok(self)
     }
 
-    /// Append a new header to this `Request`.
+    /// Append a new header to this request.
     ///
-    /// The new header is always appended to the `Request`, even if the header already exists.
+    /// The new header is always appended to the request, even if the header already exists.
     pub fn try_header_append<H, V>(mut self, header: H, value: V) -> Result<Self>
     where
         H: IntoHeaderName,
@@ -274,13 +298,15 @@ impl<B> RequestBuilder<B> {
         Ok(self)
     }
 
-    /// Set the maximum number of redirections this `Request` can perform.
+    /// Set the maximum number of redirections this request can perform.
+    ///
+    /// The default is 5.
     pub fn max_redirections(mut self, max_redirections: u32) -> Self {
         self.base_settings.max_redirections = max_redirections;
         self
     }
 
-    /// Sets if this `Request` should follow redirects, 3xx codes.
+    /// Sets if this request should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
     pub fn follow_redirects(mut self, follow_redirects: bool) -> Self {
@@ -312,7 +338,15 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Set the default charset to use while parsing the response of this `Request`.
+    /// Sets the proxy settigns for this request.
+    ///
+    /// If left untouched, the defaults are to use system proxy settings found in environment variables.
+    pub fn proxy_settings(mut self, settings: ProxySettings) -> Self {
+        self.base_settings.proxy_settings = settings;
+        self
+    }
+
+    /// Set the default charset to use while parsing the response of this request.
     ///
     /// If the response does not say which charset it uses, this charset will be used to decode the request.
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
@@ -322,9 +356,9 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Sets if this `Request` will announce that it accepts compression.
+    /// Sets if this request will announce that it accepts compression.
     ///
-    /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
+    /// This value defaults to true. Note that this only lets the browser know that this request supports
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "compress")]
     pub fn allow_compression(mut self, allow_compression: bool) -> Self {
@@ -332,7 +366,7 @@ impl<B> RequestBuilder<B> {
         self
     }
 
-    /// Sets if this `Request` will accept invalid TLS certificates.
+    /// Sets if this request will accept invalid TLS certificates.
     ///
     /// Accepting invalid certificates implies that invalid hostnames are accepted
     /// as well.
@@ -343,37 +377,31 @@ impl<B> RequestBuilder<B> {
     /// Use this setting with care. This will accept **any** TLS certificate valid or not.
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_certs(mut self, accept_invalid_certs: bool) -> Self {
         self.base_settings.accept_invalid_certs = accept_invalid_certs;
         self
     }
 
-    /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
+    /// Sets if this request will accept an invalid hostname in a TLS certificate.
     ///
     /// The default value is `false`.
     ///
     /// # Danger
     /// Use this setting with care. This will accept TLS certificates that do not match
     /// the hostname.
-    #[cfg(feature = "tls")]
     pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
         self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
         self
     }
 
-    /// Sets the TLS client configuration
-    ///
-    /// Defaults to a configuration using the root certificates
-    /// from the webpki-roots crate.
-    #[cfg(feature = "tls-rustls")]
-    pub fn client_config(mut self, client_config: impl Into<Arc<ClientConfig>>) -> Self {
-        self.base_settings.client_config = Some(client_config.into()).into();
+    /// Adds a root certificate that will be trusted.
+    pub fn add_root_certificate(mut self, cert: Certificate) -> Self {
+        self.base_settings.root_certificates.0.push(cert);
         self
     }
 }
 
-impl<B: AsRef<[u8]>> RequestBuilder<B> {
+impl<B: Body> RequestBuilder<B> {
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     ///
     /// # Panics
@@ -393,12 +421,18 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
 
         header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
         prepped.set_compression()?;
-        if prepped.has_body() {
-            header_insert(
-                &mut prepped.base_settings.headers,
-                CONTENT_LENGTH,
-                prepped.body.as_ref().len(),
-            )?;
+        match prepped.body.kind()? {
+            BodyKind::Empty => (),
+            BodyKind::KnownLength(len) => {
+                header_insert(&mut prepped.base_settings.headers, CONTENT_LENGTH, len)?;
+            }
+            BodyKind::Chunked => {
+                header_insert(&mut prepped.base_settings.headers, TRANSFER_ENCODING, "chunked")?;
+            }
+        }
+
+        if let Some(typ) = prepped.body.content_type()? {
+            header_insert(&mut prepped.base_settings.headers, CONTENT_TYPE, typ)?;
         }
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
@@ -410,6 +444,39 @@ impl<B: AsRef<[u8]>> RequestBuilder<B> {
     /// Send this request directly.
     pub fn send(self) -> Result<Response> {
         self.try_prepare()?.send()
+    }
+}
+
+impl<B> RequestBuilder<B> {
+    /// Inspect the properties of this request
+    pub fn inspect(&mut self) -> RequestInspector<'_, B> {
+        RequestInspector(self)
+    }
+}
+
+/// Allows to inspect the properties of a request before preparing it.
+#[derive(Debug)]
+pub struct RequestInspector<'a, B>(&'a mut RequestBuilder<B>);
+
+impl<B> RequestInspector<'_, B> {
+    /// Access the current URL
+    pub fn url(&self) -> &Url {
+        &self.0.url
+    }
+
+    /// Access the current method
+    pub fn method(&self) -> &Method {
+        &self.0.method
+    }
+
+    /// Access the current body
+    pub fn body(&mut self) -> &mut B {
+        &mut self.0.body
+    }
+
+    /// Acess the current headers
+    pub fn headers(&self) -> &HeaderMap {
+        &self.0.base_settings.headers
     }
 }
 
@@ -522,9 +589,9 @@ mod tests {
     ) {
         let mut buf = Vec::new();
 
-        let prepped = builder.prepare();
+        let mut prepped = builder.prepare();
         prepped
-            .write_request(&mut buf, prepped.url())
+            .write_request(&mut buf, &prepped.url().clone(), None)
             .expect("error writing request");
 
         let text = std::str::from_utf8(&buf).expect("cannot decode request as utf-8");

@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
@@ -15,13 +14,17 @@ use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::{BaseStream, ConnectInfo};
 
+/// Contains types to describe request bodies
+pub mod body;
 mod builder;
+pub mod proxy;
 mod session;
 mod settings;
 
-pub use builder::RequestBuilder;
+use body::{Body, BodyKind};
+pub use builder::{RequestBuilder, RequestInspector};
 pub use session::Session;
-pub use settings::BaseSettings;
+pub(crate) use settings::BaseSettings;
 
 fn header_insert<H, V>(headers: &mut HeaderMap, header: H, value: V) -> Result
 where
@@ -66,7 +69,7 @@ pub struct PreparedRequest<B> {
 }
 
 #[cfg(test)]
-impl PreparedRequest<Vec<u8>> {
+impl PreparedRequest<body::Empty> {
     pub(crate) fn new<U>(method: Method, base_url: U) -> Self
     where
         U: AsRef<str>,
@@ -74,7 +77,7 @@ impl PreparedRequest<Vec<u8>> {
         PreparedRequest {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
-            body: Vec::new(),
+            body: body::Empty,
             base_settings: BaseSettings::default(),
         }
     }
@@ -131,32 +134,30 @@ impl<B> PreparedRequest<B> {
         &self.method
     }
 
+    /// Get the body of the request.
+    pub fn body(&self) -> &B {
+        &self.body
+    }
+
     /// Get the headers of this request.
     pub fn headers(&self) -> &HeaderMap {
         &self.base_settings.headers
     }
 }
 
-impl<B: AsRef<[u8]>> PreparedRequest<B> {
-    /// Get the body of the request.
-    ///
-    /// If no body was provided, the slice will be empty.
-    pub fn body(&self) -> &[u8] {
-        self.body.as_ref()
-    }
-
-    fn has_body(&self) -> bool {
-        !self.body.as_ref().is_empty() && self.method != Method::TRACE
-    }
-
-    fn write_request<W>(&self, writer: W, url: &Url) -> Result
+impl<B: Body> PreparedRequest<B> {
+    fn write_request<W>(&mut self, writer: W, url: &Url, proxy: Option<&Url>) -> Result
     where
         W: Write,
     {
         let mut writer = BufWriter::new(writer);
         let version = Version::HTTP_11;
 
-        if let Some(query) = url.query() {
+        if proxy.is_some() && url.scheme() == "http" {
+            debug!("{} {} {:?}", self.method.as_str(), url, version);
+
+            write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
+        } else if let Some(query) = url.query() {
             debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
 
             write!(
@@ -175,9 +176,18 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
         self.write_headers(&mut writer)?;
 
-        if self.has_body() {
-            debug!("writing out body of length {}", self.body.as_ref().len());
-            writer.write_all(self.body.as_ref())?;
+        match self.body.kind()? {
+            BodyKind::Empty => (),
+            BodyKind::KnownLength(len) => {
+                debug!("writing out body of length {}", len);
+                self.body.write(&mut writer)?;
+            }
+            BodyKind::Chunked => {
+                debug!("writing out chunked body");
+                let mut writer = body::ChunkedWriter(&mut writer);
+                self.body.write(&mut writer)?;
+                writer.close()?;
+            }
         }
 
         writer.flush()?;
@@ -187,30 +197,46 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
 
     /// Send this request and wait for the result.
     pub fn send(&mut self) -> Result<Response> {
-        let mut url = Cow::Borrowed(&self.url);
-        set_host(&mut self.base_settings.headers, &url)?;
+        let mut url = self.url.clone();
 
         let mut redirections = 0;
 
         loop {
+            // If a proxy is set and the url is using http, we must connect to the proxy and send
+            // a request with an authority instead of a path.
+            //
+            // If a proxy is set and the url is using https, we must connect to the proxy using
+            // the CONNECT method, and then send https traffic on the socket after the CONNECT
+            // handshake.
+
+            let proxy = self.base_settings.proxy_settings.for_url(&url).cloned();
+
+            // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
+            match (url.scheme(), &proxy) {
+                ("http", Some(proxy)) => set_host(&mut self.base_settings.headers, proxy)?,
+                _ => set_host(&mut self.base_settings.headers, &url)?,
+            };
+
             let info = ConnectInfo {
                 url: &url,
+                proxy: proxy.as_ref(),
                 base_settings: &self.base_settings,
             };
             let mut stream = BaseStream::connect(&info)?;
-            self.write_request(&mut stream, &url)?;
+
+            self.write_request(&mut stream, &url, proxy.as_ref())?;
             let resp = parse_response(stream, self)?;
 
             debug!("status code {}", resp.status().as_u16());
 
-            let is_redirect = match resp.status() {
+            let is_redirect = matches!(
+                resp.status(),
                 StatusCode::MOVED_PERMANENTLY
-                | StatusCode::FOUND
-                | StatusCode::SEE_OTHER
-                | StatusCode::TEMPORARY_REDIRECT
-                | StatusCode::PERMANENT_REDIRECT => true,
-                _ => false,
-            };
+                    | StatusCode::FOUND
+                    | StatusCode::SEE_OTHER
+                    | StatusCode::TEMPORARY_REDIRECT
+                    | StatusCode::PERMANENT_REDIRECT
+            );
             if !self.base_settings.follow_redirects || !is_redirect {
                 return Ok(resp);
             }
@@ -227,8 +253,7 @@ impl<B: AsRef<[u8]>> PreparedRequest<B> {
                 .ok_or(InvalidResponseKind::LocationHeader)?;
             let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
-            url = Cow::Owned(self.base_redirect_url(location, &url)?);
-            set_host(&mut self.base_settings.headers, &url)?;
+            url = self.base_redirect_url(location, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
@@ -247,8 +272,13 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
 
 #[cfg(test)]
 mod test {
-    use super::{header_append, header_insert, header_insert_if_missing};
     use http::header::{HeaderMap, HeaderValue, USER_AGENT};
+    use http::Method;
+    use url::Url;
+
+    use super::BaseSettings;
+    use super::{header_append, header_insert, header_insert_if_missing, PreparedRequest};
+    use crate::body::Empty;
 
     #[test]
     fn test_header_insert_exists() {
@@ -291,5 +321,43 @@ mod test {
         for val in vals {
             assert!(val == "hello" || val == "world");
         }
+    }
+
+    #[test]
+    fn test_http_url_with_http_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
+    }
+
+    #[test]
+    fn test_http_url_with_https_proxy() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            base_settings: BaseSettings::default(),
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+        let lines: Vec<_> = text.split("\r\n").collect();
+
+        assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
     }
 }

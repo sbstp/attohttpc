@@ -12,7 +12,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Secure
 * Easy to use
 * Modular
-* HTTP/1.1, eventually HTTP/2.0
+* HTTP/1.1
 * Use quality crates from the ecosystem (`http`, `url`, `encoding_rs`), not reinventing the wheel.
 
 ## Features
@@ -22,6 +22,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `form` support for url encoded forms (does not include support for multipart)
 * `tls` support for tls connections (**default**)
 * `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+* `multipart-form` support for multipart forms (does not include support for url encoding)
 
 ## Usage
 See the `examples/` folder in the repository for more use cases.
@@ -34,22 +35,17 @@ if resp.is_success() {
 ```
 
 ## Current feature set
-* Query parameters
-* Request headers
-* TLS
+* Query parameters, Request headers, Bodies, etc.
+* TLS, adding trusted certificates, disabling verification, etc. for both `native-tls` and `rustls`
 * Automatic redirection
 * Streaming response body
-* Text encoding support
-* Gzip, deflate support
+* Multiple text encodings
+* Automatic compression/decompression with gzip or deflate
 * Transfer-Encoding: chunked
-* `serde` support behind a feature flag
-* Authentication (partial support)
+* serde/json support
+* HTTP Proxies & `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` environment variables.
 * [Happy Eyeballs](https://en.wikipedia.org/wiki/Happy_Eyeballs)
-
-## Features being worked on
-* File upload, form data
-* Thorough test suite
-* Connection: keep-alive
+* Authentication (partial support)
 
 ## License
 This project is licensed under the `MPL-2.0`.

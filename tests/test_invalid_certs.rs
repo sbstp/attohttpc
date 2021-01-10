@@ -2,6 +2,7 @@
 fn test_error_when_self_signed() {
     let res = attohttpc::get("https://self-signed.badssl.com/").send();
     let err = res.err().unwrap();
+    println!("{:?}", err);
     match err.kind() {
         attohttpc::ErrorKind::Tls(_) => (),
         _ => panic!("wrong error returned!"),

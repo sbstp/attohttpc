@@ -44,6 +44,7 @@
 //! * `form` support for url encoded forms (does not include support for multipart)
 //! * `tls` support for tls connections (**default**)
 //! * `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+//! * `multipart-form` support for multipart forms (does not include support for url encoding)
 //!
 //! # Activating a feature
 //! To activate a feature, specify it in your `Cargo.toml` file like so
@@ -52,20 +53,31 @@
 //! ```
 //!
 
-#[macro_use]
-extern crate log;
+macro_rules! debug {
+    ($($arg:tt)+) => { log::debug!(target: "attohttpc", $($arg)+) };
+}
+
+macro_rules! warn {
+    ($($arg:tt)+) => { log::warn!(target: "attohttpc", $($arg)+) };
+}
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
 mod error;
 mod happy;
+#[cfg(feature = "multipart")]
+mod multipart;
 mod parsing;
 mod request;
 mod streams;
+mod tls;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
+#[cfg(feature = "multipart")]
+pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
 pub use crate::parsing::{Response, ResponseReader};
-pub use crate::request::{PreparedRequest, RequestBuilder, Session};
+pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
+pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
 pub use http::Method;
