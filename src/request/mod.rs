@@ -1,6 +1,7 @@
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
+use std::time::Instant;
 
 #[cfg(feature = "compress")]
 use http::header::ACCEPT_ENCODING;
@@ -199,6 +200,7 @@ impl<B: Body> PreparedRequest<B> {
     pub fn send(&mut self) -> Result<Response> {
         let mut url = self.url.clone();
 
+        let deadline = self.base_settings.timeout.map(|timeout| Instant::now() + timeout);
         let mut redirections = 0;
 
         loop {
@@ -221,6 +223,7 @@ impl<B: Body> PreparedRequest<B> {
                 url: &url,
                 proxy: proxy.as_ref(),
                 base_settings: &self.base_settings,
+                deadline,
             };
             let mut stream = BaseStream::connect(&info)?;
 

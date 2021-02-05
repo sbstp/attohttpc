@@ -4,6 +4,7 @@ use std::io::{self, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::mpsc;
 use std::thread;
+use std::time::Instant;
 
 use url::{Host, Url};
 
@@ -18,6 +19,7 @@ pub struct ConnectInfo<'a> {
     pub url: &'a Url,
     pub proxy: Option<&'a Url>,
     pub base_settings: &'a BaseSettings,
+    pub deadline: Option<Instant>,
 }
 
 #[derive(Debug)]
@@ -110,13 +112,17 @@ impl BaseStream {
         let stream = happy::connect(host, port, info.base_settings.connect_timeout)?;
         stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
         let timeout = info
-            .base_settings
-            .timeout
-            .map(|timeout| -> Result<mpsc::Sender<()>> {
+            .deadline
+            .map(|deadline| -> Result<mpsc::Sender<()>> {
                 let stream = stream.try_clone()?;
                 let (tx, rx) = mpsc::channel();
                 thread::spawn(move || {
-                    if let Err(mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(timeout) {
+                    let shutdown = match deadline.checked_duration_since(Instant::now()) {
+                        Some(timeout) => rx.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout),
+                        None => rx.try_recv() == Err(mpsc::TryRecvError::Empty),
+                    };
+
+                    if shutdown {
                         drop(rx);
                         let _ = stream.shutdown(Shutdown::Both);
                     }
