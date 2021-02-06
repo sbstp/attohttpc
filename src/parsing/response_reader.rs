@@ -97,6 +97,9 @@ impl ResponseReader {
     ///
     /// If the `charsets` feature is disabled, this method is the same as calling
     /// `text_utf8`.
+    ///
+    /// Note that both conversions are lossy, i.e. they will not raise errors when
+    /// invalid data is encountered but output replacement characters instead.
     #[cfg(not(feature = "charsets"))]
     pub fn text(self) -> Result<String> {
         self.text_utf8()
@@ -111,6 +114,9 @@ impl ResponseReader {
     ///
     /// If the `charsets` feature is disabled, this method is the same as calling
     /// `text_utf8`.
+    ///
+    /// Note that both conversions are lossy, i.e. they will not raise errors when
+    /// invalid data is encountered but output replacement characters instead.
     #[cfg(feature = "charsets")]
     pub fn text(self) -> Result<String> {
         let charset = self.charset;
@@ -156,9 +162,15 @@ impl ResponseReader {
     /// Read the response body to a String using the UTF-8 encoding.
     ///
     /// This method ignores headers and the default encoding.
+    ///
+    /// Note that this is lossy, i.e. it will not raise errors when
+    /// invalid data is encountered but output replacement characters instead.
     pub fn text_utf8(mut self) -> Result<String> {
-        let mut text = String::new();
-        self.inner.read_to_string(&mut text)?;
+        let mut buf = Vec::new();
+        self.inner.read_to_end(&mut buf)?;
+
+        let text = String::from_utf8(buf).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
+
         Ok(text)
     }
 

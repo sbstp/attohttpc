@@ -149,6 +149,9 @@ impl Response {
     ///
     /// If the `charsets` feature is disabled, this method is the same as calling
     /// `text_utf8`.
+    ///
+    /// Note that both conversions are lossy, i.e. they will not raise errors when
+    /// invalid data is encountered but output replacement characters instead.
     #[inline]
     pub fn text(self) -> Result<String> {
         self.reader.text()
@@ -191,6 +194,9 @@ impl Response {
     /// Read the response body to a String using the UTF-8 encoding.
     ///
     /// This method ignores headers and the default encoding.
+    ///
+    /// Note that is lossy, i.e. it will not raise errors when
+    /// invalid data is encountered but output replacement characters instead.
     #[inline]
     pub fn text_utf8(self) -> Result<String> {
         self.reader.text_utf8()
