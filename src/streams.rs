@@ -109,7 +109,7 @@ impl BaseStream {
     }
 
     fn connect_tcp(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<(TcpStream, Option<mpsc::Sender<()>>)> {
-        let stream = happy::connect(host, port, info.base_settings.connect_timeout)?;
+        let stream = happy::connect(host, port, info.base_settings.connect_timeout, info.deadline)?;
         stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
         let timeout = info
             .deadline

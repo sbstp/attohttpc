@@ -12,9 +12,7 @@ const RACE_DELAY: Duration = Duration::from_millis(200);
 /// This function implements a basic form of the happy eyeballs RFC to quickly connect
 /// to a domain which is available in both IPv4 and IPv6. Connection attempts are raced
 /// against each other and the first to connect successfully wins the race.
-///
-/// If the timeout is not provided, a default timeout of 10 seconds is used.
-pub fn connect(host: &Host<&str>, port: u16, timeout: Duration) -> io::Result<TcpStream> {
+pub fn connect(host: &Host<&str>, port: u16, timeout: Duration, deadline: Option<Instant>) -> io::Result<TcpStream> {
     let addrs: Vec<_> = match *host {
         Host::Domain(domain) => (domain, port).to_socket_addrs()?.collect(),
         Host::Ipv4(ip) => return TcpStream::connect_timeout(&(IpAddr::V4(ip), port).into(), timeout),
@@ -64,7 +62,13 @@ pub fn connect(host: &Host<&str>, port: u16, timeout: Duration) -> io::Result<Tc
         thread::spawn(move || {
             debug!("trying to connect to {}", addr);
 
-            let _ = tx.send((addr, TcpStream::connect_timeout(&addr, timeout)));
+            let res = match deadline.map(|deadline| deadline.checked_duration_since(Instant::now())) {
+                None => TcpStream::connect_timeout(&addr, timeout),
+                Some(Some(timeout1)) => TcpStream::connect_timeout(&addr, timeout.min(timeout1)),
+                Some(None) => Err(io::ErrorKind::TimedOut.into()),
+            };
+
+            let _ = tx.send((addr, res));
         });
 
         if let Ok((addr, res)) = rx.recv_timeout(RACE_DELAY) {
