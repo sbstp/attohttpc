@@ -254,9 +254,10 @@ impl<B: Body> PreparedRequest<B> {
                 .headers()
                 .get(http::header::LOCATION)
                 .ok_or(InvalidResponseKind::LocationHeader)?;
-            let location = location.to_str().map_err(|_| InvalidResponseKind::LocationHeader)?;
 
-            url = self.base_redirect_url(location, &url)?;
+            let location = String::from_utf8_lossy(location.as_bytes());
+
+            url = self.base_redirect_url(&location, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
