@@ -42,7 +42,7 @@ where
     };
 
     loop {
-        buffers::read_line(reader, &mut line, MAX_LINE_LEN)?;
+        buffers::read_line_strict(reader, &mut line, MAX_LINE_LEN)?;
         if line.is_empty() {
             break;
         }
@@ -51,6 +51,8 @@ where
             .iter()
             .position(|&c| c == b':')
             .ok_or(InvalidResponseKind::Header)?;
+
+        buffers::replace_byte(b'\n', b' ', &mut line[col + 1..]);
 
         let header = trim_byte(b' ', &line[..col]);
         let value = trim_byte(b' ', &line[col + 1..]);
@@ -255,4 +257,15 @@ fn test_read_request_head() {
     assert_eq!(headers.len(), 2);
     assert_eq!(headers[http::header::CONTENT_LENGTH], "5");
     assert_eq!(headers[http::header::CONTENT_TYPE], "text/plain");
+}
+
+#[test]
+fn test_line_folded_header() {
+    let response = b"HTTP/1.1 200 OK\r\nheader-of-great-many-lines: foo\nbar\nbaz\nqux\r\nthe-other-kind-of-header: foobar\r\n\r\n";
+    let mut reader = BufReader::new(&response[..]);
+    let (status, headers) = parse_response_head(&mut reader).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.len(), 2);
+    assert_eq!(headers["header-of-great-many-lines"], "foo bar baz qux");
+    assert_eq!(headers["the-other-kind-of-header"], "foobar");
 }
