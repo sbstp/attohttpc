@@ -10,7 +10,7 @@ fn parse_chunk_size(line: &[u8]) -> io::Result<usize> {
         .position(|&b| b == b';')
         .map_or_else(|| str::from_utf8(line), |idx| str::from_utf8(&line[..idx]))
         .map_err(|_| InvalidResponseKind::ChunkSize)
-        .and_then(|line| usize::from_str_radix(line, 16).map_err(|_| InvalidResponseKind::ChunkSize))
+        .and_then(|line| usize::from_str_radix(line.trim(), 16).map_err(|_| InvalidResponseKind::ChunkSize))
         .map_err(|e| e.into())
 }
 
