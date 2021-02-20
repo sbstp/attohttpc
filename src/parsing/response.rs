@@ -55,10 +55,15 @@ where
         let header = trim_byte(b' ', &line[..col]);
         let value = trim_byte(b' ', &line[col + 1..]);
 
-        headers.append(
-            HeaderName::from_bytes(header).map_err(http::Error::from)?,
-            HeaderValue::from_bytes(value).map_err(http::Error::from)?,
-        );
+        let header = match HeaderName::from_bytes(header) {
+            Ok(val) => val,
+            Err(err) => {
+                warn!("Dropped invalid response header: {}", err);
+                continue;
+            }
+        };
+
+        headers.append(header, HeaderValue::from_bytes(value).map_err(http::Error::from)?);
     }
 
     Ok((status, headers))
