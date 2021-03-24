@@ -22,6 +22,7 @@ pub fn parse_response_head<R>(reader: &mut BufReader<R>) -> Result<(StatusCode, 
 where
     R: Read,
 {
+    const MAX_HEADERS: usize = 1024;
     const MAX_LINE_LEN: u64 = 16 * 1024;
 
     let mut line = Vec::new();
@@ -41,10 +42,13 @@ where
             .map_err(|_| InvalidResponseKind::StatusCode)?
     };
 
+    // headers
     loop {
         buffers::read_line_strict(reader, &mut line, MAX_LINE_LEN)?;
         if line.is_empty() {
             break;
+        } else if headers.len() == MAX_HEADERS {
+            return Err(InvalidResponseKind::Header.into());
         }
 
         let col = line
