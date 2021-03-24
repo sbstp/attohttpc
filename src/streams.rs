@@ -86,7 +86,7 @@ impl BaseStream {
         write!(stream, "\r\n")?;
 
         let mut stream = BufReaderWrite::new(stream);
-        let (status, _) = parse_response_head(&mut stream)?;
+        let (status, _) = parse_response_head(&mut stream, base_settings.max_headers)?;
 
         if !status.is_success() {
             // Error initializaing tunnel, get status code and up to 10 KiB of data from the body.

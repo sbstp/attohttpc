@@ -11,6 +11,7 @@ use crate::tls::Certificate;
 #[derive(Clone, Debug)]
 pub struct BaseSettings {
     pub headers: HeaderMap,
+    pub max_headers: usize,
     pub max_redirections: u32,
     pub follow_redirects: bool,
     pub connect_timeout: Duration,
@@ -31,6 +32,7 @@ impl Default for BaseSettings {
     fn default() -> Self {
         BaseSettings {
             headers: HeaderMap::new(),
+            max_headers: 100,
             max_redirections: 5,
             follow_redirects: true,
             connect_timeout: Duration::from_secs(30),

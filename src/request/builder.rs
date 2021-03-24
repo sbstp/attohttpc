@@ -293,6 +293,14 @@ impl<B> RequestBuilder<B> {
         Ok(self)
     }
 
+    /// Set the maximum number of headers accepted in responses to this request.
+    ///
+    /// The default is 100.
+    pub fn max_headers(mut self, max_headers: usize) -> Self {
+        self.base_settings.max_headers = max_headers;
+        self
+    }
+
     /// Set the maximum number of redirections this request can perform.
     ///
     /// The default is 5.

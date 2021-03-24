@@ -152,6 +152,13 @@ impl Session {
         Ok(())
     }
 
+    /// Set the maximum number of headers accepted in responses to this request.
+    ///
+    /// The default is 100.
+    pub fn max_headers(&mut self, max_headers: usize) {
+        self.base_settings.max_headers = max_headers;
+    }
+
     /// Set the maximum number of redirections this `Request` can perform.
     ///
     /// The default is 5.
