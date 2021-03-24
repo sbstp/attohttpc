@@ -18,11 +18,10 @@ use crate::{charsets::Charset, parsing::TextReader};
 #[cfg(feature = "json")]
 use serde::de::DeserializeOwned;
 
-pub fn parse_response_head<R>(reader: &mut BufReader<R>) -> Result<(StatusCode, HeaderMap)>
+pub fn parse_response_head<R>(reader: &mut BufReader<R>, max_headers: usize) -> Result<(StatusCode, HeaderMap)>
 where
     R: Read,
 {
-    const MAX_HEADERS: usize = 1024;
     const MAX_LINE_LEN: u64 = 16 * 1024;
 
     let mut line = Vec::new();
@@ -47,7 +46,7 @@ where
         buffers::read_line_strict(reader, &mut line, MAX_LINE_LEN)?;
         if line.is_empty() {
             break;
-        } else if headers.len() == MAX_HEADERS {
+        } else if headers.len() == max_headers {
             return Err(InvalidResponseKind::Header.into());
         }
 
@@ -77,7 +76,7 @@ where
 
 pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Result<Response> {
     let mut reader = BufReader::new(reader);
-    let (status, mut headers) = parse_response_head(&mut reader)?;
+    let (status, mut headers) = parse_response_head(&mut reader, request.base_settings.max_headers)?;
     let body_reader = BodyReader::new(&headers, reader)?;
     let compressed_reader = CompressedReader::new(&headers, request, body_reader)?;
     let response_reader = ResponseReader::new(&headers, request, compressed_reader);
@@ -256,7 +255,7 @@ impl Read for Response {
 fn test_read_request_head() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Type: text/plain\r\n\r\nhello";
     let mut reader = BufReader::new(&response[..]);
-    let (status, headers) = parse_response_head(&mut reader).unwrap();
+    let (status, headers) = parse_response_head(&mut reader, 100).unwrap();
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers.len(), 2);
     assert_eq!(headers[http::header::CONTENT_LENGTH], "5");
@@ -267,9 +266,20 @@ fn test_read_request_head() {
 fn test_line_folded_header() {
     let response = b"HTTP/1.1 200 OK\r\nheader-of-great-many-lines: foo\nbar\nbaz\nqux\r\nthe-other-kind-of-header: foobar\r\n\r\n";
     let mut reader = BufReader::new(&response[..]);
-    let (status, headers) = parse_response_head(&mut reader).unwrap();
+    let (status, headers) = parse_response_head(&mut reader, 100).unwrap();
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers.len(), 2);
     assert_eq!(headers["header-of-great-many-lines"], "foo bar baz qux");
     assert_eq!(headers["the-other-kind-of-header"], "foobar");
+}
+
+#[test]
+fn test_max_headers_limit() {
+    let response = b"HTTP/1.1 200 OK\r\nfirst-header: foo\r\nsecond-header: bar\r\none-header-too-many: baz\r\n\r\n";
+    let mut reader = BufReader::new(&response[..]);
+    let err = parse_response_head(&mut reader, 2).unwrap_err();
+    assert!(matches!(
+        err.kind(),
+        ErrorKind::InvalidResponse(InvalidResponseKind::Header)
+    ));
 }
