@@ -19,6 +19,7 @@ fn get_env(name: &str) -> Option<String> {
 
 fn get_env_url(name: &str) -> Option<Url> {
     match get_env(name) {
+        Some(val) if val.trim().is_empty() => None,
         Some(val) => match Url::parse(&val) {
             Ok(url) => match url.scheme() {
                 "http" | "https" => Some(url),
