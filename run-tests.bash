@@ -14,8 +14,8 @@ cargo test
 cargo test --all-features
 cargo test --no-default-features
 cargo test --no-default-features --features charsets
-cargo test --no-default-features --features cookie
 cargo test --no-default-features --features compress
+cargo test --no-default-features --features cookie
 cargo test --no-default-features --features form
 cargo test --no-default-features --features multipart-form
 cargo test --no-default-features --features json
