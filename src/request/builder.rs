@@ -4,6 +4,8 @@ use std::fs;
 use std::str;
 use std::time::Duration;
 
+#[cfg(feature = "cookie")]
+use cookie::{Cookie, CookieJar};
 use http::{
     header::{
         HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING,
@@ -24,6 +26,8 @@ use crate::request::{
     BaseSettings, PreparedRequest,
 };
 use crate::tls::Certificate;
+#[cfg(feature = "cookie")]
+use http::header::COOKIE;
 
 const DEFAULT_USER_AGENT: &str = concat!("attohttpc/", env!("CARGO_PKG_VERSION"));
 
@@ -402,6 +406,13 @@ impl<B> RequestBuilder<B> {
         self.base_settings.root_certificates.0.push(cert);
         self
     }
+
+    /// Add a cookie to the cookie jar.
+    #[cfg(feature = "cookie")]
+    pub fn cookie(mut self, cookie: Cookie<'static>) -> Self {
+        self.base_settings.cookie_jar.get_or_insert(CookieJar::new()).add(cookie);
+        self
+    }
 }
 
 impl<B: Body> RequestBuilder<B> {
@@ -440,6 +451,15 @@ impl<B: Body> RequestBuilder<B> {
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
         header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, DEFAULT_USER_AGENT)?;
+
+        #[cfg(feature = "cookie")]
+        if let Some(cookie_jar) = prepped.base_settings.cookie_jar.as_ref() {
+            let cookies = cookie_jar.iter()
+                .map(|cookie| cookie.to_string())
+                .collect::<Vec<String>>()
+                .join("; ");
+            header_insert(&mut prepped.base_settings.headers, COOKIE, cookies)?;
+        }
 
         Ok(prepped)
     }
@@ -582,6 +602,21 @@ mod tests {
         for val in vals {
             assert!(val == "world" || val == "!!!");
         }
+    }
+
+    #[test]
+    #[cfg(feature = "cookie")]
+    fn test_request_builder_cookie() {
+        let prepped = RequestBuilder::new(Method::GET, "http://localhost:1337/foo")
+            .cookie(cookie::Cookie::new("name01", "value01"))
+            .cookie(cookie::Cookie::new("name02", "value02"))
+            .prepare();
+
+        let cookies: Vec<&str> = prepped.headers()[COOKIE].to_str().unwrap().split("; ").collect();
+
+        assert_eq!(cookies.len(), 2);
+        assert!(cookies.iter().position(|&c| c == "name01=value01" ).is_some());
+        assert!(cookies.iter().position(|&c| c == "name02=value02" ).is_some());
     }
 
     #[cfg(feature = "compress")]

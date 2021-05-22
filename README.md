@@ -18,6 +18,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 ## Features
 * `charsets` support for decoding more text encodings than just UTF-8
 * `compress` support for decompressing response bodies (**default**)
+* `cookie` support for cookie
 * `json` support for serialization and deserialization
 * `form` support for url encoded forms (does not include support for multipart)
 * `tls` support for tls connections (**default**)
@@ -46,6 +47,7 @@ if resp.is_success() {
 * HTTP Proxies & `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` environment variables.
 * [Happy Eyeballs](https://en.wikipedia.org/wiki/Happy_Eyeballs)
 * Authentication (partial support)
+* Cookie support
 
 ## License
 This project is licensed under the `MPL-2.0`.

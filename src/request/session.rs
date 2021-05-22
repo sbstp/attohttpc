@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 use std::time::Duration;
 
+#[cfg(feature = "cookie")]
+use cookie::{Cookie, CookieJar};
 use http::header::{HeaderValue, IntoHeaderName};
 use http::Method;
 
@@ -248,5 +250,11 @@ impl Session {
     /// Adds a root certificate that will be trusted.
     pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.base_settings.root_certificates.0.push(cert);
+    }
+
+    /// Add a cookie to the cookie jar.
+    #[cfg(feature = "cookie")]
+    pub fn cookie(mut self, cookie: Cookie<'static>) {
+        self.base_settings.cookie_jar.get_or_insert(CookieJar::new()).add(cookie);
     }
 }

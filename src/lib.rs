@@ -80,6 +80,8 @@ pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
 pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
+#[cfg(feature = "cookie")]
+pub use cookie::Cookie;
 pub use http::Method;
 pub use http::StatusCode;
 

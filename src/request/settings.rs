@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+#[cfg(feature ="cookie")]
+use cookie::CookieJar;
 use http::HeaderMap;
 
 #[cfg(feature = "charsets")]
@@ -26,6 +28,8 @@ pub struct BaseSettings {
     pub default_charset: Option<Charset>,
     #[cfg(feature = "compress")]
     pub allow_compression: bool,
+    #[cfg(feature = "cookie")]
+    pub cookie_jar: Option<CookieJar>,
 }
 
 impl Default for BaseSettings {
@@ -47,6 +51,8 @@ impl Default for BaseSettings {
             default_charset: None,
             #[cfg(feature = "compress")]
             allow_compression: true,
+            #[cfg(feature = "cookie")]
+            cookie_jar: None,
         }
     }
 }
