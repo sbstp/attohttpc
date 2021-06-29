@@ -162,7 +162,7 @@ impl<B> RequestBuilder<B> {
 
     /// Set the body of this request to be text.
     ///
-    /// If the `Content-Type` header is unset, it will be set to `text/plain` and the carset to UTF-8.
+    /// If the `Content-Type` header is unset, it will be set to `text/plain` and the charset to UTF-8.
     pub fn text<B1: AsRef<str>>(mut self, body: B1) -> RequestBuilder<body::Text<B1>> {
         self.base_settings
             .headers
