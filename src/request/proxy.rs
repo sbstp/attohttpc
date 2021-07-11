@@ -85,7 +85,7 @@ impl ProxySettings {
     /// matches a pattern in the no proxy list.
     pub fn for_url(&self, url: &Url) -> Option<&Url> {
         if let Some(host) = url.host_str() {
-            if !self.no_proxy_patterns.iter().any(|x| x.is_match(host)) {
+            if !self.no_proxy_patterns.iter().any(|x| x.matches(host)) {
                 return match url.scheme() {
                     "http" => self.http_proxy.as_ref(),
                     "https" => self.https_proxy.as_ref(),
