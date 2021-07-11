@@ -29,7 +29,7 @@ serde_urlencoded = {version = "0.6", optional = true}
 url = "2"
 webpki = {version = "0.21", optional = true}
 webpki-roots = {version = "0.19", optional = true}
-wildmatch = "1"
+wildmatch = "2"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = {version = "0.10", optional = true}
