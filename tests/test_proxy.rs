@@ -2,7 +2,7 @@ mod tools;
 
 use url::Url;
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
     let remote_url = format!("http://localhost:{}", remote_port);
@@ -26,7 +26,7 @@ async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
 }
 
 #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
     let remote_url = format!("http://localhost:{}", remote_port);
@@ -50,7 +50,7 @@ async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
 }
 
 #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
     let remote_url = format!("https://localhost:{}", remote_port);
@@ -74,7 +74,7 @@ async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
 }
 
 #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
     let remote_url = format!("https://localhost:{}", remote_port);
@@ -98,7 +98,7 @@ async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(false).await?;
     let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
@@ -123,7 +123,7 @@ async fn test_http_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(false).await?;
     let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
@@ -151,7 +151,7 @@ async fn test_https_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
 }
 
 #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
     let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
@@ -177,7 +177,7 @@ async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
 }
 
 #[cfg(any(feature = "tls", feature = "tls-rustls"))]
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
     let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
