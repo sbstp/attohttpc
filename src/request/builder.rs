@@ -487,12 +487,12 @@ impl<B> RequestInspector<'_, B> {
 #[cfg(feature = "tls")]
 fn test_accept_invalid_certs_disabled_by_default() {
     let builder = RequestBuilder::new(Method::GET, "https://localhost:7900");
-    assert_eq!(builder.base_settings.accept_invalid_certs, false);
-    assert_eq!(builder.base_settings.accept_invalid_hostnames, false);
+    assert!(!builder.base_settings.accept_invalid_certs);
+    assert!(!builder.base_settings.accept_invalid_hostnames);
 
     let prepped = builder.prepare();
-    assert_eq!(prepped.base_settings.accept_invalid_certs, false);
-    assert_eq!(prepped.base_settings.accept_invalid_hostnames, false);
+    assert!(!prepped.base_settings.accept_invalid_certs);
+    assert!(!prepped.base_settings.accept_invalid_hostnames);
 }
 
 #[cfg(test)]

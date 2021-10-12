@@ -12,6 +12,7 @@ use crate::error::Result;
 use crate::parsing::body_reader::BodyReader;
 use crate::request::PreparedRequest;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum CompressedReader {
     Plain(BodyReader),

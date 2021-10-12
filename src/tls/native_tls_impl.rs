@@ -37,7 +37,7 @@ impl TlsHandshaker {
         S: Read + Write,
     {
         let connector = self.inner.build()?;
-        let stream = match connector.connect(&domain, stream) {
+        let stream = match connector.connect(domain, stream) {
             Ok(stream) => stream,
             Err(HandshakeError::Failure(err)) => return Err(err.into()),
             Err(HandshakeError::WouldBlock(mut stream)) => loop {
