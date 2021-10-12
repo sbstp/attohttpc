@@ -36,13 +36,14 @@ openssl = {version = "0.10", optional = true}
 
 [dev-dependencies]
 anyhow = "1"
-env_logger = "0.7"
+env_logger = "0.9"
 futures = "0.3"
 futures-util = "0.3"
-hyper = "0.13"
-tokio = {version = "0.2", features = ["dns", "io-driver", "macros", "time", "rt-threaded"]}
-tokio-rustls = "0.14"
-warp = "0.2.3"
+hyper = "0.14"
+tokio = {version = "1", features = ["full"]}
+tokio-stream = {version = "0.1", features = ["net"]}
+tokio-rustls = "0.22"
+warp = "0.3"
 
 [features]
 charsets = ["encoding_rs", "encoding_rs_io"]

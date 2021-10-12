@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use attohttpc::ErrorKind;
+use tokio_stream::wrappers::TcpListenerStream;
 use warp::Filter;
 
 async fn make_server() -> Result<u16, anyhow::Error> {
@@ -16,13 +17,13 @@ async fn make_server() -> Result<u16, anyhow::Error> {
             .body("")
     });
 
-    let server = warp::serve(a.or(b)).serve_incoming(incoming);
+    let server = warp::serve(a.or(b)).serve_incoming(TcpListenerStream::new(incoming));
     tokio::spawn(server);
 
     Ok(local_addr.port())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_redirection_default() -> Result<(), anyhow::Error> {
     let port = make_server().await?;
 
@@ -37,7 +38,7 @@ async fn test_redirection_default() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_redirection_0() -> Result<(), anyhow::Error> {
     let port = make_server().await?;
 
@@ -55,7 +56,7 @@ async fn test_redirection_0() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_redirection_disallowed() -> Result<(), anyhow::Error> {
     let port = make_server().await?;
 
@@ -69,7 +70,7 @@ async fn test_redirection_disallowed() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_redirection_not_redirect() -> Result<(), anyhow::Error> {
     let port = make_server().await?;
 

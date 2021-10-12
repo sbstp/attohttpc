@@ -10,12 +10,7 @@ use warp::Filter;
 
 fn start_server() -> (u16, Receiver<Option<String>>) {
     let (send, recv) = sync_channel(1);
-    let mut rt = Builder::new()
-        .enable_io()
-        .enable_time()
-        .threaded_scheduler()
-        .build()
-        .unwrap();
+    let rt = Builder::new_multi_thread().enable_io().enable_time().build().unwrap();
     // ported from warp::multipart, which has a length limit (and we're generic over Read)
     let filter = warp::path("multipart")
         .and(
