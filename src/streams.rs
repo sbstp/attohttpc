@@ -22,6 +22,7 @@ pub struct ConnectInfo<'a> {
     pub deadline: Option<Instant>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum BaseStream {
     Plain {
