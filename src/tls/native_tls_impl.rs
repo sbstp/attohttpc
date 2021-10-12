@@ -27,9 +27,8 @@ impl TlsHandshaker {
         self.inner.danger_accept_invalid_hostnames(accept_invalid_hostnames);
     }
 
-    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<()> {
+    pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.inner.add_root_certificate(cert);
-        Ok(())
     }
 
     pub fn handshake<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>>

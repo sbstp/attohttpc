@@ -101,7 +101,7 @@ impl BaseStream {
         }
 
         let mut handshaker = TlsHandshaker::new();
-        apply_base_settings(&mut handshaker, base_settings)?;
+        apply_base_settings(&mut handshaker, base_settings);
         let stream = handshaker.handshake(remote_host, stream)?;
 
         Ok(BaseStream::Tunnel {
@@ -137,7 +137,7 @@ impl BaseStream {
     fn connect_tls(host: &Host<&str>, port: u16, info: &ConnectInfo) -> Result<BaseStream> {
         let (stream, timeout) = BaseStream::connect_tcp(host, port, info)?;
         let mut handshaker = TlsHandshaker::new();
-        apply_base_settings(&mut handshaker, info.base_settings)?;
+        apply_base_settings(&mut handshaker, info.base_settings);
         let stream = handshaker.handshake(&host.to_string(), stream)?;
         Ok(BaseStream::Tls { stream, timeout })
     }
@@ -209,11 +209,10 @@ fn read_timeout(stream: &mut impl Read, buf: &mut [u8], timeout: &Option<mpsc::S
     }
 }
 
-fn apply_base_settings(handshaker: &mut TlsHandshaker, base_settings: &BaseSettings) -> Result<()> {
+fn apply_base_settings(handshaker: &mut TlsHandshaker, base_settings: &BaseSettings) {
     handshaker.danger_accept_invalid_certs(base_settings.accept_invalid_certs);
     handshaker.danger_accept_invalid_hostnames(base_settings.accept_invalid_hostnames);
     for cert in &base_settings.root_certificates.0 {
-        handshaker.add_root_certificate(cert.clone())?;
+        handshaker.add_root_certificate(cert.clone());
     }
-    Ok(())
 }
