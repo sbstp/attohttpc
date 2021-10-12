@@ -79,9 +79,12 @@ pub enum ErrorKind {
     /// TLS error encountered while connecting to an https server.
     #[cfg(feature = "tls")]
     Tls(native_tls::Error),
+    /// TLS error encountered while connecting to an https server.
+    #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+    Tls(rustls::Error),
     /// Invalid DNS name used for TLS certificate verification
     #[cfg(feature = "tls-rustls")]
-    InvalidDNSName(webpki::InvalidDNSNameError),
+    InvalidDNSName(String),
     /// Invalid mime type in a Multipart form
     InvalidMimeType(String),
     /// TLS was not enabled by features.
@@ -126,7 +129,7 @@ impl Display for Error {
             Json(ref e) => write!(w, "Json Error: {}", e),
             #[cfg(feature = "form")]
             UrlEncoded(ref e) => write!(w, "URL Encoding Error: {}", e),
-            #[cfg(feature = "tls")]
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
             Tls(ref e) => write!(w, "Tls Error: {}", e),
             #[cfg(feature = "tls-rustls")]
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
@@ -147,10 +150,10 @@ impl StdError for Error {
             Http(ref e) => Some(e),
             #[cfg(feature = "json")]
             Json(ref e) => Some(e),
-            #[cfg(feature = "tls")]
+            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
             Tls(ref e) => Some(e),
             #[cfg(feature = "tls-rustls")]
-            InvalidDNSName(ref e) => Some(e),
+            WebPKI(ref e) => Some(e),
             _ => None,
         }
     }
@@ -187,10 +190,10 @@ impl From<native_tls::Error> for Error {
     }
 }
 
-#[cfg(feature = "tls-rustls")]
-impl From<webpki::InvalidDNSNameError> for Error {
-    fn from(err: webpki::InvalidDNSNameError) -> Error {
-        Error(Box::new(ErrorKind::InvalidDNSName(err)))
+#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+impl From<rustls::Error> for Error {
+    fn from(err: rustls::Error) -> Error {
+        Error(Box::new(ErrorKind::Tls(err)))
     }
 }
 
