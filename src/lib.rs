@@ -53,6 +53,9 @@
 //! ```
 //!
 
+#[cfg(feature = "tls-rustls")]
+extern crate rustls_opt_dep as rustls;
+
 macro_rules! debug {
     ($($arg:tt)+) => { log::debug!(target: "attohttpc", $($arg)+) };
 }

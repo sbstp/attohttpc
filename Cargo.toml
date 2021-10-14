@@ -22,7 +22,7 @@ log = "0.4"
 mime = {version = "0.3", optional = true}
 multipart = {version = "0.18", optional = true}
 native-tls = {version = "0.2", optional = true}
-rustls = {version = "0.20", features = ["dangerous_configuration"], optional = true}
+rustls-opt-dep = {package = "rustls", version = "0.20", features = ["dangerous_configuration"], optional = true}
 serde = {version = "1", optional = true}
 serde_json = {version = "1", optional = true}
 serde_urlencoded = {version = "0.7", optional = true}
@@ -53,7 +53,8 @@ form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
 multipart-form = ["multipart", "mime"]
 tls = ["native-tls", "openssl"]
-tls-rustls = ["rustls", "webpki", "webpki-roots"]
+tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
+rustls = ["tls-rustls"]
 
 [package.metadata.docs.rs]
 all-features = true
