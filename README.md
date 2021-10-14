@@ -21,7 +21,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `json` support for serialization and deserialization
 * `form` support for url encoded forms (does not include support for multipart)
 * `tls` support for tls connections (**default**)
-* `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+* `rustls` or `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
 * `multipart-form` support for multipart forms (does not include support for url encoding)
 
 ## Usage
