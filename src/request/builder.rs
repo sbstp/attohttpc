@@ -422,7 +422,7 @@ impl<B: Body> RequestBuilder<B> {
             base_settings: self.base_settings,
         };
 
-        header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
+        header_insert_if_missing(&mut prepped.base_settings.headers, CONNECTION, "close")?;
         prepped.set_compression()?;
         match prepped.body.kind()? {
             BodyKind::Empty => (),
