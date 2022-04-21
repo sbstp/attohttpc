@@ -3,7 +3,7 @@ authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
 name = "attohttpc"
-version = "0.18.0"
+version = "0.19.0"
 
 categories = ["network-programming", "web-programming", "web-programming::http-client"]
 description = "Small and lightweight HTTP client"
@@ -41,8 +41,8 @@ futures = "0.3"
 futures-util = "0.3"
 hyper = "0.14"
 tokio = {version = "1", features = ["full"]}
-tokio-stream = {version = "0.1", features = ["net"]}
 tokio-rustls = "0.22"
+tokio-stream = {version = "0.1", features = ["net"]}
 warp = "0.3"
 
 [features]
@@ -52,9 +52,9 @@ default = ["compress", "tls"]
 form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
 multipart-form = ["multipart", "mime"]
+rustls = ["tls-rustls"]
 tls = ["native-tls", "openssl"]
 tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
-rustls = ["tls-rustls"]
 
 [package.metadata.docs.rs]
 all-features = true
