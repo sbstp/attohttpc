@@ -96,10 +96,7 @@ pub struct Multipart<'data> {
 
 impl Body for Multipart<'_> {
     fn kind(&mut self) -> IoResult<BodyKind> {
-        match self.data.content_len() {
-            Some(len) => Ok(BodyKind::KnownLength(len)),
-            None => Ok(BodyKind::Chunked),
-        }
+        Ok(BodyKind::Chunked)
     }
 
     fn write<W: Write>(&mut self, mut writer: W) -> IoResult<()> {
