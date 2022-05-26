@@ -1,7 +1,14 @@
 #[cfg(test)]
 use std::io::Cursor;
 use std::io::{self, Read, Write};
-use std::net::{Shutdown, TcpStream};
+#[cfg(not(windows))]
+use std::net::Shutdown;
+use std::net::TcpStream;
+#[cfg(windows)]
+use std::os::{
+    raw::c_int,
+    windows::{io::AsRawSocket, raw::SOCKET},
+};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
@@ -115,7 +122,11 @@ impl BaseStream {
         let timeout = info
             .deadline
             .map(|deadline| -> Result<mpsc::Sender<()>> {
+                #[cfg(not(windows))]
                 let stream = stream.try_clone()?;
+                #[cfg(windows)]
+                let socket = stream.as_raw_socket();
+
                 let (tx, rx) = mpsc::channel();
                 thread::spawn(move || {
                     let shutdown = match deadline.checked_duration_since(Instant::now()) {
@@ -125,7 +136,19 @@ impl BaseStream {
 
                     if shutdown {
                         drop(rx);
+
+                        #[cfg(not(windows))]
                         let _ = stream.shutdown(Shutdown::Both);
+
+                        #[cfg(windows)]
+                        extern "system" {
+                            fn closesocket(socket: SOCKET) -> c_int;
+                        }
+
+                        #[cfg(windows)]
+                        unsafe {
+                            closesocket(socket);
+                        }
                     }
                 });
                 Ok(tx)
@@ -188,6 +211,7 @@ impl Write for BaseStream {
 fn read_timeout(stream: &mut impl Read, buf: &mut [u8], timeout: &Option<mpsc::Sender<()>>) -> io::Result<usize> {
     match stream.read(buf) {
         Ok(0) => {
+            #[cfg(unix)]
             if let Some(timeout) = timeout {
                 // On Unix we get a 0 read when the connection is shutdown by the timeout thread.
                 if !buf.is_empty() && timeout.send(()).is_err() {
@@ -198,9 +222,10 @@ fn read_timeout(stream: &mut impl Read, buf: &mut [u8], timeout: &Option<mpsc::S
         }
         Ok(read) => Ok(read),
         Err(err) => {
+            #[cfg(windows)]
             if let Some(timeout) = timeout {
-                // On Windows we get a ConnectionReset when the connection is shutdown by the timeout thread.
-                if err.kind() == io::ErrorKind::ConnectionReset && timeout.send(()).is_err() {
+                // On Windows we get a ConnectionAborted when the connection is shutdown by the timeout thread.
+                if err.kind() == io::ErrorKind::ConnectionAborted && timeout.send(()).is_err() {
                     return Err(io::ErrorKind::TimedOut.into());
                 }
             }
