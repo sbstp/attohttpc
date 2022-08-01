@@ -54,6 +54,7 @@ json = ["serde", "serde_json"]
 multipart-form = ["multipart", "mime"]
 rustls = ["tls-rustls"]
 tls = ["native-tls", "openssl"]
+tls-vendored = ["native-tls/vendored", "openssl"]
 tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
 
 [package.metadata.docs.rs]
