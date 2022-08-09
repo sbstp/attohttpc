@@ -125,12 +125,7 @@ impl<B> RequestBuilder<B> {
     }
 
     /// Enable HTTP basic authentication.
-    ///
-    /// This is available only on Linux and when TLS support is enabled.
-    #[cfg(all(
-        feature = "tls",
-        not(any(target_os = "windows", target_os = "macos", target_os = "ios"))
-    ))]
+    #[cfg(feature = "base64")]
     pub fn basic_auth(self, username: impl std::fmt::Display, password: Option<impl std::fmt::Display>) -> Self {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
@@ -138,7 +133,7 @@ impl<B> RequestBuilder<B> {
         };
         self.header(
             http::header::AUTHORIZATION,
-            format!("Basic {}", openssl::base64::encode_block(auth.as_bytes())),
+            format!("Basic {}", base64::encode(auth.as_bytes())),
         )
     }
 
