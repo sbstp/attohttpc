@@ -30,7 +30,6 @@ serde_urlencoded = {version = "0.7", optional = true}
 url = "2"
 webpki = {version = "0.22", optional = true}
 webpki-roots = {version = "0.22", optional = true}
-wildmatch = "2"
 
 [dev-dependencies]
 anyhow = "1"
@@ -38,6 +37,7 @@ env_logger = "0.9"
 futures = "0.3"
 futures-util = "0.3"
 hyper = "0.14"
+lazy_static = "1"
 tokio = {version = "1", features = ["full"]}
 tokio-rustls = "0.22"
 tokio-stream = {version = "0.1", features = ["net"]}
