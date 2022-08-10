@@ -21,9 +21,10 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `compress` support for decompressing response bodies (**default**)
 * `json` support for serialization and deserialization
 * `form` support for url encoded forms (does not include support for multipart)
-* `tls` support for tls connections (**default**)
-* `rustls` or `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
 * `multipart-form` support for multipart forms (does not include support for url encoding)
+* `tls` support for tls connections (**default**)
+* `tls-vendored` activate the `vendored` feature of `native-tls` crate
+* `rustls` or `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
 
 ## Usage
 See the `examples/` folder in the repository for more use cases.
