@@ -125,7 +125,7 @@ impl<B> RequestBuilder<B> {
     }
 
     /// Enable HTTP basic authentication.
-    #[cfg(feature = "base64")]
+    #[cfg(feature = "basic-auth")]
     pub fn basic_auth(self, username: impl std::fmt::Display, password: Option<impl std::fmt::Display>) -> Self {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),

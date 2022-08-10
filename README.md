@@ -16,6 +16,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Use quality crates from the ecosystem (`http`, `url`, `encoding_rs`), not reinventing the wheel.
 
 ## Features
+* `basic-auth` support for basic auth
 * `charsets` support for decoding more text encodings than just UTF-8
 * `compress` support for decompressing response bodies (**default**)
 * `json` support for serialization and deserialization
