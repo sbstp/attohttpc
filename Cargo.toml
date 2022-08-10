@@ -32,9 +32,6 @@ webpki = {version = "0.22", optional = true}
 webpki-roots = {version = "0.22", optional = true}
 wildmatch = "2"
 
-[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = {version = "0.10", optional = true}
-
 [dev-dependencies]
 anyhow = "1"
 env_logger = "0.9"
@@ -55,8 +52,8 @@ form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
 multipart-form = ["multipart", "mime"]
 rustls = ["tls-rustls"]
-tls = ["native-tls", "openssl"]
-tls-vendored = ["native-tls/vendored", "openssl"]
+tls = ["native-tls"]
+tls-vendored = ["native-tls/vendored"]
 tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
 
 [package.metadata.docs.rs]
