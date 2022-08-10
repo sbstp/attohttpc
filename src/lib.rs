@@ -38,6 +38,7 @@
 //! ```
 //!
 //! # Features
+//! * `basic-auth` support for basic auth
 //! * `charsets` support for decoding more text encodings than just UTF-8
 //! * `compress` support for decompressing response bodies (**default**)
 //! * `json` support for serialization and deserialization
