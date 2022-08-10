@@ -1,7 +1,6 @@
-use std::env;
+use std::{env, vec};
 
 use url::Url;
-use wildmatch::WildMatch;
 
 fn get_env(name: &str) -> Option<String> {
     match env::var(name.to_ascii_lowercase()).or_else(|_| env::var(name.to_ascii_uppercase())) {
@@ -50,7 +49,8 @@ fn get_env_url(name: &str) -> Option<Url> {
 pub struct ProxySettings {
     http_proxy: Option<Url>,
     https_proxy: Option<Url>,
-    no_proxy_patterns: Vec<WildMatch>,
+    disable_proxies: bool,
+    no_proxy_hosts: Vec<String>,
 }
 
 impl ProxySettings {
@@ -61,21 +61,32 @@ impl ProxySettings {
 
     /// Get the proxy configuration from the environment using the `curl`/Unix proxy conventions.
     ///
-    /// Only `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are supported.
-    /// `NO_PROXY` supports wildcard patterns.
+    /// Only `ALL_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are supported.
+    /// Proxies can be disabled on all requests by setting `NO_PROXY` to `*`, similar to `curl`.
+    /// `HTTP_PROXY` or `HTTPS_PROXY` take precedence over values set by `ALL_PROXY` for their
+    /// respective schemes.
+    ///
+    /// See <https://curl.se/docs/manpage.html#--noproxy>
     pub fn from_env() -> ProxySettings {
+        let all_proxy = get_env_url("all_proxy");
         let http_proxy = get_env_url("http_proxy");
         let https_proxy = get_env_url("https_proxy");
         let no_proxy = get_env("no_proxy");
 
-        let no_proxy_patterns = no_proxy
-            .map(|x| x.split(',').map(|pat| WildMatch::new(pat.trim())).collect::<Vec<_>>())
-            .unwrap_or_default();
+        let disable_proxies = no_proxy.as_deref().unwrap_or("") == "*";
+        let mut no_proxy_hosts = vec![];
+
+        if !disable_proxies {
+            if let Some(no_proxy) = no_proxy {
+                no_proxy_hosts.extend(no_proxy.split(',').map(|s| s.trim().to_lowercase()));
+            }
+        }
 
         ProxySettings {
-            http_proxy,
-            https_proxy,
-            no_proxy_patterns,
+            http_proxy: http_proxy.or_else(|| all_proxy.clone()),
+            https_proxy: https_proxy.or(all_proxy),
+            disable_proxies,
+            no_proxy_hosts,
         }
     }
 
@@ -84,8 +95,12 @@ impl ProxySettings {
     /// None is returned if there is no proxy configured for the scheme or if the hostname
     /// matches a pattern in the no proxy list.
     pub fn for_url(&self, url: &Url) -> Option<&Url> {
+        if self.disable_proxies {
+            return None;
+        }
+
         if let Some(host) = url.host_str() {
-            if !self.no_proxy_patterns.iter().any(|x| x.matches(host)) {
+            if !self.no_proxy_hosts.iter().any(|x| x.to_lowercase() == host) {
                 return match url.scheme() {
                     "http" => self.http_proxy.as_ref(),
                     "https" => self.https_proxy.as_ref(),
@@ -110,7 +125,8 @@ impl ProxySettingsBuilder {
             inner: ProxySettings {
                 http_proxy: None,
                 https_proxy: None,
-                no_proxy_patterns: vec![],
+                disable_proxies: false,
+                no_proxy_hosts: vec![],
             },
         }
     }
@@ -135,10 +151,10 @@ impl ProxySettingsBuilder {
 
     /// Add a hostname pattern to ignore when finding the proxy to use for a URL.
     ///
-    /// For instance `*.mycompany.local` will make every hostname which ends with `.mycompany.local`
+    /// For instance `mycompany.local` will make requests with the hostname `mycompany.local`
     /// not go trough the proxy.
-    pub fn add_no_proxy_pattern(mut self, pattern: impl AsRef<str>) -> Self {
-        self.inner.no_proxy_patterns.push(WildMatch::new(pattern.as_ref()));
+    pub fn add_no_proxy_host(mut self, pattern: impl AsRef<str>) -> Self {
+        self.inner.no_proxy_hosts.push(pattern.as_ref().to_lowercase());
         self
     }
 
@@ -159,7 +175,8 @@ fn test_proxy_for_url() {
     let s = ProxySettings {
         http_proxy: Some("http://proxy1:3128".parse().unwrap()),
         https_proxy: Some("http://proxy2:3128".parse().unwrap()),
-        no_proxy_patterns: vec![WildMatch::new("*.com")],
+        disable_proxies: false,
+        no_proxy_hosts: vec!["reddit.com".into()],
     };
 
     assert_eq!(
@@ -173,4 +190,92 @@ fn test_proxy_for_url() {
     );
 
     assert_eq!(s.for_url(&Url::parse("https://reddit.com").unwrap()), None);
+}
+
+#[test]
+fn test_proxy_for_url_disabled() {
+    let s = ProxySettings {
+        http_proxy: Some("http://proxy1:3128".parse().unwrap()),
+        https_proxy: Some("http://proxy2:3128".parse().unwrap()),
+        disable_proxies: true,
+        no_proxy_hosts: vec![],
+    };
+
+    assert_eq!(s.for_url(&Url::parse("https://reddit.com").unwrap()), None);
+    assert_eq!(s.for_url(&Url::parse("https://www.google.ca").unwrap()), None);
+}
+
+#[cfg(test)]
+fn with_reset_proxy_vars<T>(test: T)
+where
+    T: FnOnce() + std::panic::UnwindSafe,
+{
+    use std::sync::Mutex;
+
+    lazy_static::lazy_static! {
+        static ref LOCK: Mutex<()> = Mutex::new(());
+    };
+
+    let _guard = LOCK.lock().unwrap();
+
+    env::remove_var("ALL_PROXY");
+    env::remove_var("HTTP_PROXY");
+    env::remove_var("HTTPS_PROXY");
+    env::remove_var("NO_PROXY");
+
+    let result = std::panic::catch_unwind(test);
+
+    // teardown if ever needed
+
+    if let Err(ctx) = result {
+        std::panic::resume_unwind(ctx);
+    }
+}
+
+#[test]
+fn test_proxy_from_env_all_proxy() {
+    with_reset_proxy_vars(|| {
+        env::set_var("ALL_PROXY", "http://proxy:3128");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.http_proxy.unwrap().as_str(), "http://proxy:3128/");
+        assert_eq!(s.https_proxy.unwrap().as_str(), "http://proxy:3128/");
+    });
+}
+
+#[test]
+fn test_proxy_from_env_override() {
+    with_reset_proxy_vars(|| {
+        env::set_var("ALL_PROXY", "http://proxy:3128");
+        env::set_var("HTTP_PROXY", "http://proxy:3129");
+        env::set_var("HTTPS_PROXY", "http://proxy:3130");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.http_proxy.unwrap().as_str(), "http://proxy:3129/");
+        assert_eq!(s.https_proxy.unwrap().as_str(), "http://proxy:3130/");
+    });
+}
+
+#[test]
+fn test_proxy_from_env_no_proxy_wildcard() {
+    with_reset_proxy_vars(|| {
+        env::set_var("NO_PROXY", "*");
+
+        let s = ProxySettings::from_env();
+
+        assert!(s.disable_proxies);
+    });
+}
+
+#[test]
+fn test_proxy_from_env_no_proxy() {
+    with_reset_proxy_vars(|| {
+        env::set_var("NO_PROXY", "example.com, www.reddit.com, google.ca ");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.no_proxy_hosts, vec!["example.com", "www.reddit.com", "google.ca"]);
+    });
 }
