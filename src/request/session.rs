@@ -6,6 +6,7 @@ use http::Method;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+use crate::cookies::{CookieJar, InternalJar};
 use crate::error::{Error, Result};
 use crate::request::proxy::ProxySettings;
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
@@ -15,6 +16,7 @@ use crate::tls::Certificate;
 /// `Session` are applied to every request created from this `Session`.
 #[derive(Debug, Default)]
 pub struct Session {
+    cookie_jar: CookieJar,
     base_settings: BaseSettings,
 }
 
@@ -22,6 +24,7 @@ impl Session {
     /// Create a new `Session` with default settings.
     pub fn new() -> Session {
         Session {
+            cookie_jar: CookieJar::new(),
             base_settings: BaseSettings::default(),
         }
     }
@@ -31,7 +34,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::GET, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::GET,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the POST method and this Session's settings applied on it.
@@ -39,7 +47,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::POST, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::POST,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the PUT method and this Session's settings applied on it.
@@ -47,7 +60,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::PUT, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::PUT,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the DELETE method and this Session's settings applied on it.
@@ -55,7 +73,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::DELETE, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::DELETE,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the HEAD method and this Session's settings applied on it.
@@ -63,7 +86,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::HEAD, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::HEAD,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the OPTIONS method and this Session's settings applied on it.
@@ -71,7 +99,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::OPTIONS, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::OPTIONS,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the PATCH method and this Session's settings applied on it.
@@ -79,7 +112,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::PATCH, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::PATCH,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     /// Create a new `RequestBuilder` with the TRACE method and this Session's settings applied on it.
@@ -87,7 +125,12 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::TRACE, base_url, self.base_settings.clone())
+        RequestBuilder::with_settings(
+            Method::TRACE,
+            base_url,
+            Some(self.cookie_jar.clone()),
+            self.base_settings.clone(),
+        )
     }
 
     //

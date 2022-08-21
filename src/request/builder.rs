@@ -15,6 +15,7 @@ use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+use crate::cookies::CookieJar;
 use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
 use crate::request::{
@@ -37,6 +38,7 @@ pub struct RequestBuilder<B = body::Empty> {
     url: Url,
     method: Method,
     body: B,
+    cookie_jar: Option<CookieJar>,
     base_settings: BaseSettings,
 }
 
@@ -60,17 +62,27 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        Self::try_with_settings(method, base_url, BaseSettings::default())
+        Self::try_with_settings(method, base_url, None, BaseSettings::default())
     }
 
-    pub(crate) fn with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Self
+    pub(crate) fn with_settings<U>(
+        method: Method,
+        base_url: U,
+        cookie_jar: Option<CookieJar>,
+        base_settings: BaseSettings,
+    ) -> Self
     where
         U: AsRef<str>,
     {
-        Self::try_with_settings(method, base_url, base_settings).expect("invalid url or method")
+        Self::try_with_settings(method, base_url, cookie_jar, base_settings).expect("invalid url or method")
     }
 
-    pub(crate) fn try_with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Result<Self>
+    pub(crate) fn try_with_settings<U>(
+        method: Method,
+        base_url: U,
+        cookie_jar: Option<CookieJar>,
+        base_settings: BaseSettings,
+    ) -> Result<Self>
     where
         U: AsRef<str>,
     {
@@ -85,6 +97,7 @@ impl RequestBuilder {
             method,
             body: body::Empty,
             base_settings,
+            cookie_jar,
         })
     }
 }
@@ -152,6 +165,7 @@ impl<B> RequestBuilder<B> {
             method: self.method,
             body,
             base_settings: self.base_settings,
+            cookie_jar: self.cookie_jar,
         }
     }
 
