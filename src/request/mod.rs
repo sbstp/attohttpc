@@ -5,12 +5,14 @@ use std::time::Instant;
 
 #[cfg(feature = "compress")]
 use http::header::ACCEPT_ENCODING;
+use http::header::SET_COOKIE;
 use http::{
     header::{HeaderValue, IntoHeaderName, HOST},
     HeaderMap, Method, StatusCode, Version,
 };
 use url::Url;
 
+use crate::cookies::{CookieJar, InternalJar};
 use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::{BaseStream, ConnectInfo};
@@ -66,12 +68,13 @@ pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
     body: B,
+    cookie_jar: Option<CookieJar>,
     pub(crate) base_settings: BaseSettings,
 }
 
 #[cfg(test)]
 impl PreparedRequest<body::Empty> {
-    pub(crate) fn new<U>(method: Method, base_url: U) -> Self
+    pub(crate) fn new<U>(method: Method, base_url: U, cookie_jar: Option<CookieJar>) -> Self
     where
         U: AsRef<str>,
     {
@@ -79,6 +82,7 @@ impl PreparedRequest<body::Empty> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             body: body::Empty,
+            cookie_jar: cookie_jar,
             base_settings: BaseSettings::default(),
         }
     }
@@ -232,6 +236,10 @@ impl<B: Body> PreparedRequest<B> {
 
             debug!("status code {}", resp.status().as_u16());
 
+            if let Some(cookie_jar) = &self.cookie_jar {
+                cookie_jar.store_cookies_for_url(&url, resp.headers().get_all(SET_COOKIE).iter());
+            }
+
             let is_redirect = matches!(
                 resp.status(),
                 StatusCode::MOVED_PERMANENTLY
@@ -333,6 +341,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
+            cookie_jar: None,
             base_settings: BaseSettings::default(),
         };
 
@@ -352,6 +361,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
+            cookie_jar: None,
             base_settings: BaseSettings::default(),
         };
 

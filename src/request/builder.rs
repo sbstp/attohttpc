@@ -4,6 +4,7 @@ use std::fs;
 use std::str;
 use std::time::Duration;
 
+use http::header::COOKIE;
 use http::{
     header::{
         HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING,
@@ -15,7 +16,7 @@ use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
-use crate::cookies::CookieJar;
+use crate::cookies::{CookieJar, InternalJar};
 use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
 use crate::request::{
@@ -428,6 +429,7 @@ impl<B: Body> RequestBuilder<B> {
             url: self.url,
             method: self.method,
             body: self.body,
+            cookie_jar: self.cookie_jar.clone(),
             base_settings: self.base_settings,
         };
 
@@ -449,6 +451,12 @@ impl<B: Body> RequestBuilder<B> {
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
         header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, DEFAULT_USER_AGENT)?;
+
+        if let Some(cookie_jar) = self.cookie_jar {
+            if let Some(header_val) = cookie_jar.header_value_for_url(&prepped.url) {
+                header_insert(&mut prepped.base_settings.headers, COOKIE, header_val)?;
+            }
+        }
 
         Ok(prepped)
     }
