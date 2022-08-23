@@ -68,6 +68,7 @@ macro_rules! warn {
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
+#[cfg(feature = "cookies")]
 mod cookies;
 mod error;
 mod happy;

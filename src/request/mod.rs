@@ -3,16 +3,14 @@ use std::io::{prelude::*, BufWriter};
 use std::str;
 use std::time::Instant;
 
-#[cfg(feature = "compress")]
-use http::header::ACCEPT_ENCODING;
-use http::header::SET_COOKIE;
 use http::{
     header::{HeaderValue, IntoHeaderName, HOST},
     HeaderMap, Method, StatusCode, Version,
 };
 use url::Url;
 
-use crate::cookies::{CookieJar, InternalJar};
+#[cfg(feature = "cookies")]
+use crate::cookies::CookieJar;
 use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::{parse_response, Response};
 use crate::streams::{BaseStream, ConnectInfo};
@@ -68,13 +66,14 @@ pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
     body: B,
-    cookie_jar: Option<CookieJar>,
     pub(crate) base_settings: BaseSettings,
+    #[cfg(feature = "cookies")]
+    cookie_jar: Option<CookieJar>,
 }
 
 #[cfg(test)]
 impl PreparedRequest<body::Empty> {
-    pub(crate) fn new<U>(method: Method, base_url: U, cookie_jar: Option<CookieJar>) -> Self
+    pub(crate) fn new<U>(method: Method, base_url: U, #[cfg(feature = "cookies")] cookie_jar: Option<CookieJar>) -> Self
     where
         U: AsRef<str>,
     {
@@ -82,26 +81,14 @@ impl PreparedRequest<body::Empty> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             body: body::Empty,
-            cookie_jar: cookie_jar,
             base_settings: BaseSettings::default(),
+            #[cfg(feature = "cookies")]
+            cookie_jar: cookie_jar,
         }
     }
 }
 
 impl<B> PreparedRequest<B> {
-    #[cfg(not(feature = "compress"))]
-    fn set_compression(&mut self) -> Result {
-        Ok(())
-    }
-
-    #[cfg(feature = "compress")]
-    fn set_compression(&mut self) -> Result {
-        if self.base_settings.allow_compression {
-            header_insert(&mut self.base_settings.headers, ACCEPT_ENCODING, "gzip, deflate")?;
-        }
-        Ok(())
-    }
-
     fn base_redirect_url(&self, location: &str, previous_url: &Url) -> Result<Url> {
         match Url::parse(location) {
             Ok(url) => Ok(url),
@@ -236,8 +223,9 @@ impl<B: Body> PreparedRequest<B> {
 
             debug!("status code {}", resp.status().as_u16());
 
+            #[cfg(feature = "cookies")]
             if let Some(cookie_jar) = &self.cookie_jar {
-                cookie_jar.store_cookies_for_url(&url, resp.headers().get_all(SET_COOKIE).iter());
+                cookie_jar.store_cookies_for_url(&url, resp.headers().get_all(crate::header::SET_COOKIE).iter());
             }
 
             let is_redirect = matches!(
@@ -341,8 +329,9 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
-            cookie_jar: None,
             base_settings: BaseSettings::default(),
+            #[cfg(feature = "cookies")]
+            cookie_jar: None,
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
@@ -361,8 +350,9 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
-            cookie_jar: None,
             base_settings: BaseSettings::default(),
+            #[cfg(feature = "cookies")]
+            cookie_jar: None,
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
