@@ -78,6 +78,8 @@ mod request;
 mod streams;
 mod tls;
 
+#[cfg(feature = "cookies")]
+pub use crate::cookies::CookieJar;
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};

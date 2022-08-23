@@ -292,4 +292,12 @@ impl Session {
     pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.base_settings.root_certificates.0.push(cert);
     }
+
+    /// Get a reference to the [`CookieJar`] within the session.
+    ///
+    /// The [`CookieJar`] can be used to retrieve and/or modify the cookies in the [`Session`].
+    #[cfg(feature = "cookies")]
+    pub fn cookie_jar(&self) -> &CookieJar {
+        &self.cookie_jar
+    }
 }
