@@ -78,7 +78,8 @@ impl ProxySettings {
 
         if !disable_proxies {
             if let Some(no_proxy) = no_proxy {
-                no_proxy_hosts.extend(no_proxy.split(',').map(|s| s.trim().to_lowercase()));
+                no_proxy_hosts.extend(no_proxy.split(',').map(|s|
+                    s.trim().trim_start_matches(".").to_lowercase()));
             }
         }
 
@@ -100,7 +101,7 @@ impl ProxySettings {
         }
 
         if let Some(host) = url.host_str() {
-            if !self.no_proxy_hosts.iter().any(|x| x.to_lowercase() == host) {
+            if !self.no_proxy_hosts.iter().any(|x| host.ends_with(x.to_lowercase().as_str())) {
                 return match url.scheme() {
                     "http" => self.http_proxy.as_ref(),
                     "https" => self.https_proxy.as_ref(),
@@ -266,6 +267,19 @@ fn test_proxy_from_env_no_proxy_wildcard() {
         let s = ProxySettings::from_env();
 
         assert!(s.disable_proxies);
+    });
+}
+
+#[test]
+fn test_proxy_from_env_no_proxy_root_domain() {
+    with_reset_proxy_vars(|| {
+        env::set_var("NO_PROXY", ".myroot.com");
+
+        let s = ProxySettings::from_env();
+
+        let url = Url::parse("https://mysub.myroot.com").unwrap();
+        assert!(s.for_url(&url).is_none());
+        assert_eq!(s.no_proxy_hosts[0], "myroot.com");
     });
 }
 
