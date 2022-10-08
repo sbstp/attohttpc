@@ -18,7 +18,9 @@ possible to allow users to get just what they need. Here are the goals of the pr
 ## Features
 * `basic-auth` support for basic auth
 * `charsets` support for decoding more text encodings than just UTF-8
-* `compress` support for decompressing response bodies (**default**)
+* `compress` support for decompressing response bodies using `miniz_oxide` (**default**)
+* `compress-zlib` support for decompressing response bodies using `zlib` instead of `miniz_oxide` (see [flate2 backends](https://github.com/rust-lang/flate2-rs#backends))
+* `compress-zlib-ng` support for decompressing response bodies using `zlib-ng` instead of `miniz_oxide` (see [flate2 backends](https://github.com/rust-lang/flate2-rs#backends))
 * `json` support for serialization and deserialization
 * `form` support for url encoded forms (does not include support for multipart)
 * `multipart-form` support for multipart forms (does not include support for url encoding)

@@ -16,6 +16,8 @@ cargo test --no-default-features
 cargo test --no-default-features --features basic-auth
 cargo test --no-default-features --features charsets
 cargo test --no-default-features --features compress
+cargo test --no-default-features --features compress-zlib
+cargo test --no-default-features --features compress-zlib-ng
 cargo test --no-default-features --features form
 cargo test --no-default-features --features multipart-form
 cargo test --no-default-features --features json
