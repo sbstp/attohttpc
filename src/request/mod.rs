@@ -3,7 +3,7 @@ use std::io::{prelude::*, BufWriter};
 use std::str;
 use std::time::Instant;
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "_compress-any")]
 use http::header::ACCEPT_ENCODING;
 use http::{
     header::{HeaderValue, IntoHeaderName, HOST},
@@ -85,12 +85,12 @@ impl PreparedRequest<body::Empty> {
 }
 
 impl<B> PreparedRequest<B> {
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "_compress-any"))]
     fn set_compression(&mut self) -> Result {
         Ok(())
     }
 
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "_compress-any")]
     fn set_compression(&mut self) -> Result {
         if self.base_settings.allow_compression {
             header_insert(&mut self.base_settings.headers, ACCEPT_ENCODING, "gzip, deflate")?;

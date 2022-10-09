@@ -44,12 +44,14 @@ tokio-stream = {version = "0.1.9", features = ["net"]}
 warp = "0.3.2"
 
 [features]
+# This is not a real user-facing feature, don't enable it directly.
+_compress-any = []
 basic-auth = ["base64"]
 charsets = ["encoding_rs", "encoding_rs_io"]
 # The following three compress features are mutually exclusive.
-compress = ["flate2/default"]
-compress-zlib = ["flate2/zlib"]
-compress-zlib-ng = ["flate2/zlib-ng"]
+compress = ["flate2/default", "_compress-any"]
+compress-zlib = ["flate2/zlib", "_compress-any"]
+compress-zlib-ng = ["flate2/zlib-ng", "_compress-any"]
 default = ["compress", "tls"]
 form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
