@@ -214,7 +214,7 @@ impl Session {
     ///
     /// This value defaults to true. Note that this only lets the browser know that this `Request` supports
     /// compression, the server might choose not to compress the content.
-    #[cfg(feature = "_compress-any")]
+    #[cfg(feature = "flate2")]
     pub fn allow_compression(&mut self, allow_compression: bool) {
         self.base_settings.allow_compression = allow_compression;
     }
