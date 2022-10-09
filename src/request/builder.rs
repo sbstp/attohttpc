@@ -358,7 +358,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// This value defaults to true. Note that this only lets the browser know that this request supports
     /// compression, the server might choose not to compress the content.
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "_compress-any")]
     pub fn allow_compression(mut self, allow_compression: bool) -> Self {
         self.base_settings.allow_compression = allow_compression;
         self
@@ -579,7 +579,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "_compress-any")]
     fn assert_request_content(
         builder: RequestBuilder,
         status_line: &str,
@@ -615,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "_compress-any")]
     fn test_request_builder_write_request_no_query() {
         assert_request_content(
             RequestBuilder::new(Method::GET, "http://localhost:1337/foo"),
@@ -631,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "_compress-any")]
     fn test_request_builder_write_request_with_query() {
         assert_request_content(
             RequestBuilder::new(Method::GET, "http://localhost:1337/foo").param("hello", "world"),
