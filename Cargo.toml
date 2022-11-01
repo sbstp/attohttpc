@@ -23,6 +23,7 @@ log = "0.4.17"
 mime = {version = "0.3.16", optional = true}
 multipart = {version = "0.18.0", default-features = false, features = ["client"], optional = true}
 native-tls = {version = "0.2.10", optional = true}
+rustls-native-certs = { version = "0.6", optional = true}
 rustls-opt-dep = {package = "rustls", version = "0.20.6", features = ["dangerous_configuration"], optional = true}
 serde = {version = "1.0.143", optional = true}
 serde_json = {version = "1.0.83", optional = true}
@@ -58,6 +59,7 @@ rustls = ["tls-rustls"]
 tls = ["native-tls"]
 tls-vendored = ["native-tls/vendored"]
 tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
+tls-rustls-native-roots = ["tls-rustls", "rustls-native-certs"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -79,7 +79,7 @@ impl ProxySettings {
         if !disable_proxies {
             if let Some(no_proxy) = no_proxy {
                 no_proxy_hosts.extend(no_proxy.split(',').map(|s|
-                    s.trim().trim_start_matches(".").to_lowercase()));
+                    s.trim().trim_start_matches('.').to_lowercase()));
             }
         }
 

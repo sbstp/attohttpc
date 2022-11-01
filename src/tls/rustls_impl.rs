@@ -9,6 +9,8 @@ use rustls::{
     client::{ServerCertVerified, ServerCertVerifier, WebPkiVerifier},
     ClientConfig, ClientConnection, OwnedTrustAnchor, RootCertStore, ServerName, StreamOwned,
 };
+#[cfg(feature = "tls-rustls-native-roots")]
+use rustls_native_certs::load_native_certs;
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::{Error, ErrorKind, Result};
@@ -55,6 +57,16 @@ impl TlsHandshaker {
                 root_store.add_server_trust_anchors(TLS_SERVER_ROOTS.0.iter().map(|root| {
                     OwnedTrustAnchor::from_subject_spki_name_constraints(root.subject, root.spki, root.name_constraints)
                 }));
+
+                #[cfg(feature = "tls-rustls-native-roots")]
+                for native_cert in load_native_certs()? {
+                    let cert = rustls::Certificate(native_cert.0);
+                    // Inspired by https://github.com/seanmonstar/reqwest/blob/231b18f83572836c674404b33cb1ca8b35ca3e36/src/async_impl/client.rs#L363-L365
+                    // Native certificate stores often include certificates with invalid formats,
+                    // but we don't want those invalid entries to invalidate the entire process of
+                    // loading native root certificates
+                    let _ = root_store.add(&cert);
+                }
 
                 for cert in &self.additional_certs {
                     root_store.add(cert)?;
