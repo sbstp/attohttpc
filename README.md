@@ -27,7 +27,7 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `tls` support for tls connections (**default**)
 * `tls-vendored` activate the `vendored` feature of `native-tls` crate
 * `rustls` or `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
-* `tls-rustls-native-roots` support for TLS connections using `rustls` with additional root certificates from the `rustls-native-certs` crate
+* `tls-rustls-native-roots` support for TLS connections using `rustls` with root certificates loaded from the `rustls-native-certs` crate
 
 ## Usage
 See the `examples/` folder in the repository for more use cases.

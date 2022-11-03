@@ -5,12 +5,15 @@ use std::io::prelude::*;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+#[cfg(not(feature = "tls-rustls-native-roots"))]
+use rustls::OwnedTrustAnchor;
 use rustls::{
     client::{ServerCertVerified, ServerCertVerifier, WebPkiVerifier},
-    ClientConfig, ClientConnection, OwnedTrustAnchor, RootCertStore, ServerName, StreamOwned,
+    ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned,
 };
 #[cfg(feature = "tls-rustls-native-roots")]
 use rustls_native_certs::load_native_certs;
+#[cfg(not(feature = "tls-rustls-native-roots"))]
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::{Error, ErrorKind, Result};
@@ -54,6 +57,8 @@ impl TlsHandshaker {
             Some(inner) => Ok(Arc::clone(inner)),
             None => {
                 let mut root_store = RootCertStore::empty();
+
+                #[cfg(not(feature = "tls-rustls-native-roots"))]
                 root_store.add_server_trust_anchors(TLS_SERVER_ROOTS.0.iter().map(|root| {
                     OwnedTrustAnchor::from_subject_spki_name_constraints(root.subject, root.spki, root.name_constraints)
                 }));
