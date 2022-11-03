@@ -70,7 +70,9 @@ impl TlsHandshaker {
                     // Native certificate stores often include certificates with invalid formats,
                     // but we don't want those invalid entries to invalidate the entire process of
                     // loading native root certificates
-                    let _ = root_store.add(&cert);
+                    if let Err(e) = root_store.add(&cert) {
+                        warn!("Could not load native root certificate: {}", e);
+                    }
                 }
 
                 for cert in &self.additional_certs {
