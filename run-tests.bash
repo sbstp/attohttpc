@@ -22,5 +22,6 @@ cargo test --no-default-features --features form
 cargo test --no-default-features --features multipart-form
 cargo test --no-default-features --features json
 cargo test --no-default-features --features tls-native
+cargo test --no-default-features --features tls-native,tls-native-vendored
 cargo test --no-default-features --features tls-rustls-webpki-roots
 cargo test --no-default-features --features tls-rustls-native-roots
