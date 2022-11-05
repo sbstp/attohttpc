@@ -479,7 +479,7 @@ impl<B> RequestInspector<'_, B> {
 }
 
 #[test]
-#[cfg(feature = "tls")]
+#[cfg(feature = "tls-native")]
 fn test_accept_invalid_certs_disabled_by_default() {
     let builder = RequestBuilder::new(Method::GET, "https://localhost:7900");
     assert!(!builder.base_settings.accept_invalid_certs);

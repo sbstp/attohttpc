@@ -51,15 +51,23 @@ charsets = ["encoding_rs", "encoding_rs_io"]
 compress = ["flate2/default"]
 compress-zlib = ["flate2/zlib"]
 compress-zlib-ng = ["flate2/zlib-ng"]
-default = ["compress", "tls"]
+default = ["compress", "tls-native"]
 form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
 multipart-form = ["multipart", "mime"]
-rustls = ["tls-rustls"]
-tls = ["native-tls"]
-tls-vendored = ["native-tls/vendored"]
-tls-rustls = ["rustls-opt-dep", "webpki", "webpki-roots"]
-tls-rustls-native-roots = ["tls-rustls", "rustls-native-certs"]
+# The following TLS features are mutually exclusive
+tls-native = ["native-tls"]
+tls-rustls-webpki-roots = ["__rustls", "webpki-roots"]
+tls-rustls-native-roots = ["__rustls", "rustls-native-certs"]
+# This feature depends on tls-native
+tls-native-vendored = ["native-tls/vendored"]
+# These features are provided for backwards compatibility
+tls = ["tls-native"]
+rustls = ["tls-rustls-webpki-roots"]
+tls-rustls = ["tls-rustls-webpki-roots"]
+tls-vendored = ["tls-native-vendored"]
+# Internal feature used to indicate rustls support
+__rustls = ["rustls-opt-dep", "webpki"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -72,12 +80,12 @@ required-features = ["default"]
 [[example]]
 name = "imdb"
 path = "examples/imdb.rs"
-required-features = ["tls"]
+required-features = ["tls-native"]
 
 [[example]]
 name = "nhlapi"
 path = "examples/nhlapi.rs"
-required-features = ["tls"]
+required-features = ["tls-native"]
 
 [[example]]
 name = "post_json"
@@ -87,7 +95,7 @@ required-features = ["json"]
 [[example]]
 name = "post"
 path = "examples/post.rs"
-required-features = ["tls"]
+required-features = ["tls-native"]
 
 [[example]]
 name = "charset"
@@ -102,7 +110,7 @@ required-features = ["multipart-form"]
 [[test]]
 name = "test_invalid_certs"
 path = "tests/test_invalid_certs.rs"
-required-features = ["tls"]
+required-features = ["tls-native"]
 
 [[test]]
 name = "test_multipart"

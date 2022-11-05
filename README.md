@@ -24,9 +24,9 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * `json` support for serialization and deserialization
 * `form` support for url encoded forms (does not include support for multipart)
 * `multipart-form` support for multipart forms (does not include support for url encoding)
-* `tls` support for tls connections (**default**)
-* `tls-vendored` activate the `vendored` feature of `native-tls` crate
-* `rustls` or `tls-rustls` support for TLS connections using `rustls` instead of `native-tls`
+* `tls-native` support for tls connections using the `native-tls` crate (**default**)
+* `tls-native-vendored` activate the `vendored` feature of `native-tls`
+* `tls-rustls-webpki-roots` support for TLS connections using `rustls` instead of `native-tls` with Web PKI roots
 * `tls-rustls-native-roots` support for TLS connections using `rustls` with root certificates loaded from the `rustls-native-certs` crate
 
 ## Usage

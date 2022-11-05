@@ -25,7 +25,7 @@ async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
@@ -49,7 +49,7 @@ async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
@@ -73,7 +73,7 @@ async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
@@ -150,7 +150,7 @@ async fn test_https_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
@@ -176,7 +176,7 @@ async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(any(feature = "tls", feature = "tls-rustls"))]
+#[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;

@@ -21,6 +21,7 @@ cargo test --no-default-features --features compress-zlib-ng
 cargo test --no-default-features --features form
 cargo test --no-default-features --features multipart-form
 cargo test --no-default-features --features json
-cargo test --no-default-features --features tls
-cargo test --no-default-features --features tls-rustls
+cargo test --no-default-features --features tls-native
+cargo test --no-default-features --features tls-native,tls-native-vendored
+cargo test --no-default-features --features tls-rustls-webpki-roots
 cargo test --no-default-features --features tls-rustls-native-roots
