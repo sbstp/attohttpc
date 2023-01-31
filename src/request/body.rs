@@ -84,7 +84,7 @@ impl Body for File {
     }
 
     fn write<W: Write>(&mut self, mut writer: W) -> IoResult<()> {
-        self.0.seek(SeekFrom::Start(0))?;
+        self.0.rewind()?;
         copy(&mut self.0, &mut writer)?;
         Ok(())
     }

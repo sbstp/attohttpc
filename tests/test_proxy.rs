@@ -5,10 +5,10 @@ use url::Url;
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
-    let remote_url = format!("http://localhost:{}", remote_port);
+    let remote_url = format!("http://localhost:{remote_port}");
 
     let proxy_port = tools::start_proxy_server(false).await?;
-    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("http://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -29,10 +29,10 @@ async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
-    let remote_url = format!("http://localhost:{}", remote_port);
+    let remote_url = format!("http://localhost:{remote_port}");
 
     let proxy_port = tools::start_proxy_server(true).await?;
-    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("https://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -53,10 +53,10 @@ async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
-    let remote_url = format!("https://localhost:{}", remote_port);
+    let remote_url = format!("https://localhost:{remote_port}");
 
     let proxy_port = tools::start_proxy_server(false).await?;
-    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("http://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -77,10 +77,10 @@ async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(true).await?;
-    let remote_url = format!("https://localhost:{}", remote_port);
+    let remote_url = format!("https://localhost:{remote_port}");
 
     let proxy_port = tools::start_proxy_server(true).await?;
-    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("https://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -101,7 +101,7 @@ async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(false).await?;
-    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("http://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -126,7 +126,7 @@ async fn test_http_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(false).await?;
-    let proxy_url = Url::parse(&format!("http://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("http://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -154,7 +154,7 @@ async fn test_https_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
-    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("https://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())
@@ -180,7 +180,7 @@ async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
-    let proxy_url = Url::parse(&format!("https://localhost:{}", proxy_port)).unwrap();
+    let proxy_url = Url::parse(&format!("https://localhost:{proxy_port}")).unwrap();
 
     let settings = attohttpc::ProxySettingsBuilder::new()
         .http_proxy(proxy_url.clone())

@@ -9,7 +9,7 @@ fn main() -> attohttpc::Result {
     if resp.is_success() {
         let file = File::create("title.basics.tsv.gz")?;
         let n = resp.write_to(file)?;
-        println!("Wrote {} bytes to the file.", n);
+        println!("Wrote {n} bytes to the file.");
     }
 
     Ok(())

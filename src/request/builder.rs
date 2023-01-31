@@ -157,8 +157,8 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "basic-auth")]
     pub fn basic_auth(self, username: impl std::fmt::Display, password: Option<impl std::fmt::Display>) -> Self {
         let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
+            Some(password) => format!("{username}:{password}"),
+            None => format!("{username}:"),
         };
         self.header(
             http::header::AUTHORIZATION,
@@ -673,7 +673,7 @@ mod tests {
                 "connection: close",
                 "accept-encoding: gzip, deflate",
                 "accept: */*",
-                &format!("user-agent: {}", DEFAULT_USER_AGENT),
+                &format!("user-agent: {DEFAULT_USER_AGENT}"),
             ],
             &[],
         );
@@ -689,7 +689,7 @@ mod tests {
                 "connection: close",
                 "accept-encoding: gzip, deflate",
                 "accept: */*",
-                &format!("user-agent: {}", DEFAULT_USER_AGENT),
+                &format!("user-agent: {DEFAULT_USER_AGENT}"),
             ],
             &[],
         );

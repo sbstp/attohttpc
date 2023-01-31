@@ -35,7 +35,7 @@ pub async fn start_hello_world_server(tls: bool) -> Result<u16, hyper::Error> {
         tokio::spawn(server.serve(make_service));
     };
 
-    println!("Listening on http://{}", addr);
+    println!("Listening on http://{addr}");
 
     Ok(addr.port())
 }

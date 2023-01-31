@@ -89,7 +89,7 @@ fn test_multipart_default() -> attohttpc::Result<()> {
 
     let (port, recv) = start_server();
 
-    attohttpc::post(format!("http://localhost:{}/multipart", port))
+    attohttpc::post(format!("http://localhost:{port}/multipart"))
         .body(form)
         .send()?
         .text()?;

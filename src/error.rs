@@ -116,27 +116,27 @@ impl Display for Error {
 
         match *self.0 {
             ConnectNotSupported => write!(w, "CONNECT is not supported"),
-            ConnectError { status_code, .. } => write!(w, "Proxy CONNECT error: {}", status_code),
-            Http(ref e) => write!(w, "Http Error: {}", e),
-            Io(ref e) => write!(w, "Io Error: {}", e),
+            ConnectError { status_code, .. } => write!(w, "Proxy CONNECT error: {status_code}"),
+            Http(ref e) => write!(w, "Http Error: {e}"),
+            Io(ref e) => write!(w, "Io Error: {e}"),
             InvalidBaseUrl => write!(w, "Invalid base URL"),
             InvalidUrlHost => write!(w, "URL is missing a host"),
             InvalidUrlPort => write!(w, "URL is missing a port"),
-            InvalidResponse(ref k) => write!(w, "InvalidResponse: {}", k),
+            InvalidResponse(ref k) => write!(w, "InvalidResponse: {k}"),
             TooManyRedirections => write!(w, "Too many redirections"),
-            StatusCode(ref sc) => write!(w, "Status code {} indicates failure", sc),
+            StatusCode(ref sc) => write!(w, "Status code {sc} indicates failure"),
             #[cfg(feature = "json")]
-            Json(ref e) => write!(w, "Json Error: {}", e),
+            Json(ref e) => write!(w, "Json Error: {e}"),
             #[cfg(feature = "form")]
-            UrlEncoded(ref e) => write!(w, "URL Encoding Error: {}", e),
+            UrlEncoded(ref e) => write!(w, "URL Encoding Error: {e}"),
             #[cfg(any(feature = "tls-native", feature = "__rustls"))]
-            Tls(ref e) => write!(w, "Tls Error: {}", e),
+            Tls(ref e) => write!(w, "Tls Error: {e}"),
             #[cfg(feature = "__rustls")]
-            InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
-            InvalidMimeType(ref e) => write!(w, "Invalid mime type: {}", e),
+            InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {e}"),
+            InvalidMimeType(ref e) => write!(w, "Invalid mime type: {e}"),
             TlsDisabled => write!(w, "TLS is disabled, activate one of the tls- features"),
             #[cfg(feature = "__rustls")]
-            WebPKI(ref e) => write!(w, "WebPKI error: {}", e),
+            WebPKI(ref e) => write!(w, "WebPKI error: {e}"),
         }
     }
 }
