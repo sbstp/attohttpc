@@ -452,7 +452,7 @@ impl<B: Body> RequestBuilder<B> {
 
         header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
 
-        #[cfg(feature = "compress")]
+        #[cfg(feature = "flate2")]
         if prepped.base_settings.allow_compression {
             header_insert(
                 &mut prepped.base_settings.headers,
