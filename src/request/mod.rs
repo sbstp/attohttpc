@@ -267,7 +267,7 @@ impl<B: Body> PreparedRequest<B> {
 fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
     let host = url.host_str().ok_or(ErrorKind::InvalidUrlHost)?;
     if let Some(port) = url.port() {
-        header_insert(headers, HOST, format!("{}:{}", host, port))?;
+        header_insert(headers, HOST, format!("{host}:{port}"))?;
     } else {
         header_insert(headers, HOST, host)?;
     }

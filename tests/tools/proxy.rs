@@ -46,7 +46,7 @@ pub async fn start_proxy_server(tls: bool) -> Result<u16, hyper::Error> {
         tokio::spawn(server.serve(make_service));
     };
 
-    println!("Listening on http://{}", addr);
+    println!("Listening on http://{addr}");
 
     Ok(addr.port())
 }
@@ -74,10 +74,10 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
                 match hyper::upgrade::on(req).await {
                     Ok(upgraded) => {
                         if let Err(e) = tunnel(upgraded, &addr).await {
-                            eprintln!("server io error: {}", e);
+                            eprintln!("server io error: {e}");
                         };
                     }
-                    Err(e) => eprintln!("upgrade error: {}", e),
+                    Err(e) => eprintln!("upgrade error: {e}"),
                 }
             });
 
@@ -114,10 +114,10 @@ async fn tunnel(upgraded: Upgraded, addr: &str) -> std::io::Result<()> {
     // Print message when done
     match amounts {
         Ok((from_client, from_server)) => {
-            println!("client wrote {} bytes and received {} bytes", from_client, from_server);
+            println!("client wrote {from_client} bytes and received {from_server} bytes");
         }
         Err(e) => {
-            println!("tunnel error: {}", e);
+            println!("tunnel error: {e}");
         }
     };
     Ok(())
@@ -153,7 +153,7 @@ pub async fn start_refusing_proxy_server(tls: bool) -> Result<u16, hyper::Error>
         tokio::spawn(server.serve(make_service));
     };
 
-    println!("Listening on http://{}", addr);
+    println!("Listening on http://{addr}");
 
     Ok(addr.port())
 }

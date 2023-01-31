@@ -88,8 +88,8 @@ impl BaseStream {
             remote_host, remote_port, proxy_host, proxy_port,
         );
 
-        write!(stream, "CONNECT {}:{} HTTP/1.1\r\n", remote_host, remote_port)?;
-        write!(stream, "Host: {}:{}\r\n", proxy_host, proxy_port)?;
+        write!(stream, "CONNECT {remote_host}:{remote_port} HTTP/1.1\r\n")?;
+        write!(stream, "Host: {proxy_host}:{proxy_port}\r\n")?;
         write!(stream, "Connection: close\r\n")?;
         write!(stream, "\r\n")?;
 

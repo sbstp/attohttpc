@@ -12,7 +12,7 @@ fn request_fails_due_to_read_timeout() {
         thread::sleep(Duration::from_millis(500));
     });
 
-    let result = attohttpc::get(format!("http://localhost:{}", port))
+    let result = attohttpc::get(format!("http://localhost:{port}"))
         .read_timeout(Duration::from_millis(100))
         .send();
 
@@ -39,7 +39,7 @@ fn request_fails_due_to_timeout() {
         thread::sleep(Duration::from_millis(500));
     });
 
-    let result = attohttpc::get(format!("http://localhost:{}", port))
+    let result = attohttpc::get(format!("http://localhost:{port}"))
         .timeout(Duration::from_millis(100))
         .send();
 
