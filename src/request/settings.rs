@@ -24,7 +24,7 @@ pub struct BaseSettings {
 
     #[cfg(feature = "charsets")]
     pub default_charset: Option<Charset>,
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "flate2")]
     pub allow_compression: bool,
 }
 
@@ -45,7 +45,7 @@ impl Default for BaseSettings {
 
             #[cfg(feature = "charsets")]
             default_charset: None,
-            #[cfg(feature = "compress")]
+            #[cfg(feature = "flate2")]
             allow_compression: true,
         }
     }

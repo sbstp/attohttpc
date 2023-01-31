@@ -77,20 +77,20 @@ pub enum ErrorKind {
     #[cfg(feature = "form")]
     UrlEncoded(serde_urlencoded::ser::Error),
     /// TLS error encountered while connecting to an https server.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "tls-native")]
     Tls(native_tls::Error),
     /// TLS error encountered while connecting to an https server.
-    #[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+    #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
     Tls(rustls::Error),
     /// Invalid DNS name used for TLS certificate verification
-    #[cfg(feature = "tls-rustls")]
+    #[cfg(feature = "__rustls")]
     InvalidDNSName(String),
     /// Invalid mime type in a Multipart form
     InvalidMimeType(String),
     /// TLS was not enabled by features.
     TlsDisabled,
     /// WebPKI error.
-    #[cfg(feature = "tls-rustls")]
+    #[cfg(feature = "__rustls")]
     WebPKI(webpki::Error),
 }
 
@@ -129,13 +129,13 @@ impl Display for Error {
             Json(ref e) => write!(w, "Json Error: {}", e),
             #[cfg(feature = "form")]
             UrlEncoded(ref e) => write!(w, "URL Encoding Error: {}", e),
-            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
+            #[cfg(any(feature = "tls-native", feature = "__rustls"))]
             Tls(ref e) => write!(w, "Tls Error: {}", e),
-            #[cfg(feature = "tls-rustls")]
+            #[cfg(feature = "__rustls")]
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {}", e),
             InvalidMimeType(ref e) => write!(w, "Invalid mime type: {}", e),
-            TlsDisabled => write!(w, "TLS is disabled, activate tls or tls-rustls feature"),
-            #[cfg(feature = "tls-rustls")]
+            TlsDisabled => write!(w, "TLS is disabled, activate one of the tls- features"),
+            #[cfg(feature = "__rustls")]
             WebPKI(ref e) => write!(w, "WebPKI error: {}", e),
         }
     }
@@ -150,9 +150,9 @@ impl StdError for Error {
             Http(ref e) => Some(e),
             #[cfg(feature = "json")]
             Json(ref e) => Some(e),
-            #[cfg(any(feature = "tls", feature = "tls-rustls"))]
+            #[cfg(any(feature = "tls-native", feature = "__rustls"))]
             Tls(ref e) => Some(e),
-            #[cfg(feature = "tls-rustls")]
+            #[cfg(feature = "__rustls")]
             WebPKI(ref e) => Some(e),
             _ => None,
         }
@@ -183,14 +183,14 @@ impl From<http::header::InvalidHeaderValue> for Error {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "tls-native")]
 impl From<native_tls::Error> for Error {
     fn from(err: native_tls::Error) -> Error {
         Error(Box::new(ErrorKind::Tls(err)))
     }
 }
 
-#[cfg(all(feature = "tls-rustls", not(feature = "tls")))]
+#[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
 impl From<rustls::Error> for Error {
     fn from(err: rustls::Error) -> Error {
         Error(Box::new(ErrorKind::Tls(err)))
@@ -235,7 +235,7 @@ impl From<InvalidResponseKind> for io::Error {
     }
 }
 
-#[cfg(feature = "tls-rustls")]
+#[cfg(feature = "__rustls")]
 impl From<webpki::Error> for Error {
     fn from(err: webpki::Error) -> Error {
         Error(Box::new(ErrorKind::WebPKI(err)))
