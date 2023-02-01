@@ -23,7 +23,7 @@ impl CookieJar {
             .0
             .borrow()
             .get_request_values(url)
-            .map(|(name, value)| format!("{}={}", name, value))
+            .map(|(name, value)| format!("{name}={value}"))
             .collect::<Vec<_>>()
             .join("; ");
 

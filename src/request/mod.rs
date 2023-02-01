@@ -83,7 +83,7 @@ impl PreparedRequest<body::Empty> {
             body: body::Empty,
             base_settings: BaseSettings::default(),
             #[cfg(feature = "cookies")]
-            cookie_jar: cookie_jar,
+            cookie_jar,
         }
     }
 }
