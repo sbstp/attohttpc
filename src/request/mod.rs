@@ -225,7 +225,7 @@ impl<B: Body> PreparedRequest<B> {
 
             #[cfg(feature = "cookies")]
             if let Some(cookie_jar) = &self.cookie_jar {
-                cookie_jar.store_cookies_for_url(&url, resp.headers().get_all(crate::header::SET_COOKIE).iter());
+                cookie_jar.store_cookies_raw_for_url(&url, resp.headers().get_all(crate::header::SET_COOKIE).iter());
             }
 
             let is_redirect = matches!(
