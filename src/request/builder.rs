@@ -480,7 +480,7 @@ impl<B: Body> RequestBuilder<B> {
 
         #[cfg(feature = "cookies")]
         if let Some(cookie_jar) = self.cookie_jar {
-            if let Some(header_val) = cookie_jar.header_value_for_url(&prepped.url) {
+            if let Some(header_val) = cookie_jar.header_for_url(&prepped.url) {
                 header_insert(&mut prepped.base_settings.headers, crate::header::COOKIE, header_val)?;
             }
         }

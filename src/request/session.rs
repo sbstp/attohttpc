@@ -272,6 +272,22 @@ impl Session {
     /// Get a reference to the [`CookieJar`] within the session.
     ///
     /// The [`CookieJar`] can be used to retrieve and/or modify the cookies in the [`Session`].
+    /// The cookies are automatically persisted across requests in a secure manner.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::error::Error;
+    /// # use attohttpc::Session;
+    /// # use url::Url;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    ///     let url = Url::parse("http://example.com")?;
+    ///     let sess = Session::new();
+    ///     sess.cookie_jar().store_cookie_for_url(("token", "ABCDEF123"), &url);
+    ///     sess.get("http://example.com").send()?;
+    /// #   Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie_jar(&self) -> &CookieJar {
         &self.cookie_jar

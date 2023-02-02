@@ -1,13 +1,15 @@
 use std::{cell::RefCell, fmt::Write, rc::Rc};
 
 use bytes::Bytes;
-use cookie::Cookie;
+pub use cookie::Cookie;
 use cookie_store::CookieStore;
 use url::Url;
 
 use crate::header::HeaderValue;
 
+/// Values that can be converted into a [`Cookie`].
 pub trait IntoCookie {
+    /// Convert the value into a [`Cookie`].
     fn into_cookie(self) -> Cookie<'static>;
 }
 
@@ -35,7 +37,8 @@ impl<'a> IntoCookie for cookie::CookieBuilder<'a> {
 
 /// Persists cookies between requests.
 ///
-/// All the typical cookie properties, such as expiry, secure and http-only are respected.
+/// All the typical cookie properties, such as expiry, domain, path and secure are respected.
+/// Cookies should always be accessed through a [`Url`] for security reasons.
 #[derive(Clone, Debug)]
 pub struct CookieJar(Rc<RefCell<CookieStore>>);
 
@@ -44,7 +47,9 @@ impl CookieJar {
         CookieJar(Rc::new(RefCell::new(CookieStore::default())))
     }
 
-    ///
+    /// Get available cookies for the given [`Url`]. Only cookies that match
+    /// the domain, path and secure setting will be returned. Expired cookies
+    /// are not returned either.
     pub fn cookies_for_url(&self, url: &Url) -> Vec<(String, String)> {
         self.0
             .borrow()
@@ -53,22 +58,22 @@ impl CookieJar {
             .collect()
     }
 
-    ///
+    /// Store the given [`Cookie`] in the [`CookieJar`] for the given [`Url`].
+    /// If the [`Cookie`] has additional properties such as a specific path, domain or secure,
+    /// the [`Cookie`] will be stored with those properties.
     pub fn store_cookie_for_url(&self, cookie: impl IntoCookie, url: &Url) {
         self.0
             .borrow_mut()
             .store_response_cookies(Some(cookie.into_cookie()).into_iter(), url)
     }
 
-    pub(crate) fn header_value_for_url(&self, url: &Url) -> Option<HeaderValue> {
-        // let hvalue = self
-        //     .0
-        //     .borrow()
-        //     .get_request_values(url)
-        //     .map(|(name, value)| format!("{name}={value}"))
-        //     .collect::<Vec<_>>()
-        //     .join("; ");
+    /// Remove all the cookies stored in the [CookieJar].
+    pub fn clear(&mut self) {
+        self.0.borrow_mut().clear();
+    }
 
+    /// Get the cookies formatted as required by the `Cookie` header.
+    pub(crate) fn header_for_url(&self, url: &Url) -> Option<HeaderValue> {
         let mut hvalue = String::new();
         for (idx, (name, value)) in self.0.borrow().get_request_values(url).enumerate() {
             if idx > 0 {
@@ -84,11 +89,18 @@ impl CookieJar {
         HeaderValue::from_maybe_shared(Bytes::from(hvalue)).ok()
     }
 
-    pub(crate) fn store_cookies_raw_for_url<'a>(
+    /// Store cookies into the jar using unparsed `Set-Cookie` headers.
+    pub(crate) fn store_header_for_url<'a>(
         &self,
         url: &Url,
         set_cookie_headers: impl Iterator<Item = &'a HeaderValue>,
     ) {
+        fn parse_cookie(buf: &[u8]) -> Result<Cookie, Box<dyn std::error::Error>> {
+            let s = std::str::from_utf8(buf)?;
+            let c = Cookie::parse(s)?;
+            Ok(c)
+        }
+
         let iter = set_cookie_headers.filter_map(|v| match parse_cookie(v.as_bytes()) {
             Ok(c) => Some(c.into_owned()),
             Err(err) => {
@@ -96,19 +108,9 @@ impl CookieJar {
                 None
             }
         });
+
         self.0.borrow_mut().store_response_cookies(iter, url)
     }
-
-    /// Remove all the cookies stored in the [CookieJar].
-    pub fn clear(&mut self) {
-        self.0.borrow_mut().clear();
-    }
-}
-
-fn parse_cookie(buf: &[u8]) -> Result<Cookie, Box<dyn std::error::Error>> {
-    let s = std::str::from_utf8(buf)?;
-    let c = Cookie::parse(s)?;
-    Ok(c)
 }
 
 impl Default for CookieJar {
@@ -118,12 +120,18 @@ impl Default for CookieJar {
 }
 
 #[test]
-fn test_header_value() {
+fn test_header_for_url() {
     let url = Url::parse("http://example.com").expect("invalid url");
     let jar = CookieJar::new();
     jar.store_cookie_for_url(("foo", "bar"), &url);
     jar.store_cookie_for_url(("qux", "baz"), &url);
 
-    let val = jar.header_value_for_url(&url).unwrap();
-    assert_eq!(val.as_bytes(), b"qux=baz; foo=bar");
+    let val = jar.header_for_url(&url).unwrap();
+
+    // unfortunately the cookies are stored in a HashMap and the iteration order is not guaranteed.
+    let val = std::str::from_utf8(val.as_bytes()).unwrap();
+    let mut cookies = val.split("; ").collect::<Vec<_>>();
+    cookies.sort();
+
+    assert_eq!(cookies, vec!["foo=bar", "qux=baz"]);
 }
