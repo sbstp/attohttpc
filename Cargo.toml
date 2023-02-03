@@ -37,6 +37,7 @@ webpki-roots = {version = "0.22.4", optional = true}
 
 [dev-dependencies]
 anyhow = "1.0.61"
+axum = "0.6.4"
 env_logger = "0.9.0"
 futures = "0.3.23"
 futures-util = "0.3.23"

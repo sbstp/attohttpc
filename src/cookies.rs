@@ -120,6 +120,15 @@ impl Default for CookieJar {
 }
 
 #[test]
+fn test_cookies_for_url() {
+    let url = Url::parse("http://example.com").expect("invalid url");
+    let jar = CookieJar::new();
+
+    jar.store_cookie_for_url(("foo", "baz"), &url);
+    assert!(!jar.cookies_for_url(&url).is_empty());
+}
+
+#[test]
 fn test_header_for_url() {
     let url = Url::parse("http://example.com").expect("invalid url");
     let jar = CookieJar::new();
@@ -134,4 +143,19 @@ fn test_header_for_url() {
     cookies.sort();
 
     assert_eq!(cookies, vec!["foo=bar", "qux=baz"]);
+}
+
+#[test]
+fn test_security_secure() {
+    let url = Url::parse("https://example.com").expect("invalid url");
+    let insecure_url = Url::parse("http://example.com").expect("invalid url");
+
+    let jar = CookieJar::new();
+    jar.store_cookie_for_url(Cookie::build("foo", "baz").secure(true), &url);
+
+    // same URL which is secure, have cookie
+    assert!(!jar.cookies_for_url(&url).is_empty());
+
+    // insecure URL, no cookie
+    assert!(jar.cookies_for_url(&insecure_url).is_empty());
 }
