@@ -8,6 +8,7 @@ use axum::Router;
 use url::Url;
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg(feature = "cookies")]
 async fn test_redirection_default() -> Result<(), anyhow::Error> {
     async fn root() -> impl IntoResponse {
         (StatusCode::OK, [(header::SET_COOKIE, "foo=bar")], "Hello, World!")
