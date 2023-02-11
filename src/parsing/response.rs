@@ -5,6 +5,7 @@ use http::{
     header::{HeaderName, HeaderValue, TRANSFER_ENCODING},
     HeaderMap, StatusCode,
 };
+use url::Url;
 
 use crate::error::{ErrorKind, InvalidResponseKind, Result};
 use crate::parsing::buffers::{self, trim_byte};
@@ -74,7 +75,7 @@ where
     Ok((status, headers))
 }
 
-pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Result<Response> {
+pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>, url: &Url) -> Result<Response> {
     let mut reader = BufReader::new(reader);
     let (status, mut headers) = parse_response_head(&mut reader, request.base_settings.max_headers)?;
     let body_reader = BodyReader::new(&headers, reader)?;
@@ -85,6 +86,7 @@ pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Re
     headers.remove(TRANSFER_ENCODING);
 
     Ok(Response {
+        url: url.clone(),
         status,
         headers,
         reader: response_reader,
@@ -94,12 +96,19 @@ pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Re
 /// `Response` represents a response returned by a server.
 #[derive(Debug)]
 pub struct Response {
+    url: Url,
     status: StatusCode,
     headers: HeaderMap,
     reader: ResponseReader,
 }
 
 impl Response {
+    /// Get the final URL of this `Response`.
+    #[inline]
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+
     /// Get the status code of this `Response`.
     #[inline]
     pub fn status(&self) -> StatusCode {
