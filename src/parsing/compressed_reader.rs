@@ -158,7 +158,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let response = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req, req.url()).unwrap();
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
@@ -181,7 +181,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let response = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req, req.url()).unwrap();
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
 
@@ -204,7 +204,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
 
         let sock = BaseStream::mock(buf);
-        let response = parse_response(sock, &req).unwrap();
+        let response = parse_response(sock, &req, req.url()).unwrap();
 
         assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
     }
@@ -217,7 +217,7 @@ mod tests {
         let req = PreparedRequest::new(Method::GET, "http://google.ca");
         let sock = BaseStream::mock(buf.to_vec());
         // Fixed by the move from libflate to flate2
-        assert!(parse_response(sock, &req).is_ok());
+        assert!(parse_response(sock, &req, req.url()).is_ok());
     }
 
     #[test]
@@ -227,6 +227,6 @@ mod tests {
 
         let req = PreparedRequest::new(Method::HEAD, "http://google.ca");
         let sock = BaseStream::mock(buf.to_vec());
-        assert!(parse_response(sock, &req).is_ok());
+        assert!(parse_response(sock, &req, req.url()).is_ok());
     }
 }

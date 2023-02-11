@@ -228,7 +228,7 @@ impl<B: Body> PreparedRequest<B> {
             let mut stream = BaseStream::connect(&info)?;
 
             self.write_request(&mut stream, &url, proxy.as_ref())?;
-            let resp = parse_response(stream, self)?;
+            let resp = parse_response(stream, self, &url)?;
 
             debug!("status code {}", resp.status().as_u16());
 
