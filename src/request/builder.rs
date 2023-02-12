@@ -124,6 +124,13 @@ impl<B> RequestBuilder<B> {
         self
     }
 
+    /// Set the query parameters of this request to be the URL-encoded representation of the given object.
+    #[cfg(feature = "form")]
+    pub fn query<T: serde::Serialize>(mut self, value: &T) -> Result<Self> {
+        value.serialize(serde_urlencoded::Serializer::new(&mut self.url.query_pairs_mut()))?;
+        Ok(self)
+    }
+
     /// Enable HTTP basic authentication.
     #[cfg(feature = "basic-auth")]
     pub fn basic_auth(self, username: impl std::fmt::Display, password: Option<impl std::fmt::Display>) -> Self {
