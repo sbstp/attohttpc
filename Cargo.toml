@@ -39,6 +39,7 @@ futures = "0.3.23"
 futures-util = "0.3.23"
 hyper = "0.14.20"
 lazy_static = "1.4.0"
+multipart = {version = "0.18.0", default-features = false, features = ["server"]}
 tokio = {version = "1.20.1", features = ["full"]}
 tokio-rustls = "0.22.0"
 tokio-stream = {version = "0.1.9", features = ["net"]}
