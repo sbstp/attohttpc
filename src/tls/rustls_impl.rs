@@ -198,17 +198,14 @@ impl ServerCertVerifier for CustomCertVerifier {
             .upstream
             .verify_server_cert(end_entity, intermediates, server_name, scts, ocsp_response, now)
         {
-            Err(
-                rustls::Error::NoCertificatesPresented
-                | rustls::Error::InvalidCertificateEncoding
-                | rustls::Error::InvalidCertificateSignatureType
-                | rustls::Error::InvalidCertificateSignature
-                | rustls::Error::InvalidCertificateData(_),
-            ) if self.accept_invalid_certs => Ok(ServerCertVerified::assertion()),
+            Err(rustls::Error::NoCertificatesPresented | rustls::Error::InvalidCertificate(_))
+                if self.accept_invalid_certs =>
+            {
+                Ok(ServerCertVerified::assertion())
+            }
 
-            // c.f. https://github.com/rustls/rustls/blob/2f90c1bf7339e7862dfc850f2b23e2010c795ddb/rustls/tests/api.rs#L801
-            Err(rustls::Error::InvalidCertificateData(msg))
-                if self.accept_invalid_hostnames && msg.contains("CertNotValidForName") =>
+            Err(rustls::Error::InvalidCertificate(rustls::CertificateError::NotValidForName))
+                if self.accept_invalid_hostnames =>
             {
                 Ok(ServerCertVerified::assertion())
             }

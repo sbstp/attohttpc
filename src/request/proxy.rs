@@ -78,8 +78,11 @@ impl ProxySettings {
 
         if !disable_proxies {
             if let Some(no_proxy) = no_proxy {
-                no_proxy_hosts.extend(no_proxy.split(',').map(|s|
-                    s.trim().trim_start_matches('.').to_lowercase()));
+                no_proxy_hosts.extend(
+                    no_proxy
+                        .split(',')
+                        .map(|s| s.trim().trim_start_matches('.').to_lowercase()),
+                );
             }
         }
 
@@ -101,7 +104,11 @@ impl ProxySettings {
         }
 
         if let Some(host) = url.host_str() {
-            if !self.no_proxy_hosts.iter().any(|x| host.ends_with(x.to_lowercase().as_str())) {
+            if !self
+                .no_proxy_hosts
+                .iter()
+                .any(|x| host.ends_with(x.to_lowercase().as_str()))
+            {
                 return match url.scheme() {
                     "http" => self.http_proxy.as_ref(),
                     "https" => self.https_proxy.as_ref(),
