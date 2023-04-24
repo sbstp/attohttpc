@@ -15,6 +15,8 @@ use url::Url;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+#[cfg(feature = "cookies")]
+use crate::cookies::CookieJar;
 use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
 use crate::request::{
@@ -38,6 +40,8 @@ pub struct RequestBuilder<B = body::Empty> {
     method: Method,
     body: B,
     base_settings: BaseSettings,
+    #[cfg(feature = "cookies")]
+    cookie_jar: Option<CookieJar>,
 }
 
 impl RequestBuilder {
@@ -60,17 +64,40 @@ impl RequestBuilder {
     where
         U: AsRef<str>,
     {
-        Self::try_with_settings(method, base_url, BaseSettings::default())
+        Self::try_with_settings(
+            method,
+            base_url,
+            BaseSettings::default(),
+            #[cfg(feature = "cookies")]
+            None,
+        )
     }
 
-    pub(crate) fn with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Self
+    pub(crate) fn with_settings<U>(
+        method: Method,
+        base_url: U,
+        base_settings: BaseSettings,
+        #[cfg(feature = "cookies")] cookie_jar: Option<CookieJar>,
+    ) -> Self
     where
         U: AsRef<str>,
     {
-        Self::try_with_settings(method, base_url, base_settings).expect("invalid url or method")
+        Self::try_with_settings(
+            method,
+            base_url,
+            base_settings,
+            #[cfg(feature = "cookies")]
+            cookie_jar,
+        )
+        .expect("invalid url or method")
     }
 
-    pub(crate) fn try_with_settings<U>(method: Method, base_url: U, base_settings: BaseSettings) -> Result<Self>
+    pub(crate) fn try_with_settings<U>(
+        method: Method,
+        base_url: U,
+        base_settings: BaseSettings,
+        #[cfg(feature = "cookies")] cookie_jar: Option<CookieJar>,
+    ) -> Result<Self>
     where
         U: AsRef<str>,
     {
@@ -85,6 +112,8 @@ impl RequestBuilder {
             method,
             body: body::Empty,
             base_settings,
+            #[cfg(feature = "cookies")]
+            cookie_jar,
         })
     }
 }
@@ -152,6 +181,8 @@ impl<B> RequestBuilder<B> {
             method: self.method,
             body,
             base_settings: self.base_settings,
+            #[cfg(feature = "cookies")]
+            cookie_jar: self.cookie_jar,
         }
     }
 
@@ -415,10 +446,21 @@ impl<B: Body> RequestBuilder<B> {
             method: self.method,
             body: self.body,
             base_settings: self.base_settings,
+            #[cfg(feature = "cookies")]
+            cookie_jar: self.cookie_jar.clone(),
         };
 
         header_insert(&mut prepped.base_settings.headers, CONNECTION, "close")?;
-        prepped.set_compression()?;
+
+        #[cfg(feature = "flate2")]
+        if prepped.base_settings.allow_compression {
+            header_insert(
+                &mut prepped.base_settings.headers,
+                crate::header::ACCEPT_ENCODING,
+                "gzip, deflate",
+            )?;
+        }
+
         match prepped.body.kind()? {
             BodyKind::Empty => (),
             BodyKind::KnownLength(len) => {
@@ -435,6 +477,13 @@ impl<B: Body> RequestBuilder<B> {
 
         header_insert_if_missing(&mut prepped.base_settings.headers, ACCEPT, "*/*")?;
         header_insert_if_missing(&mut prepped.base_settings.headers, USER_AGENT, DEFAULT_USER_AGENT)?;
+
+        #[cfg(feature = "cookies")]
+        if let Some(cookie_jar) = self.cookie_jar {
+            if let Some(header_val) = cookie_jar.header_for_url(&prepped.url) {
+                header_insert(&mut prepped.base_settings.headers, crate::header::COOKIE, header_val)?;
+            }
+        }
 
         Ok(prepped)
     }

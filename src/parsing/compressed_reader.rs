@@ -155,7 +155,12 @@ mod tests {
         let _ = write!(buf, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", payload.len());
         buf.extend(payload);
 
-        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let req = PreparedRequest::new(
+            Method::GET,
+            "http://google.ca",
+            #[cfg(feature = "cookies")]
+            None,
+        );
 
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req, req.url()).unwrap();
@@ -178,7 +183,12 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let req = PreparedRequest::new(
+            Method::GET,
+            "http://google.ca",
+            #[cfg(feature = "cookies")]
+            None,
+        );
 
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req, req.url()).unwrap();
@@ -201,7 +211,12 @@ mod tests {
         );
         buf.extend(payload);
 
-        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let req = PreparedRequest::new(
+            Method::GET,
+            "http://google.ca",
+            #[cfg(feature = "cookies")]
+            None,
+        );
 
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req, req.url()).unwrap();
@@ -214,7 +229,12 @@ mod tests {
     fn test_no_body_with_gzip() {
         let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
 
-        let req = PreparedRequest::new(Method::GET, "http://google.ca");
+        let req = PreparedRequest::new(
+            Method::GET,
+            "http://google.ca",
+            #[cfg(feature = "cookies")]
+            None,
+        );
         let sock = BaseStream::mock(buf.to_vec());
         // Fixed by the move from libflate to flate2
         assert!(parse_response(sock, &req, req.url()).is_ok());
@@ -225,7 +245,12 @@ mod tests {
     fn test_no_body_with_gzip_head() {
         let buf = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n\r\n";
 
-        let req = PreparedRequest::new(Method::HEAD, "http://google.ca");
+        let req = PreparedRequest::new(
+            Method::HEAD,
+            "http://google.ca",
+            #[cfg(feature = "cookies")]
+            None,
+        );
         let sock = BaseStream::mock(buf.to_vec());
         assert!(parse_response(sock, &req, req.url()).is_ok());
     }

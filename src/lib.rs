@@ -73,6 +73,8 @@ macro_rules! warn {
 
 #[cfg(feature = "charsets")]
 pub mod charsets;
+#[cfg(feature = "cookies")]
+mod cookies;
 mod error;
 mod happy;
 #[cfg(feature = "multipart")]
@@ -82,6 +84,8 @@ mod request;
 mod streams;
 mod tls;
 
+#[cfg(feature = "cookies")]
+pub use crate::cookies::{Cookie, CookieJar, IntoCookie};
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};

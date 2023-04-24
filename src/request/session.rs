@@ -6,6 +6,8 @@ use http::Method;
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+#[cfg(feature = "cookies")]
+use crate::cookies::CookieJar;
 use crate::error::{Error, Result};
 use crate::request::proxy::ProxySettings;
 use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
@@ -16,6 +18,8 @@ use crate::tls::Certificate;
 #[derive(Debug, Default)]
 pub struct Session {
     base_settings: BaseSettings,
+    #[cfg(feature = "cookies")]
+    cookie_jar: CookieJar,
 }
 
 impl Session {
@@ -23,7 +27,22 @@ impl Session {
     pub fn new() -> Session {
         Session {
             base_settings: BaseSettings::default(),
+            #[cfg(feature = "cookies")]
+            cookie_jar: CookieJar::new(),
         }
+    }
+
+    fn make_request_builder<U>(&self, method: Method, base_url: U) -> RequestBuilder
+    where
+        U: AsRef<str>,
+    {
+        RequestBuilder::with_settings(
+            method,
+            base_url,
+            self.base_settings.clone(),
+            #[cfg(feature = "cookies")]
+            Some(self.cookie_jar.clone()),
+        )
     }
 
     /// Create a new `RequestBuilder` with the GET method and this Session's settings applied on it.
@@ -31,7 +50,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::GET, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::GET, base_url)
     }
 
     /// Create a new `RequestBuilder` with the POST method and this Session's settings applied on it.
@@ -39,7 +58,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::POST, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::POST, base_url)
     }
 
     /// Create a new `RequestBuilder` with the PUT method and this Session's settings applied on it.
@@ -47,7 +66,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::PUT, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::PUT, base_url)
     }
 
     /// Create a new `RequestBuilder` with the DELETE method and this Session's settings applied on it.
@@ -55,7 +74,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::DELETE, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::DELETE, base_url)
     }
 
     /// Create a new `RequestBuilder` with the HEAD method and this Session's settings applied on it.
@@ -63,7 +82,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::HEAD, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::HEAD, base_url)
     }
 
     /// Create a new `RequestBuilder` with the OPTIONS method and this Session's settings applied on it.
@@ -71,7 +90,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::OPTIONS, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::OPTIONS, base_url)
     }
 
     /// Create a new `RequestBuilder` with the PATCH method and this Session's settings applied on it.
@@ -79,7 +98,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::PATCH, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::PATCH, base_url)
     }
 
     /// Create a new `RequestBuilder` with the TRACE method and this Session's settings applied on it.
@@ -87,7 +106,7 @@ impl Session {
     where
         U: AsRef<str>,
     {
-        RequestBuilder::with_settings(Method::TRACE, base_url, self.base_settings.clone())
+        self.make_request_builder(Method::TRACE, base_url)
     }
 
     //
@@ -248,5 +267,29 @@ impl Session {
     /// Adds a root certificate that will be trusted.
     pub fn add_root_certificate(&mut self, cert: Certificate) {
         self.base_settings.root_certificates.0.push(cert);
+    }
+
+    /// Get a reference to the [`CookieJar`] within the session.
+    ///
+    /// The [`CookieJar`] can be used to retrieve and/or modify the cookies in the [`Session`].
+    /// The cookies are automatically persisted across requests in a secure manner.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::error::Error;
+    /// # use attohttpc::Session;
+    /// # use url::Url;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    ///     let url = Url::parse("http://example.com")?;
+    ///     let sess = Session::new();
+    ///     sess.cookie_jar().store_cookie_for_url(("token", "ABCDEF123"), &url);
+    ///     sess.get("http://example.com").send()?;
+    /// #   Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "cookies")]
+    pub fn cookie_jar(&self) -> &CookieJar {
+        &self.cookie_jar
     }
 }
