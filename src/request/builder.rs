@@ -4,6 +4,8 @@ use std::fs;
 use std::str;
 use std::time::Duration;
 
+#[cfg(feature = "basic-auth")]
+use base64::Engine;
 use http::{
     header::{
         HeaderMap, HeaderValue, IntoHeaderName, ACCEPT, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING,
@@ -133,7 +135,7 @@ impl<B> RequestBuilder<B> {
         };
         self.header(
             http::header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(auth.as_bytes())),
+            format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(auth.as_bytes())),
         )
     }
 
