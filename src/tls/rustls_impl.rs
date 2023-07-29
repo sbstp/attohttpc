@@ -138,6 +138,11 @@ where
 
                 Ok(0)
             }
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                // In some cases the server does not terminate the connection cleanly
+                // We just turn that error into EOF.
+                Ok(0)
+            }
             res => res,
         }
     }
