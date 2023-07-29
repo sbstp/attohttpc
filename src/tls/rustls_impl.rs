@@ -59,7 +59,7 @@ impl TlsHandshaker {
                 let mut root_store = RootCertStore::empty();
 
                 #[cfg(feature = "tls-rustls-webpki-roots")]
-                root_store.add_server_trust_anchors(TLS_SERVER_ROOTS.0.iter().map(|root| {
+                root_store.add_server_trust_anchors(TLS_SERVER_ROOTS.iter().map(|root| {
                     OwnedTrustAnchor::from_subject_spki_name_constraints(root.subject, root.spki, root.name_constraints)
                 }));
 
