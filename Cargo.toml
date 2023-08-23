@@ -29,7 +29,7 @@ serde = {version = "1.0.143", optional = true}
 serde_json = {version = "1.0.83", optional = true}
 serde_urlencoded = {version = "0.7.1", optional = true}
 url = "2.2.2"
-webpki = {version = "0.22.0", optional = true}
+rustls-webpki = {version = "0.101.4", optional = true}
 webpki-roots = {version = "0.25.1", optional = true}
 
 [dev-dependencies]
@@ -69,7 +69,7 @@ rustls = ["tls-rustls-webpki-roots"]
 tls-rustls = ["tls-rustls-webpki-roots"]
 tls-vendored = ["tls-native-vendored"]
 # Internal feature used to indicate rustls support
-__rustls = ["rustls-opt-dep", "webpki"]
+__rustls = ["rustls-opt-dep", "rustls-webpki"]
 
 [package.metadata.docs.rs]
 all-features = true
