@@ -5,6 +5,7 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 
 use futures_util::future::try_join;
+use http02 as http;
 use hyper::server::conn::AddrIncoming;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;

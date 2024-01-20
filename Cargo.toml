@@ -18,7 +18,7 @@ base64 = {version = "0.21.2", optional = true}
 encoding_rs = {version = "0.8.31", optional = true}
 encoding_rs_io = {version = "0.1.7", optional = true}
 flate2 = {version = "1.0.24", default-features = false, optional = true}
-http = "0.2.8"
+http = "1"
 log = "0.4.17"
 mime = {version = "0.3.16", optional = true}
 multipart = {version = "0.18.0", default-features = false, features = ["client"], optional = true}
@@ -36,6 +36,7 @@ anyhow = "1.0.61"
 env_logger = "0.10.0"
 futures = "0.3.23"
 futures-util = "0.3.23"
+http02 = {package = "http", version = "0.2"}
 hyper = "0.14.20"
 lazy_static = "1.4.0"
 multipart = {version = "0.18.0", default-features = false, features = ["server"]}
