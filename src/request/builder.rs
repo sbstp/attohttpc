@@ -135,7 +135,10 @@ impl<B> RequestBuilder<B> {
         };
         self.header(
             http::header::AUTHORIZATION,
-            format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(auth.as_bytes())),
+            format!(
+                "Basic {}",
+                base64::engine::general_purpose::STANDARD.encode(auth.as_bytes())
+            ),
         )
     }
 
