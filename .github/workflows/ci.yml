@@ -31,6 +31,7 @@ jobs:
         with:
           toolchain: stable
       - run: rustup component add clippy
+      - run: cargo fmt --check
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
