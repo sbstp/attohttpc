@@ -1,24 +1,25 @@
-use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::fmt;
 use std::io;
 use std::io::prelude::*;
 use std::sync::Arc;
-use std::time::SystemTime;
 
-#[cfg(feature = "tls-rustls-webpki-roots")]
-use rustls::OwnedTrustAnchor;
 use rustls::{
-    client::{ServerCertVerified, ServerCertVerifier, WebPkiVerifier},
-    ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned,
+    client::{
+        danger::{DangerousClientConfigBuilder, HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+        WebPkiServerVerifier,
+    },
+    ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme, StreamOwned,
 };
 #[cfg(feature = "tls-rustls-native-roots")]
 use rustls_native_certs::load_native_certs;
+use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 #[cfg(feature = "tls-rustls-webpki-roots")]
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::{Error, ErrorKind, Result};
 
-pub type Certificate = rustls::Certificate;
+pub type Certificate = CertificateDer<'static>;
 
 pub struct TlsHandshaker {
     inner: Option<Arc<ClientConfig>>,
@@ -59,36 +60,33 @@ impl TlsHandshaker {
                 let mut root_store = RootCertStore::empty();
 
                 #[cfg(feature = "tls-rustls-webpki-roots")]
-                root_store.add_server_trust_anchors(TLS_SERVER_ROOTS.iter().map(|root| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(root.subject, root.spki, root.name_constraints)
-                }));
+                root_store.extend(TLS_SERVER_ROOTS.iter().cloned());
 
                 #[cfg(feature = "tls-rustls-native-roots")]
-                for native_cert in load_native_certs()? {
-                    let cert = rustls::Certificate(native_cert.0);
+                for cert in load_native_certs()? {
                     // Inspired by https://github.com/seanmonstar/reqwest/blob/231b18f83572836c674404b33cb1ca8b35ca3e36/src/async_impl/client.rs#L363-L365
                     // Native certificate stores often include certificates with invalid formats,
                     // but we don't want those invalid entries to invalidate the entire process of
                     // loading native root certificates
-                    if let Err(e) = root_store.add(&cert) {
+                    if let Err(e) = root_store.add(cert) {
                         warn!("Could not load native root certificate: {}", e);
                     }
                 }
 
-                for cert in &self.additional_certs {
+                for cert in self.additional_certs.iter().cloned() {
                     root_store.add(cert)?;
                 }
 
-                let config = Arc::new(
-                    ClientConfig::builder()
-                        .with_safe_defaults()
-                        .with_custom_certificate_verifier(Arc::new(CustomCertVerifier {
-                            upstream: WebPkiVerifier::new(root_store, None),
-                            accept_invalid_certs: self.accept_invalid_certs,
-                            accept_invalid_hostnames: self.accept_invalid_hostnames,
-                        }))
-                        .with_no_client_auth(),
-                );
+                let config = DangerousClientConfigBuilder {
+                    cfg: ClientConfig::builder(),
+                }
+                .with_custom_certificate_verifier(Arc::new(CustomCertVerifier {
+                    upstream: WebPkiServerVerifier::builder(root_store.into()).build()?,
+                    accept_invalid_certs: self.accept_invalid_certs,
+                    accept_invalid_hostnames: self.accept_invalid_hostnames,
+                }))
+                .with_no_client_auth()
+                .into();
 
                 self.inner = Some(Arc::clone(&config));
 
@@ -101,9 +99,9 @@ impl TlsHandshaker {
     where
         S: Read + Write,
     {
-        let domain = domain
-            .try_into()
-            .map_err(|_| Error(Box::new(ErrorKind::InvalidDNSName(domain.to_owned()))))?;
+        let domain = ServerName::try_from(domain)
+            .map_err(|_| Error(Box::new(ErrorKind::InvalidDNSName(domain.to_owned()))))?
+            .to_owned();
         let config = self.client_config()?;
         let mut session = ClientConnection::new(config, domain)?;
 
@@ -184,24 +182,29 @@ where
 }
 
 struct CustomCertVerifier {
-    upstream: WebPkiVerifier,
+    upstream: Arc<WebPkiServerVerifier>,
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
+}
+
+impl fmt::Debug for CustomCertVerifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("CustomCertVerifier").finish()
+    }
 }
 
 impl ServerCertVerifier for CustomCertVerifier {
     fn verify_server_cert(
         &self,
-        end_entity: &Certificate,
-        intermediates: &[Certificate],
+        end_entity: &CertificateDer,
+        intermediates: &[CertificateDer],
         server_name: &ServerName,
-        scts: &mut dyn Iterator<Item = &[u8]>,
         ocsp_response: &[u8],
-        now: SystemTime,
+        now: UnixTime,
     ) -> std::result::Result<ServerCertVerified, rustls::Error> {
         match self
             .upstream
-            .verify_server_cert(end_entity, intermediates, server_name, scts, ocsp_response, now)
+            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
         {
             Err(rustls::Error::NoCertificatesPresented | rustls::Error::InvalidCertificate(_))
                 if self.accept_invalid_certs =>
@@ -217,5 +220,37 @@ impl ServerCertVerifier for CustomCertVerifier {
 
             upstream => upstream,
         }
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.upstream.supported_verify_schemes()
     }
 }

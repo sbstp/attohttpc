@@ -89,6 +89,9 @@ pub enum ErrorKind {
     InvalidMimeType(String),
     /// TLS was not enabled by features.
     TlsDisabled,
+    /// Empty cert store
+    #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+    ServerCertVerifier(rustls::client::VerifierBuilderError),
 }
 
 /// A type that contains all the errors that can possibly occur while accessing an HTTP server.
@@ -132,6 +135,8 @@ impl Display for Error {
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {e}"),
             InvalidMimeType(ref e) => write!(w, "Invalid mime type: {e}"),
             TlsDisabled => write!(w, "TLS is disabled, activate one of the tls- features"),
+            #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+            ServerCertVerifier(ref e) => write!(w, "Invalid certificate: {e}"),
         }
     }
 }
@@ -213,6 +218,13 @@ impl From<ErrorKind> for Error {
 impl From<InvalidResponseKind> for Error {
     fn from(kind: InvalidResponseKind) -> Error {
         ErrorKind::InvalidResponse(kind).into()
+    }
+}
+
+#[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+impl From<rustls::client::VerifierBuilderError> for Error {
+    fn from(err: rustls::client::VerifierBuilderError) -> Error {
+        Error(Box::new(ErrorKind::ServerCertVerifier(err)))
     }
 }
 

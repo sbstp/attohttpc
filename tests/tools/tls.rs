@@ -13,7 +13,7 @@ use futures::ready;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_rustls::rustls::{ServerConfig, Error as TLSError, PrivateKey, Certificate};
+use tokio_rustls::rustls::{Error as TLSError, ServerConfig};
 
 /// Represents errors that can occur building the TlsConfig
 #[derive(Debug)]
@@ -21,10 +21,6 @@ pub(crate) enum TlsConfigError {
     Io(io::Error),
     /// An Error parsing the Certificate
     CertParseError,
-    /// An Error parsing a Pkcs8 key
-    Pkcs8ParseError,
-    /// An Error parsing a Rsa key
-    RsaParseError,
     /// An error from an empty key
     EmptyKey,
     /// An error from an invalid key
@@ -36,8 +32,6 @@ impl std::fmt::Display for TlsConfigError {
         match self {
             TlsConfigError::Io(err) => err.fmt(f),
             TlsConfigError::CertParseError => write!(f, "certificate parse error"),
-            TlsConfigError::Pkcs8ParseError => write!(f, "pkcs8 parse error"),
-            TlsConfigError::RsaParseError => write!(f, "rsa parse error"),
             TlsConfigError::EmptyKey => write!(f, "key contains no private key"),
             TlsConfigError::InvalidKey(err) => write!(f, "key contains an invalid key, {err}"),
         }
@@ -45,6 +39,12 @@ impl std::fmt::Display for TlsConfigError {
 }
 
 impl std::error::Error for TlsConfigError {}
+
+impl From<io::Error> for TlsConfigError {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err)
+    }
+}
 
 /// Builder to set the configuration for the Tls server.
 pub(crate) struct TlsConfigBuilder {
@@ -81,41 +81,20 @@ impl TlsConfigBuilder {
         self
     }
 
-    pub(crate) fn build(mut self) -> Result<ServerConfig, TlsConfigError> {
+    pub(crate) fn build(self) -> Result<ServerConfig, TlsConfigError> {
         let mut cert_rdr = BufReader::new(self.cert);
         let cert = rustls_pemfile::certs(&mut cert_rdr)
-            .map_err(|_| TlsConfigError::CertParseError)?.into_iter().map(Certificate).collect();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| TlsConfigError::CertParseError)?;
 
-        let key = {
-            // convert it to Vec<u8> to allow reading it again if key is RSA
-            let mut key_vec = Vec::new();
-            self.key.read_to_end(&mut key_vec).map_err(TlsConfigError::Io)?;
-
-            if key_vec.is_empty() {
-                return Err(TlsConfigError::EmptyKey);
-            }
-
-            let mut pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut key_vec.as_slice())
-                .map_err(|_| TlsConfigError::Pkcs8ParseError)?;
-
-            if !pkcs8.is_empty() {
-                PrivateKey(pkcs8.remove(0))
-            } else {
-                let mut rsa = rustls_pemfile::rsa_private_keys(&mut key_vec.as_slice())
-                    .map_err(|_| TlsConfigError::RsaParseError)?;
-
-                if !rsa.is_empty() {
-                    PrivateKey(rsa.remove(0))
-                } else {
-                    return Err(TlsConfigError::EmptyKey);
-                }
-            }
+        let Some(key) = rustls_pemfile::private_key(&mut BufReader::new(self.key))? else {
+            return Err(TlsConfigError::EmptyKey);
         };
 
         let config = ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth().
-            with_single_cert_with_ocsp_and_sct(cert, key, self.ocsp_resp, Vec::new()).map_err(TlsConfigError::InvalidKey)?;
+            .with_no_client_auth()
+            .with_single_cert_with_ocsp(cert, key, self.ocsp_resp)
+            .map_err(TlsConfigError::InvalidKey)?;
         Ok(config)
     }
 }
