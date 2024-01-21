@@ -9,11 +9,11 @@ use rustls::{
         danger::{DangerousClientConfigBuilder, HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
         WebPkiServerVerifier,
     },
+    pki_types::{CertificateDer, ServerName, UnixTime},
     ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme, StreamOwned,
 };
 #[cfg(feature = "tls-rustls-native-roots")]
 use rustls_native_certs::load_native_certs;
-use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 #[cfg(feature = "tls-rustls-webpki-roots")]
 use webpki_roots::TLS_SERVER_ROOTS;
 
