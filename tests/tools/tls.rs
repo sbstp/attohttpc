@@ -7,9 +7,8 @@ use std::io::{self, BufReader, Cursor, Read};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, ready};
 
-use futures::ready;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
