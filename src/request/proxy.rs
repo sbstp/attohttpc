@@ -218,13 +218,10 @@ fn with_reset_proxy_vars<T>(test: T)
 where
     T: FnOnce() + std::panic::UnwindSafe,
 {
-    use std::sync::Mutex;
+    use std::sync::{Mutex, OnceLock};
 
-    lazy_static::lazy_static! {
-        static ref LOCK: Mutex<()> = Mutex::new(());
-    };
-
-    let _guard = LOCK.lock().unwrap();
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let _guard = LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
 
     env::remove_var("ALL_PROXY");
     env::remove_var("HTTP_PROXY");
