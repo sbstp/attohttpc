@@ -2,8 +2,6 @@ mod tools;
 
 use url::Url;
 
-use attohttpc::ResponseExt;
-
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
@@ -22,7 +20,7 @@ async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
 
     let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
 
-    assert_eq!(resp.text().unwrap(), "hello");
+    assert_eq!(resp.into_body().text().unwrap(), "hello");
 
     Ok(())
 }
@@ -46,7 +44,7 @@ async fn test_http_url_with_https_proxy() -> Result<(), anyhow::Error> {
 
     let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
 
-    assert_eq!(resp.text().unwrap(), "hello");
+    assert_eq!(resp.into_body().text().unwrap(), "hello");
 
     Ok(())
 }
@@ -70,7 +68,7 @@ async fn test_https_url_with_http_proxy() -> Result<(), anyhow::Error> {
 
     let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
 
-    assert_eq!(resp.text().unwrap(), "hello");
+    assert_eq!(resp.into_body().text().unwrap(), "hello");
 
     Ok(())
 }
@@ -95,7 +93,7 @@ async fn test_https_url_with_https_proxy() -> Result<(), anyhow::Error> {
     let resp = sess.get(remote_url).danger_accept_invalid_certs(true).send().unwrap();
 
     assert_eq!(resp.status().as_u16(), 200);
-    assert_eq!(resp.text().unwrap(), "hello");
+    assert_eq!(resp.into_body().text().unwrap(), "hello");
 
     Ok(())
 }
@@ -120,7 +118,7 @@ async fn test_http_url_with_http_proxy_refusal() -> Result<(), anyhow::Error> {
         .unwrap();
 
     assert_eq!(resp.status().as_u16(), 400);
-    assert_eq!(resp.text().unwrap(), "bad request");
+    assert_eq!(resp.into_body().text().unwrap(), "bad request");
 
     Ok(())
 }
@@ -173,7 +171,7 @@ async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
         .unwrap();
 
     assert_eq!(resp.status().as_u16(), 400);
-    assert_eq!(resp.text().unwrap(), "bad request");
+    assert_eq!(resp.into_body().text().unwrap(), "bad request");
 
     Ok(())
 }

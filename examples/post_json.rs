@@ -1,7 +1,5 @@
 use serde_json::json;
 
-use attohttpc::ResponseExt;
-
 fn main() -> attohttpc::Result {
     env_logger::init();
 
@@ -12,7 +10,7 @@ fn main() -> attohttpc::Result {
     let resp = attohttpc::post("http://httpbin.org/post").json(&body)?.send()?;
     println!("Status: {:?}", resp.status());
     println!("Headers:\n{:#?}", resp.headers());
-    println!("Body:\n{}", resp.text_utf8()?);
+    println!("Body:\n{}", resp.into_body().text_utf8()?);
 
     Ok(())
 }

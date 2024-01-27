@@ -1,11 +1,11 @@
-use attohttpc::{ResponseExt, Result, Session};
+use attohttpc::{Result, Session};
 
 fn main() -> Result {
     let mut sess = Session::new();
     sess.header("Authorization", "Bearer please let me in!");
 
     let resp = sess.get("https://httpbin.org/get").send()?;
-    println!("{}", resp.text()?);
+    println!("{}", resp.into_body().text()?);
 
     Ok(())
 }

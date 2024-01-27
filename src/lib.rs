@@ -30,7 +30,7 @@
 //! // Check if the status is a 2XX code.
 //! if resp.is_success() {
 //!     // Consume the response body as text and print it.
-//!     println!("{}", resp.text()?);
+//!     println!("{}", resp.into_body().text()?);
 //! }
 //! # Ok(())
 //! # }

@@ -105,7 +105,7 @@ mod tests {
     use super::have_encoding;
     use crate::parsing::response::parse_response;
     use crate::streams::BaseStream;
-    use crate::{PreparedRequest, ResponseExt};
+    use crate::PreparedRequest;
 
     #[test]
     #[cfg(feature = "flate2")]
@@ -159,7 +159,7 @@ mod tests {
 
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req).unwrap();
-        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.into_body().text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]
@@ -182,7 +182,7 @@ mod tests {
 
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req).unwrap();
-        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.into_body().text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]
@@ -206,7 +206,7 @@ mod tests {
         let sock = BaseStream::mock(buf);
         let response = parse_response(sock, &req).unwrap();
 
-        assert_eq!(response.text().unwrap(), "Hello world!!!!!!!!");
+        assert_eq!(response.into_body().text().unwrap(), "Hello world!!!!!!!!");
     }
 
     #[test]
