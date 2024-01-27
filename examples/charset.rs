@@ -1,3 +1,5 @@
+use attohttpc::ResponseExt;
+
 fn main() -> Result<(), attohttpc::Error> {
     env_logger::init();
 
