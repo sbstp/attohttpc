@@ -8,6 +8,8 @@ use multipart::server::Multipart;
 use tokio::runtime::Builder;
 use warp::Filter;
 
+use attohttpc::ResponseExt;
+
 fn start_server() -> (u16, Receiver<Option<String>>) {
     let (send, recv) = sync_channel(1);
     let rt = Builder::new_multi_thread().enable_io().enable_time().build().unwrap();
@@ -92,7 +94,6 @@ fn test_multipart_default() -> attohttpc::Result<()> {
     attohttpc::post(format!("http://localhost:{port}/multipart"))
         .body(form)
         .send()?
-        .into_body()
         .text()?;
 
     if let Some(err) = recv.recv().unwrap() {

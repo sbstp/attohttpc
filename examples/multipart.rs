@@ -1,3 +1,5 @@
+use attohttpc::ResponseExt;
+
 fn main() -> attohttpc::Result {
     env_logger::init();
 
@@ -13,7 +15,7 @@ fn main() -> attohttpc::Result {
 
     println!("Status: {:?}", resp.status());
     println!("Headers:\n{:#?}", resp.headers());
-    println!("Body:\n{}", resp.into_body().text()?);
+    println!("Body:\n{}", resp.text()?);
 
     Ok(())
 }

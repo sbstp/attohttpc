@@ -10,7 +10,7 @@ fn main() -> attohttpc::Result {
     println!("Headers:\n{:#?}", resp.headers());
     if resp.is_success() {
         let file = File::create("title.basics.tsv.gz")?;
-        let n = resp.into_body().write_to(file)?;
+        let n = resp.write_to(file)?;
         println!("Wrote {n} bytes to the file.");
     }
 

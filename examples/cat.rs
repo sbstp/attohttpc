@@ -1,6 +1,6 @@
 use std::env;
 
-use attohttpc::Result;
+use attohttpc::{ResponseExt, Result};
 
 fn main() -> Result {
     env_logger::init();
@@ -10,7 +10,7 @@ fn main() -> Result {
     let resp = attohttpc::get(url).send()?;
     println!("Status: {:?}", resp.status());
     println!("Headers:\n{:#?}", resp.headers());
-    println!("Body:\n{}", resp.into_body().text()?);
+    println!("Body:\n{}", resp.text()?);
 
     Ok(())
 }
