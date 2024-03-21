@@ -301,6 +301,11 @@ impl<B> RequestBuilder<B> {
         self
     }
 
+    /// Get a mutable reference to headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.base_settings.headers
+    }
+
     /// Set the maximum number of redirections this request can perform.
     ///
     /// The default is 5.
