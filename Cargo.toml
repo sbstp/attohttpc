@@ -41,7 +41,7 @@ lazy_static = "1.4.0"
 multipart = {version = "0.18.0", default-features = false, features = ["server"]}
 rustls-pemfile = "2"
 tokio = {version = "1.20.1", features = ["full"]}
-tokio-rustls = "0.25.0"
+tokio-rustls = "0.26.0"
 tokio-stream = {version = "0.1.9", features = ["net"]}
 warp = "0.3.2"
 
