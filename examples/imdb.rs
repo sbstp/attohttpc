@@ -1,5 +1,7 @@
 use std::fs::File;
 
+use attohttpc::ResponseExt;
+
 fn main() -> attohttpc::Result {
     env_logger::init();
 

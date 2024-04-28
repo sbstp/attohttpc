@@ -8,6 +8,8 @@ use multipart::server::Multipart;
 use tokio::runtime::Builder;
 use warp::Filter;
 
+use attohttpc::ResponseExt;
+
 fn start_server() -> (u16, Receiver<Option<String>>) {
     let (send, recv) = sync_channel(1);
     let rt = Builder::new_multi_thread().enable_io().enable_time().build().unwrap();

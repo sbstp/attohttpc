@@ -1,4 +1,4 @@
-use attohttpc::{Result, Session};
+use attohttpc::{ResponseExt, Result, Session};
 
 fn main() -> Result {
     let mut sess = Session::new();

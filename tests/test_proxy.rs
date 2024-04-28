@@ -2,6 +2,8 @@ mod tools;
 
 use url::Url;
 
+use attohttpc::ResponseExt;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_http_url_with_http_proxy() -> Result<(), anyhow::Error> {
     let remote_port = tools::start_hello_world_server(false).await?;
