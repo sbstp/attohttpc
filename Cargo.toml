@@ -3,9 +3,13 @@ authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
 name = "attohttpc"
-version = "0.28.0"
+version = "0.28.1"
 
-categories = ["network-programming", "web-programming", "web-programming::http-client"]
+categories = [
+    "network-programming",
+    "web-programming",
+    "web-programming::http-client",
+]
 description = "Small and lightweight HTTP client"
 documentation = "https://docs.rs/attohttpc"
 homepage = "https://github.com/sbstp/attohttpc"
@@ -14,35 +18,42 @@ readme = "README.md"
 repository = "https://github.com/sbstp/attohttpc"
 
 [dependencies]
-base64 = {version = "0.22.0", optional = true}
-encoding_rs = {version = "0.8.31", optional = true}
-encoding_rs_io = {version = "0.1.7", optional = true}
-flate2 = {version = "1.0.24", default-features = false, optional = true}
+base64 = { version = "0.22.0", optional = true }
+encoding_rs = { version = "0.8.31", optional = true }
+encoding_rs_io = { version = "0.1.7", optional = true }
+flate2 = { version = "1.0.24", default-features = false, optional = true }
 http = "1"
 log = "0.4.17"
-mime = {version = "0.3.16", optional = true}
-multipart = {version = "0.18.0", default-features = false, features = ["client"], optional = true}
-native-tls = {version = "0.2.10", optional = true}
-rustls-native-certs = {version = "0.7", optional = true}
-rustls-opt-dep = {package = "rustls", version = "0.23.0", default-features = false, features = ["ring", "std"], optional = true}
-serde = {version = "1.0.143", optional = true}
-serde_json = {version = "1.0.83", optional = true}
-serde_urlencoded = {version = "0.7.1", optional = true}
+mime = { version = "0.3.16", optional = true }
+multipart = { version = "0.18.0", default-features = false, features = [
+    "client",
+], optional = true }
+native-tls = { version = "0.2.10", optional = true }
+rustls-native-certs = { version = "0.7", optional = true }
+rustls-opt-dep = { package = "rustls", version = "0.23.0", default-features = false, features = [
+    "ring",
+    "std",
+], optional = true }
+serde = { version = "1.0.143", optional = true }
+serde_json = { version = "1.0.83", optional = true }
+serde_urlencoded = { version = "0.7.1", optional = true }
 url = "2.2.2"
-webpki-roots = {version = "0.26.0", optional = true}
+webpki-roots = { version = "0.26.0", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.61"
 env_logger = "0.11.0"
-futures-util = {version = "0.3.23", default-features = false}
-http02 = {package = "http", version = "0.2"}
+futures-util = { version = "0.3.23", default-features = false }
+http02 = { package = "http", version = "0.2" }
 hyper = "0.14.20"
 lazy_static = "1.4.0"
-multipart = {version = "0.18.0", default-features = false, features = ["server"]}
+multipart = { version = "0.18.0", default-features = false, features = [
+    "server",
+] }
 rustls-pemfile = "2"
-tokio = {version = "1.20.1", features = ["full"]}
+tokio = { version = "1.20.1", features = ["full"] }
 tokio-rustls = "0.25.0"
-tokio-stream = {version = "0.1.9", features = ["net"]}
+tokio-stream = { version = "0.1.9", features = ["net"] }
 warp = "0.3.2"
 
 [features]
