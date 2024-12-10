@@ -33,6 +33,7 @@ rustls-native-certs = { version = "0.7", optional = true }
 rustls-opt-dep = { package = "rustls", version = "0.23.0", default-features = false, features = [
     "ring",
     "std",
+    "tls12",
 ], optional = true }
 serde = { version = "1.0.143", optional = true }
 serde_json = { version = "1.0.83", optional = true }
