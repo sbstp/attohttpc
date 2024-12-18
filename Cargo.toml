@@ -3,7 +3,7 @@ authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
 edition = "2018"
 license = "MPL-2.0"
 name = "attohttpc"
-version = "0.28.1"
+version = "0.28.2"
 
 categories = [
     "network-programming",
