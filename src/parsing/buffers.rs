@@ -125,10 +125,10 @@ fn test_read_line_lf() {
     let mut reader = BufReader::new(&b"hello\nworld\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(6));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(6));
     assert_eq!(line, b"hello");
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(6));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(6));
     assert_eq!(line, b"world");
 }
 
@@ -137,10 +137,10 @@ fn test_read_line_crlf() {
     let mut reader = BufReader::new(&b"hello\r\nworld\r\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(7));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(7));
     assert_eq!(line, b"hello");
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(7));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(7));
     assert_eq!(line, b"world");
 }
 
@@ -149,7 +149,7 @@ fn test_read_line_empty_crlf() {
     let mut reader = BufReader::new(&b"\r\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(2));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(2));
     assert_eq!(line, b"");
 }
 
@@ -158,7 +158,7 @@ fn test_read_line_empty_lf() {
     let mut reader = BufReader::new(&b"\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(read_line(&mut reader, &mut line, u64::max_value()).ok(), Some(1));
+    assert_eq!(read_line(&mut reader, &mut line, u64::MAX).ok(), Some(1));
     assert_eq!(line, b"");
 }
 
@@ -179,10 +179,7 @@ fn test_read_line_strict() {
     let mut reader = BufReader::new(&b"foo\r\nbar\r\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(
-        read_line_strict(&mut reader, &mut line, u64::max_value()).ok(),
-        Some(3 + 2)
-    );
+    assert_eq!(read_line_strict(&mut reader, &mut line, u64::MAX).ok(), Some(3 + 2));
     assert_eq!(line, b"foo");
 }
 
@@ -191,7 +188,7 @@ fn test_read_line_strict_empty_crlf() {
     let mut reader = BufReader::new(&b"\r\n"[..]);
     let mut line = Vec::new();
 
-    assert_eq!(read_line_strict(&mut reader, &mut line, u64::max_value()).ok(), Some(2));
+    assert_eq!(read_line_strict(&mut reader, &mut line, u64::MAX).ok(), Some(2));
     assert_eq!(line, b"");
 }
 
@@ -201,9 +198,7 @@ fn test_read_line_strict_missing_crlf() {
     let mut line = Vec::new();
 
     assert_eq!(
-        read_line_strict(&mut reader, &mut line, u64::max_value())
-            .unwrap_err()
-            .kind(),
+        read_line_strict(&mut reader, &mut line, u64::MAX).unwrap_err().kind(),
         io::ErrorKind::UnexpectedEof
     );
     assert_eq!(line, b"foo\n");
@@ -215,7 +210,7 @@ fn test_read_line_strict_inner_lf() {
     let mut line = Vec::new();
 
     assert_eq!(
-        read_line_strict(&mut reader, &mut line, u64::max_value()).ok(),
+        read_line_strict(&mut reader, &mut line, u64::MAX).ok(),
         Some(10 + 3 + 2)
     );
     assert_eq!(line, b"123\n456\n789\n0");
@@ -227,7 +222,7 @@ fn test_read_line_strict_inner_cr() {
     let mut line = Vec::new();
 
     assert_eq!(
-        read_line_strict(&mut reader, &mut line, u64::max_value()).ok(),
+        read_line_strict(&mut reader, &mut line, u64::MAX).ok(),
         Some(10 + 3 + 2)
     );
     assert_eq!(line, b"123\r456\r789\r0");

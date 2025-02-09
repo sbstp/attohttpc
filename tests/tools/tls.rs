@@ -1,10 +1,8 @@
 // This code has been taken from the warp project and slightly modified: https://github.com/seanmonstar/warp/blob/master/src/tls.rs
 // It's needed to create a hyper TLS server.
 
-use std::fs::File;
 use std::future::Future;
 use std::io::{self, BufReader, Cursor, Read};
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{ready, Context, Poll};
@@ -95,30 +93,6 @@ impl TlsConfigBuilder {
             .with_single_cert_with_ocsp(cert, key, self.ocsp_resp)
             .map_err(TlsConfigError::InvalidKey)?;
         Ok(config)
-    }
-}
-
-struct LazyFile {
-    path: PathBuf,
-    file: Option<File>,
-}
-
-impl LazyFile {
-    fn lazy_read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.file.is_none() {
-            self.file = Some(File::open(&self.path)?);
-        }
-
-        self.file.as_mut().unwrap().read(buf)
-    }
-}
-
-impl Read for LazyFile {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.lazy_read(buf).map_err(|err| {
-            let kind = err.kind();
-            io::Error::new(kind, format!("error reading file ({:?}): {}", self.path.display(), err))
-        })
     }
 }
 
