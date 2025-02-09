@@ -1,6 +1,6 @@
 use std::env;
 
-use attohttpc::Result;
+use attohttpc::{ResponseExt, Result};
 
 fn main() -> Result {
     env_logger::init();

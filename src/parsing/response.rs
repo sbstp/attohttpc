@@ -1,23 +1,19 @@
-use std::io::{self, BufReader, Read, Write};
+use std::io::{BufReader, Read};
 use std::str;
 
 use http::{
     header::{HeaderName, HeaderValue, TRANSFER_ENCODING},
     HeaderMap, StatusCode,
 };
-use url::Url;
 
-use crate::error::{ErrorKind, InvalidResponseKind, Result};
+use crate::error::{InvalidResponseKind, Result};
 use crate::parsing::buffers::{self, trim_byte};
 use crate::parsing::{body_reader::BodyReader, compressed_reader::CompressedReader, ResponseReader};
 use crate::request::PreparedRequest;
 use crate::streams::BaseStream;
 
-#[cfg(feature = "charsets")]
-use crate::{charsets::Charset, parsing::TextReader};
-
-#[cfg(feature = "json")]
-use serde::de::DeserializeOwned;
+/// `Response` represents a response returned by a server.
+pub type Response = http::Response<ResponseReader>;
 
 pub fn parse_response_head<R>(reader: &mut BufReader<R>, max_headers: usize) -> Result<(StatusCode, HeaderMap)>
 where
@@ -75,7 +71,7 @@ where
     Ok((status, headers))
 }
 
-pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>, url: &Url) -> Result<Response> {
+pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>) -> Result<Response> {
     let mut reader = BufReader::new(reader);
     let (status, mut headers) = parse_response_head(&mut reader, request.base_settings.max_headers)?;
     let body_reader = BodyReader::new(&headers, reader)?;
@@ -85,180 +81,15 @@ pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>, url: 
     // Remove HOP-BY-HOP headers
     headers.remove(TRANSFER_ENCODING);
 
-    Ok(Response {
-        url: url.clone(),
-        status,
-        headers,
-        reader: response_reader,
-    })
+    let mut response = http::Response::new(response_reader);
+    *response.status_mut() = status;
+    *response.headers_mut() = headers;
+
+    Ok(response)
 }
 
-/// `Response` represents a response returned by a server.
-#[derive(Debug)]
-pub struct Response {
-    url: Url,
-    status: StatusCode,
-    headers: HeaderMap,
-    reader: ResponseReader,
-}
-
-impl Response {
-    /// Get the final URL of this `Response`.
-    #[inline]
-    pub fn url(&self) -> &Url {
-        &self.url
-    }
-
-    /// Get the status code of this `Response`.
-    #[inline]
-    pub fn status(&self) -> StatusCode {
-        self.status
-    }
-
-    /// Get the headers of this `Response`.
-    #[inline]
-    pub fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
-
-    /// Checks if the status code of this `Response` was a success code.
-    #[inline]
-    pub fn is_success(&self) -> bool {
-        self.status.is_success()
-    }
-
-    /// Returns error variant if the status code was not a success code.
-    pub fn error_for_status(self) -> Result<Self> {
-        if self.is_success() {
-            Ok(self)
-        } else {
-            Err(ErrorKind::StatusCode(self.status).into())
-        }
-    }
-
-    /// Split this `Response` into a tuple of `StatusCode`, `HeaderMap`, `ResponseReader`.
-    ///
-    /// This method is useful to read the status code or headers after consuming the response.
-    #[inline]
-    pub fn split(self) -> (StatusCode, HeaderMap, ResponseReader) {
-        (self.status, self.headers, self.reader)
-    }
-
-    /// Write the response to any object that implements `Write`.
-    #[inline]
-    pub fn write_to<W>(self, writer: W) -> Result<u64>
-    where
-        W: Write,
-    {
-        self.reader.write_to(writer)
-    }
-
-    /// Read the response to a `Vec` of bytes.
-    #[inline]
-    pub fn bytes(self) -> Result<Vec<u8>> {
-        self.reader.bytes()
-    }
-
-    /// Read the response to a `String`.
-    ///
-    /// If the `charsets` feature is enabled, it will try to decode the response using
-    /// the encoding in the headers. If there's no encoding specified in the headers,
-    /// it will fall back to the default encoding, and if that's also not specified,
-    /// it will fall back to the default of ISO-8859-1.
-    ///
-    /// If the `charsets` feature is disabled, this method is the same as calling
-    /// `text_utf8`.
-    ///
-    /// Note that both conversions are lossy, i.e. they will not raise errors when
-    /// invalid data is encountered but output replacement characters instead.
-    #[inline]
-    pub fn text(self) -> Result<String> {
-        self.reader.text()
-    }
-
-    /// Read the response to a `String`, decoding with the given `Charset`.
-    ///
-    /// This will ignore the encoding from the response headers and the default encoding, if any.
-    ///
-    /// This method only exists when the `charsets` feature is enabled.
-    #[cfg(feature = "charsets")]
-    #[inline]
-    pub fn text_with(self, charset: Charset) -> Result<String> {
-        self.reader.text_with(charset)
-    }
-
-    /// Create a `TextReader` from this `ResponseReader`.
-    ///
-    /// If the response headers contain charset information, that charset will be used to decode the body.
-    /// Otherwise, if a default encoding is set it will be used. If there is no default encoding, ISO-8859-1
-    /// will be used.
-    ///
-    /// This method only exists when the `charsets` feature is enabled.
-    #[cfg(feature = "charsets")]
-    pub fn text_reader(self) -> TextReader<BufReader<ResponseReader>> {
-        self.reader.text_reader()
-    }
-
-    /// Create a `TextReader` from this `ResponseReader`, decoding with the given `Charset`.
-    ///
-    /// This will ignore the encoding from the response headers and the default encoding, if any.
-    ///
-    /// This method only exists when the `charsets` feature is enabled.
-    #[cfg(feature = "charsets")]
-    #[inline]
-    pub fn text_reader_with(self, charset: Charset) -> TextReader<BufReader<ResponseReader>> {
-        self.reader.text_reader_with(charset)
-    }
-
-    /// Read the response body to a String using the UTF-8 encoding.
-    ///
-    /// This method ignores headers and the default encoding.
-    ///
-    /// Note that is lossy, i.e. it will not raise errors when
-    /// invalid data is encountered but output replacement characters instead.
-    #[inline]
-    pub fn text_utf8(self) -> Result<String> {
-        self.reader.text_utf8()
-    }
-
-    /// Parse the response as a JSON object and return it.
-    ///
-    /// If the `charsets` feature is enabled, it will try to decode the response using
-    /// the encoding in the headers. If there's no encoding specified in the headers,
-    /// it will fall back to the default encoding, and if that's also not specified,
-    /// it will fall back to the default of ISO-8859-1.
-    ///
-    /// If the `charsets` feature is disabled, this method is the same as calling
-    /// `json_utf8`.
-    #[cfg(feature = "json")]
-    #[inline]
-    pub fn json<T>(self) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        self.reader.json()
-    }
-
-    /// Parse the response as a JSON object encoded in UTF-8.
-    ///
-    /// This method ignores headers and the default encoding.
-    ///
-    /// This method only exists when the `json` feature is enabled.
-    #[cfg(feature = "json")]
-    #[inline]
-    pub fn json_utf8<T>(self) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        self.reader.json_utf8()
-    }
-}
-
-impl Read for Response {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.reader.read(buf)
-    }
-}
+#[cfg(test)]
+use crate::ErrorKind;
 
 #[test]
 fn test_read_request_head() {

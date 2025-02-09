@@ -14,6 +14,8 @@
 //! # #[cfg(feature = "json")]
 //! # use serde_json::json;
 //! # #[cfg(feature = "json")]
+//! # use attohttpc::ResponseExt;
+//! # #[cfg(feature = "json")]
 //! # fn main() -> attohttpc::Result {
 //! let obj = json!({
 //!     "hello": "world",
@@ -85,7 +87,7 @@ mod tls;
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
 #[cfg(feature = "multipart")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
-pub use crate::parsing::{Response, ResponseReader};
+pub use crate::parsing::{Response, ResponseExt, ResponseReader};
 pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
 pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
 #[cfg(feature = "charsets")]
