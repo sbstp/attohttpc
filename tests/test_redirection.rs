@@ -1,25 +1,37 @@
 use std::net::SocketAddr;
 
 use attohttpc::ErrorKind;
-use http02 as http;
-use tokio_stream::wrappers::TcpListenerStream;
-use warp::Filter;
+use axum::body::Body;
+use axum::response::Response;
+use axum::routing::get;
+use axum::Router;
+use http::StatusCode;
 
 async fn make_server() -> Result<u16, anyhow::Error> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
     let incoming = tokio::net::TcpListener::bind(&addr).await?;
     let local_addr = incoming.local_addr()?;
 
-    let a = warp::path("301").map(|| warp::redirect::redirect(http::Uri::from_static("/301")));
-    let b = warp::path("304").map(|| {
-        http::Response::builder()
-            .header("Location", "/304")
-            .status(http::StatusCode::NOT_MODIFIED)
-            .body("")
-    });
+    async fn x301() -> Response {
+        Response::builder()
+            .status(StatusCode::MOVED_PERMANENTLY)
+            .header("Location", "/301")
+            .body(Body::from(""))
+            .unwrap()
+    }
 
-    let server = warp::serve(a.or(b)).serve_incoming(TcpListenerStream::new(incoming));
-    tokio::spawn(server);
+    async fn x304() -> Response {
+        Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .body(Body::from(""))
+            .unwrap()
+    }
+
+    let app = Router::new().route("/301", get(x301)).route("/304", get(x304));
+
+    tokio::spawn(async move {
+        axum::serve(incoming, app).await.unwrap();
+    });
 
     Ok(local_addr.port())
 }

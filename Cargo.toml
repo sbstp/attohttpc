@@ -1,5 +1,5 @@
 [package]
-authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
+authors = ["Simon Bernier St-Pierre <git.sbstp.ca@gmail.com>"]
 edition = "2018"
 license = "MPL-2.0"
 name = "attohttpc"
@@ -38,24 +38,30 @@ rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = f
 serde = { version = "1.0.143", optional = true }
 serde_json = { version = "1.0.83", optional = true }
 serde_urlencoded = { version = "0.7.1", optional = true }
+tokio-rustls = "0.26.1"
 url = "2.2.2"
 webpki-roots = { version = "0.26.8", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.61"
+axum = { version = "0.8.1", features = ["multipart"] }
+axum-server = { version = "0.7.1", features = ["tls-rustls"] }
+bytes = "1.10.0"
 env_logger = "0.11.0"
-futures-util = { version = "0.3.23", default-features = false }
-http02 = { package = "http", version = "0.2" }
-hyper = "0.14.20"
+http-body-util = "0.1.2"
+hyper = { version = "1.6.0", features = ["full"] }
+hyper-util = "0.1.10"
 lazy_static = "1.4.0"
 multipart = { version = "0.18.0", default-features = false, features = [
     "server",
 ] }
+rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+] }
 rustls-pemfile = "2"
 tokio = { version = "1.20.1", features = ["full"] }
-tokio-rustls = "0.25.0"
-tokio-stream = { version = "0.1.9", features = ["net"] }
-warp = "0.3.2"
 
 [features]
 basic-auth = ["base64"]

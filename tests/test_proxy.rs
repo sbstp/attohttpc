@@ -179,8 +179,6 @@ async fn test_http_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
 #[cfg(any(feature = "tls-native", feature = "__rustls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_https_url_with_https_proxy_refusal() -> Result<(), anyhow::Error> {
-    // env_logger::init();
-
     let proxy_port = tools::start_refusing_proxy_server(true).await?;
     let proxy_url = Url::parse(&format!("https://localhost:{proxy_port}")).unwrap();
 

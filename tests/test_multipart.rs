@@ -1,85 +1,52 @@
-use std::io::{Cursor, Read};
-use std::net::SocketAddr;
-use std::sync::mpsc::{sync_channel, Receiver};
-use std::thread;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::time::Duration;
 
-use mime::Mime;
-use multipart::server::Multipart;
-use tokio::runtime::Builder;
-use warp::Filter;
+use axum::extract::{DefaultBodyLimit, Multipart, State};
+use axum::routing::post;
+use axum::Router;
+use bytes::Bytes;
 
-fn start_server() -> (u16, Receiver<Option<String>>) {
+#[derive(Debug, PartialEq, Eq)]
+struct Part {
+    name: Option<String>,
+    file_name: Option<String>,
+    content_type: Option<String>,
+    data: Bytes,
+}
+
+async fn start_server() -> (u16, Receiver<Vec<Part>>) {
     let (send, recv) = sync_channel(1);
-    let rt = Builder::new_multi_thread().enable_io().enable_time().build().unwrap();
-    // ported from warp::multipart, which has a length limit (and we're generic over Read)
-    let filter = warp::path("multipart")
-        .and(
-            warp::header::<Mime>("content-type")
-                .and_then(|ct: Mime| async move {
-                    ct.get_param("boundary")
-                        .map(|mime| mime.to_string())
-                        .ok_or_else(warp::reject::reject)
-                })
-                .and(warp::body::bytes())
-                .map(|boundary, bytes| Multipart::with_body(Cursor::new(bytes), boundary)),
-        )
-        .map(move |mut form: Multipart<_>| {
-            let mut found_text = false;
-            let mut found_file = false;
-            let mut err = false;
-            let mut buf = String::new();
-            form.foreach_entry(|mut entry| {
-                if err {
-                    return;
-                }
-                entry.data.read_to_string(&mut buf).unwrap();
-                if !found_text && &*entry.headers.name == "Hello" && buf == "world!" {
-                    found_text = true;
-                } else if !found_file
-                    && &*entry.headers.name == "file"
-                    && entry.headers.filename.as_deref() == Some("hello.txt")
-                    && entry.headers.content_type.as_ref().map(|x| x.as_ref() == "text/plain") == Some(true)
-                    && buf == "Hello, world!"
-                {
-                    found_file = true;
-                } else {
-                    send.send(Some(format!("Unexpected entry {:?} = {:?}", entry.headers, buf)))
-                        .unwrap();
-                    err = true;
-                }
-                buf.clear();
-            })
-            .unwrap();
-            if err {
-                return "ERR";
-            }
-            send.send(Some(
-                match (found_text, found_file) {
-                    (false, false) => "Missing both fields!",
-                    (true, false) => "Missing file field!",
-                    (false, true) => "Missing text field!",
-                    (true, true) => {
-                        send.send(None).unwrap();
-                        return "OK";
-                    }
-                }
-                .to_string(),
-            ))
-            .unwrap();
-            "ERR"
-        });
-    let (addr, fut) =
-        rt.block_on(async { warp::serve(filter).bind_ephemeral("0.0.0.0:0".parse::<SocketAddr>().unwrap()) });
-    let port = addr.port();
-    thread::spawn(move || {
-        rt.block_on(fut);
+
+    async fn accept_form(State(send): State<SyncSender<Vec<Part>>>, mut multipart: Multipart) -> &'static str {
+        let mut parts = Vec::new();
+        while let Some(field) = multipart.next_field().await.unwrap() {
+            parts.push(Part {
+                name: field.name().map(|s| s.to_string()),
+                file_name: field.file_name().map(|s| s.to_string()),
+                content_type: field.content_type().map(|s| s.to_string()),
+                data: field.bytes().await.unwrap(),
+            });
+        }
+        send.send(parts).unwrap();
+        "OK"
+    }
+
+    let app = Router::new()
+        .route("/multipart", post(accept_form))
+        .layer(DefaultBodyLimit::disable())
+        .with_state(send);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
     });
     (port, recv)
 }
 
-#[test]
-fn test_multipart_default() -> attohttpc::Result<()> {
-    let file = attohttpc::MultipartFile::new("file", b"Hello, world!")
+#[tokio::test(flavor = "multi_thread")]
+async fn test_multipart_default() -> attohttpc::Result<()> {
+    let file = attohttpc::MultipartFile::new("file", b"abc123")
         .with_type("text/plain")?
         .with_filename("hello.txt");
     let form = attohttpc::MultipartBuilder::new()
@@ -87,16 +54,32 @@ fn test_multipart_default() -> attohttpc::Result<()> {
         .with_file(file)
         .build()?;
 
-    let (port, recv) = start_server();
+    let (port, recv) = start_server().await;
 
     attohttpc::post(format!("http://localhost:{port}/multipart"))
         .body(form)
         .send()?
         .text()?;
 
-    if let Some(err) = recv.recv().unwrap() {
-        panic!("{}", err);
-    }
+    let parts = recv.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(parts.len(), 2);
+    assert_eq!(
+        parts,
+        vec![
+            Part {
+                name: Some("Hello".to_string()),
+                file_name: None,
+                content_type: None,
+                data: Bytes::from(&b"world!"[..])
+            },
+            Part {
+                name: Some("file".to_string()),
+                file_name: Some("hello.txt".to_string()),
+                content_type: Some("text/plain".to_string()),
+                data: Bytes::from(&b"abc123"[..])
+            }
+        ]
+    );
 
     Ok(())
 }
