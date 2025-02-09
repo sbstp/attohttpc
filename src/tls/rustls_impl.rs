@@ -63,7 +63,7 @@ impl TlsHandshaker {
                 root_store.extend(TLS_SERVER_ROOTS.iter().cloned());
 
                 #[cfg(feature = "tls-rustls-native-roots")]
-                for cert in load_native_certs()? {
+                for cert in load_native_certs().certs {
                     // Inspired by https://github.com/seanmonstar/reqwest/blob/231b18f83572836c674404b33cb1ca8b35ca3e36/src/async_impl/client.rs#L363-L365
                     // Native certificate stores often include certificates with invalid formats,
                     // but we don't want those invalid entries to invalidate the entire process of
