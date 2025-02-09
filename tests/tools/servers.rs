@@ -5,7 +5,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
-use axum_server::tls_rustls::RustlsConfig;
+use axum_server::tls_rustls::{from_tcp_rustls, RustlsConfig};
 
 pub async fn start_hello_world_server(tls: bool) -> anyhow::Result<u16> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
@@ -27,7 +27,7 @@ pub async fn start_hello_world_server(tls: bool) -> anyhow::Result<u16> {
             .unwrap();
 
         tokio::spawn(async move {
-            axum_server::bind_rustls(addr, config)
+            from_tcp_rustls(incoming.into_std().unwrap(), config)
                 .serve(app.into_make_service())
                 .await
                 .unwrap();

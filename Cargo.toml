@@ -1,5 +1,5 @@
 [package]
-authors = ["Simon Bernier St-Pierre <git@sbstp.ca>"]
+authors = ["Simon Bernier St-Pierre <git.sbstp.ca@gmail.com>"]
 edition = "2018"
 license = "MPL-2.0"
 name = "attohttpc"
@@ -30,7 +30,7 @@ multipart = { version = "0.18.0", default-features = false, features = [
 ], optional = true }
 native-tls = { version = "0.2.10", optional = true }
 rustls-native-certs = { version = "0.8.1", optional = true }
-rustls-opt-dep = { package = "rustls", version = "0.23.0", default-features = false, features = [
+rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
     "ring",
     "std",
     "tls12",
@@ -44,16 +44,21 @@ webpki-roots = { version = "0.26.8", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.61"
-axum = "0.8.1"
+axum = { version = "0.8.1", features = ["multipart"] }
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
+bytes = "1.10.0"
 env_logger = "0.11.0"
 http-body-util = "0.1.2"
-hudsucker = "0.23.0"
 hyper = { version = "1.6.0", features = ["full"] }
 hyper-util = "0.1.10"
 lazy_static = "1.4.0"
 multipart = { version = "0.18.0", default-features = false, features = [
     "server",
+] }
+rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
 ] }
 rustls-pemfile = "2"
 tls-listener = { version = "0.10.3", features = ["rustls"] }
