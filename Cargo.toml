@@ -61,7 +61,6 @@ rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = f
     "tls12",
 ] }
 rustls-pemfile = "2"
-tls-listener = { version = "0.10.3", features = ["rustls"] }
 tokio = { version = "1.20.1", features = ["full"] }
 
 [features]
