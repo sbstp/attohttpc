@@ -30,7 +30,7 @@ multipart = { version = "0.18.0", default-features = false, features = [
 ], optional = true }
 native-tls = { version = "0.2.10", optional = true }
 rustls-native-certs = { version = "0.8.1", optional = true }
-rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
+rustls-opt-dep = { package = "rustls", version = "0.23.0", default-features = false, features = [
     "ring",
     "std",
     "tls12",
@@ -43,19 +43,15 @@ webpki-roots = { version = "0.26.8", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.61"
+axum = "0.8.1"
+axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 env_logger = "0.11.0"
-futures-util = { version = "0.3.23", default-features = false }
-http02 = { package = "http", version = "0.2" }
-hyper = "0.14.20"
 lazy_static = "1.4.0"
 multipart = { version = "0.18.0", default-features = false, features = [
     "server",
 ] }
 rustls-pemfile = "2"
 tokio = { version = "1.20.1", features = ["full"] }
-tokio-rustls = "0.25.0"
-tokio-stream = { version = "0.1.9", features = ["net"] }
-warp = "0.3.2"
 
 [features]
 basic-auth = ["base64"]

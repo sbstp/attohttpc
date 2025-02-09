@@ -1,41 +1,42 @@
-use std::convert::Infallible;
 use std::net::SocketAddr;
 
-use hyper::server::conn::AddrIncoming;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, Server};
+use axum::body::Body;
+use axum::http::StatusCode;
+use axum::response::Response;
+use axum::routing::get;
+use axum::Router;
+use axum_server::tls_rustls::RustlsConfig;
 
-use super::tls::{TlsAcceptor, TlsConfigBuilder};
-
-pub async fn start_hello_world_server(tls: bool) -> Result<u16, hyper::Error> {
+pub async fn start_hello_world_server(tls: bool) -> anyhow::Result<u16> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let incoming = tokio::net::TcpListener::bind(&addr).await?;
+    let local_addr = incoming.local_addr()?;
 
-    async fn handler(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        Ok(Response::new(Body::from("hello")))
+    async fn hello_world() -> Response {
+        Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from("hello"))
+            .unwrap()
     }
 
-    let bound = AddrIncoming::bind(&addr)?;
-    let addr = bound.local_addr();
+    let app = Router::new().route("/", get(hello_world));
 
     if tls {
-        let make_service = make_service_fn(move |_| async move { Ok::<_, Infallible>(service_fn(handler)) });
-
-        let conf = TlsConfigBuilder::new()
-            .cert(include_bytes!("cert.pem"))
-            .key(include_bytes!("key.pem"))
-            .build()
+        let config = RustlsConfig::from_pem(include_bytes!("cert.pem").to_vec(), include_bytes!("key.pem").to_vec())
+            .await
             .unwrap();
-        let acceptor = TlsAcceptor::new(conf, bound);
-        let server = Server::builder(acceptor);
-        tokio::spawn(server.serve(make_service));
+
+        tokio::spawn(async move {
+            axum_server::bind_rustls(addr, config)
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        });
     } else {
-        let make_service = make_service_fn(move |_| async move { Ok::<_, Infallible>(service_fn(handler)) });
+        tokio::spawn(async move {
+            axum::serve(incoming, app).await.unwrap();
+        });
+    }
 
-        let server = Server::builder(bound);
-        tokio::spawn(server.serve(make_service));
-    };
-
-    println!("Listening on http://{addr}");
-
-    Ok(addr.port())
+    Ok(local_addr.port())
 }
