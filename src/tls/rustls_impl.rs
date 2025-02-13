@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use rustls::{
     client::{
-        danger::{DangerousClientConfigBuilder, HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+        danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
         WebPkiServerVerifier,
     },
     pki_types::{CertificateDer, ServerName, UnixTime},
@@ -77,16 +77,15 @@ impl TlsHandshaker {
                     root_store.add(cert)?;
                 }
 
-                let config = DangerousClientConfigBuilder {
-                    cfg: ClientConfig::builder(),
-                }
-                .with_custom_certificate_verifier(Arc::new(CustomCertVerifier {
-                    upstream: WebPkiServerVerifier::builder(root_store.into()).build()?,
-                    accept_invalid_certs: self.accept_invalid_certs,
-                    accept_invalid_hostnames: self.accept_invalid_hostnames,
-                }))
-                .with_no_client_auth()
-                .into();
+                let config = ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(CustomCertVerifier {
+                        upstream: WebPkiServerVerifier::builder(root_store.into()).build()?,
+                        accept_invalid_certs: self.accept_invalid_certs,
+                        accept_invalid_hostnames: self.accept_invalid_hostnames,
+                    }))
+                    .with_no_client_auth()
+                    .into();
 
                 self.inner = Some(Arc::clone(&config));
 
