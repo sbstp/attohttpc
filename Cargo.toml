@@ -59,7 +59,6 @@ rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = f
     "std",
     "tls12",
 ] }
-rustls-pemfile = "2"
 tokio = { version = "1.20.1", features = ["full"] }
 tokio-rustls = "0.26.1"
 
