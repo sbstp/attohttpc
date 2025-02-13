@@ -30,7 +30,7 @@ multipart = { version = "0.18.0", default-features = false, features = [
 ], optional = true }
 native-tls = { version = "0.2.10", optional = true }
 rustls-native-certs = { version = "0.8.1", optional = true }
-rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
+rustls = { version = "0.23.22", default-features = false, features = [
     "ring",
     "std",
     "tls12",
@@ -54,7 +54,7 @@ lazy_static = "1.4.0"
 multipart = { version = "0.18.0", default-features = false, features = [
     "server",
 ] }
-rustls-opt-dep = { package = "rustls", version = "0.23.22", default-features = false, features = [
+rustls = { version = "0.23.22", default-features = false, features = [
     "ring",
     "std",
     "tls12",
@@ -86,7 +86,7 @@ rustls = ["tls-rustls-webpki-roots"]
 tls-rustls = ["tls-rustls-webpki-roots"]
 tls-vendored = ["tls-native-vendored"]
 # Internal feature used to indicate rustls support
-__rustls = ["rustls-opt-dep"]
+__rustls = ["dep:rustls"]
 
 [package.metadata.docs.rs]
 all-features = true
