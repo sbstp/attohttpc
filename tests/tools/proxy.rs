@@ -101,7 +101,7 @@ async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
 }
 
 async fn create_proxy(tls: bool, deny: bool) -> anyhow::Result<u16> {
-    let _ = rustls_opt_dep::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
     let listener = TcpListener::bind(addr).await?;
     let port = listener.local_addr().unwrap().port();
