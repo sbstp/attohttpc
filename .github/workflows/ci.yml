@@ -8,6 +8,9 @@ on:
     branches:
       - master
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   test:
     strategy:
@@ -20,6 +23,9 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - run: ./tools/tests.bash
         shell: bash
 
