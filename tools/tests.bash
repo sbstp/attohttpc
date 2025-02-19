@@ -10,18 +10,26 @@ if [[ "${CI:-}" == "true" ]] ; then
     echo "color = 'always'" >> .cargo/config.toml
 fi
 
-cargo test
-cargo test --all-features
-cargo test --no-default-features
-cargo test --no-default-features --features basic-auth
-cargo test --no-default-features --features charsets
-cargo test --no-default-features --features compress
-cargo test --no-default-features --features compress-zlib
-cargo test --no-default-features --features compress-zlib-ng
-cargo test --no-default-features --features form
-cargo test --no-default-features --features multipart-form
-cargo test --no-default-features --features json
-cargo test --no-default-features --features tls-native
-cargo test --no-default-features --features tls-native,tls-native-vendored
-cargo test --no-default-features --features tls-rustls-webpki-roots
-cargo test --no-default-features --features tls-rustls-native-roots
+function testwrap {
+    if which cargo-nextest ; then
+        cargo nextest run "$@"
+    else
+        cargo test "$@"
+    fi
+} 
+
+testwrap
+testwrap --all-features
+testwrap --no-default-features
+testwrap --no-default-features --features basic-auth
+testwrap --no-default-features --features charsets
+testwrap --no-default-features --features compress
+testwrap --no-default-features --features compress-zlib
+testwrap --no-default-features --features compress-zlib-ng
+testwrap --no-default-features --features form
+testwrap --no-default-features --features multipart-form
+testwrap --no-default-features --features json
+testwrap --no-default-features --features tls-native
+testwrap --no-default-features --features tls-native,tls-native-vendored
+testwrap --no-default-features --features tls-rustls-webpki-roots
+testwrap --no-default-features --features tls-rustls-native-roots
