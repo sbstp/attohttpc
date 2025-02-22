@@ -30,11 +30,7 @@ multipart = { version = "0.18.0", default-features = false, features = [
 ], optional = true }
 native-tls = { version = "0.2.10", optional = true }
 rustls-native-certs = { version = "0.8.1", optional = true }
-rustls = { version = "0.23.22", default-features = false, features = [
-    "ring",
-    "std",
-    "tls12",
-], optional = true }
+rustls = { version = "0.23.22", optional = true }
 serde = { version = "1.0.143", optional = true }
 serde_json = { version = "1.0.83", optional = true }
 serde_urlencoded = { version = "0.7.1", optional = true }
@@ -54,11 +50,7 @@ lazy_static = "1.4.0"
 multipart = { version = "0.18.0", default-features = false, features = [
     "server",
 ] }
-rustls = { version = "0.23.22", default-features = false, features = [
-    "ring",
-    "std",
-    "tls12",
-] }
+rustls = "0.23.22"
 tokio = { version = "1.20.1", features = ["full"] }
 tokio-rustls = "0.26.1"
 
