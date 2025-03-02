@@ -16,7 +16,6 @@ possible to allow users to get just what they need. Here are the goals of the pr
 * Use quality crates from the ecosystem (`http`, `url`, `encoding_rs`), not reinventing the wheel.
 
 ## Features
-* `basic-auth` support for basic auth
 * `charsets` support for decoding more text encodings than just UTF-8
 * `compress` support for decompressing response bodies using `miniz_oxide` (**default**)
 * `compress-zlib` support for decompressing response bodies using `zlib` instead of `miniz_oxide` (see [flate2 backends](https://github.com/rust-lang/flate2-rs#backends))

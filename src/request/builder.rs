@@ -4,7 +4,6 @@ use std::fs;
 use std::str;
 use std::time::Duration;
 
-#[cfg(feature = "basic-auth")]
 use base64::Engine;
 use http::{
     header::{
@@ -134,7 +133,6 @@ impl<B> RequestBuilder<B> {
     }
 
     /// Enable HTTP basic authentication.
-    #[cfg(feature = "basic-auth")]
     pub fn basic_auth(self, username: impl std::fmt::Display, password: Option<impl std::fmt::Display>) -> Self {
         let auth = match password {
             Some(password) => format!("{username}:{password}"),
