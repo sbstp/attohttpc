@@ -1,16 +1,23 @@
+use std::sync::Arc;
 use std::time::Duration;
 
-use http::HeaderMap;
+use http::header::IntoHeaderName;
+use http::{HeaderMap, HeaderValue};
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
 use crate::request::proxy::ProxySettings;
 use crate::skip_debug::SkipDebug;
 use crate::tls::Certificate;
+use crate::error::{Error, Result};
+
+use super::{header_append, header_insert};
+
 
 #[derive(Clone, Debug)]
 pub struct BaseSettings {
     pub headers: HeaderMap,
+    pub root_certificates: SkipDebug<Vec<Certificate>>,
     pub max_headers: usize,
     pub max_redirections: u32,
     pub follow_redirects: bool,
@@ -20,8 +27,6 @@ pub struct BaseSettings {
     pub proxy_settings: ProxySettings,
     pub accept_invalid_certs: bool,
     pub accept_invalid_hostnames: bool,
-    pub root_certificates: SkipDebug<Vec<Certificate>>,
-
     #[cfg(feature = "charsets")]
     pub default_charset: Option<Charset>,
     #[cfg(feature = "flate2")]
@@ -50,3 +55,60 @@ impl Default for BaseSettings {
         }
     }
 }
+
+macro_rules! basic_setter  {
+    ($name:ident, $param:ident, $type:ty) => {
+        #[inline]
+        pub(crate) fn $name(self: &mut Arc<Self>, $param: $type) {
+            Arc::make_mut(self).$param = $param;
+        }
+    };
+}
+
+
+impl BaseSettings {
+    #[inline]
+    pub(crate) fn headers_mut(self: &mut Arc<Self>) -> &mut HeaderMap {
+        &mut Arc::make_mut(self).headers
+    }
+    
+    #[inline]
+    pub(crate) fn try_header<H, V>(self: &mut Arc<Self>, header: H, value: V) -> Result<()>
+    where
+        H: IntoHeaderName,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
+    {
+        header_insert(&mut Arc::make_mut(self).headers, header, value)
+    }
+
+    #[inline]
+    pub(crate) fn try_header_append<H, V>(self: &mut Arc<Self>, header: H, value: V) -> Result<()>
+    where
+        H: IntoHeaderName,
+        V: TryInto<HeaderValue>,
+        Error: From<V::Error>,
+    {
+        header_append(&mut Arc::make_mut(self).headers, header, value)
+    }
+
+    #[inline]
+    pub(crate) fn add_root_certificate(self: &mut Arc<Self>, cert: Certificate) {
+        Arc::make_mut(self).root_certificates.0.push(cert);
+    }
+
+    basic_setter!(set_max_headers, max_headers, usize);
+    basic_setter!(set_max_redirections, max_redirections, u32);
+    basic_setter!(set_follow_redirects, follow_redirects, bool);
+    basic_setter!(set_connect_timeout, connect_timeout, Duration);
+    basic_setter!(set_read_tmeout, read_timeout, Duration);
+    basic_setter!(set_timeout, timeout, Option<Duration>);
+    basic_setter!(set_proxy_settings, proxy_settings, ProxySettings);
+    basic_setter!(set_accept_invalid_certs, accept_invalid_certs, bool);
+    basic_setter!(set_accept_invalid_hostnames, accept_invalid_hostnames, bool);
+    #[cfg(feature = "charsets")]
+    basic_setter!(set_default_charset, default_charset, Option<Charset>);
+    #[cfg(feature = "flate2")]
+    basic_setter!(set_allow_compression, allow_compression, bool);
+}
+

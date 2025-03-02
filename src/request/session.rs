@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::header::{HeaderValue, IntoHeaderName};
@@ -8,21 +9,21 @@ use http::Method;
 use crate::charsets::Charset;
 use crate::error::{Error, Result};
 use crate::request::proxy::ProxySettings;
-use crate::request::{header_append, header_insert, BaseSettings, RequestBuilder};
+use crate::request::{BaseSettings, RequestBuilder};
 use crate::tls::Certificate;
 
 /// `Session` is a type that can carry settings over multiple requests. The settings applied to the
 /// `Session` are applied to every request created from this `Session`.
 #[derive(Debug, Default)]
 pub struct Session {
-    base_settings: BaseSettings,
+    base_settings: Arc<BaseSettings>,
 }
 
 impl Session {
     /// Create a new `Session` with default settings.
     pub fn new() -> Session {
         Session {
-            base_settings: BaseSettings::default(),
+            base_settings: Arc::new(BaseSettings::default()),
         }
     }
 
@@ -135,8 +136,7 @@ impl Session {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        header_insert(&mut self.base_settings.headers, header, value)?;
-        Ok(())
+        self.base_settings.try_header(header, value)
     }
 
     /// Append a new header to this `Request`.
@@ -148,57 +148,56 @@ impl Session {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        header_append(&mut self.base_settings.headers, header, value)?;
-        Ok(())
+        self.base_settings.try_header_append(header, value)
     }
 
     /// Set the maximum number of headers accepted in responses to this request.
     ///
     /// The default is 100.
     pub fn max_headers(&mut self, max_headers: usize) {
-        self.base_settings.max_headers = max_headers;
+        self.base_settings.set_max_headers(max_headers);
     }
 
     /// Set the maximum number of redirections this `Request` can perform.
     ///
     /// The default is 5.
     pub fn max_redirections(&mut self, max_redirections: u32) {
-        self.base_settings.max_redirections = max_redirections;
+        self.base_settings.set_max_redirections(max_redirections);
     }
 
     /// Sets if this `Request` should follow redirects, 3xx codes.
     ///
     /// This value defaults to true.
     pub fn follow_redirects(&mut self, follow_redirects: bool) {
-        self.base_settings.follow_redirects = follow_redirects;
+        self.base_settings.set_follow_redirects(follow_redirects);
     }
 
     /// Sets a connect timeout for this request.
     ///
     /// The default is 30 seconds.
-    pub fn connect_timeout(&mut self, duration: Duration) {
-        self.base_settings.connect_timeout = duration;
+    pub fn connect_timeout(&mut self, connect_timeout: Duration) {
+        self.base_settings.set_connect_timeout(connect_timeout);
     }
 
     /// Sets a read timeout for this request.
     ///
     /// The default is 30 seconds.
-    pub fn read_timeout(&mut self, duration: Duration) {
-        self.base_settings.read_timeout = duration;
+    pub fn read_timeout(&mut self, read_timeout: Duration) {
+        self.base_settings.set_read_tmeout(read_timeout);
     }
 
     /// Sets a timeout for the whole request.
     ///
     /// Applies after a TCP connection is established. Defaults to no timeout.
-    pub fn timeout(&mut self, duration: Duration) {
-        self.base_settings.timeout = Some(duration);
+    pub fn timeout(&mut self, timeout: Duration) {
+        self.base_settings.set_timeout(Some(timeout));
     }
 
     /// Sets the proxy settigns for this request.
     ///
     /// If left untouched, the defaults are to use system proxy settings found in environment variables.
-    pub fn proxy_settings(&mut self, settings: ProxySettings) {
-        self.base_settings.proxy_settings = settings;
+    pub fn proxy_settings(&mut self, proxy_settings: ProxySettings) {
+        self.base_settings.set_proxy_settings(proxy_settings);
     }
 
     /// Set the default charset to use while parsing the response of this `Request`.
@@ -207,7 +206,7 @@ impl Session {
     /// This value defaults to `None`, in which case ISO-8859-1 is used.
     #[cfg(feature = "charsets")]
     pub fn default_charset(&mut self, default_charset: Option<Charset>) {
-        self.base_settings.default_charset = default_charset;
+        self.base_settings.set_default_charset(default_charset);
     }
 
     /// Sets if this `Request` will announce that it accepts compression.
@@ -216,7 +215,7 @@ impl Session {
     /// compression, the server might choose not to compress the content.
     #[cfg(feature = "flate2")]
     pub fn allow_compression(&mut self, allow_compression: bool) {
-        self.base_settings.allow_compression = allow_compression;
+        self.base_settings.set_allow_compression(allow_compression);
     }
 
     /// Sets if this `Request` will accept invalid TLS certificates.
@@ -231,7 +230,7 @@ impl Session {
     /// If you are using self signed certificates, it is much safer to add their root CA
     /// to the list of trusted root CAs by your system.
     pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
-        self.base_settings.accept_invalid_certs = accept_invalid_certs;
+        self.base_settings.set_accept_invalid_certs(accept_invalid_certs);
     }
 
     /// Sets if this `Request` will accept an invalid hostname in a TLS certificate.
@@ -242,11 +241,11 @@ impl Session {
     /// Use this setting with care. This will accept TLS certificates that do not match
     /// the hostname.
     pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
-        self.base_settings.accept_invalid_hostnames = accept_invalid_hostnames;
+        self.base_settings.set_accept_invalid_hostnames(accept_invalid_hostnames);
     }
 
     /// Adds a root certificate that will be trusted.
     pub fn add_root_certificate(&mut self, cert: Certificate) {
-        self.base_settings.root_certificates.0.push(cert);
+        self.base_settings.add_root_certificate(cert);
     }
 }
