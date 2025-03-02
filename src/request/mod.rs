@@ -1,6 +1,7 @@
 use std::convert::{From, TryInto};
 use std::io::{prelude::*, BufWriter};
 use std::str;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[cfg(feature = "flate2")]
@@ -66,7 +67,7 @@ pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
     body: B,
-    pub(crate) base_settings: BaseSettings,
+    pub(crate) base_settings: Arc<BaseSettings>,
 }
 
 #[cfg(test)]
@@ -79,7 +80,7 @@ impl PreparedRequest<body::Empty> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             body: body::Empty,
-            base_settings: BaseSettings::default(),
+            base_settings: Arc::new(BaseSettings::default()),
         }
     }
 }
@@ -93,7 +94,7 @@ impl<B> PreparedRequest<B> {
     #[cfg(feature = "flate2")]
     fn set_compression(&mut self) -> Result {
         if self.base_settings.allow_compression {
-            header_insert(&mut self.base_settings.headers, ACCEPT_ENCODING, "gzip, deflate")?;
+            header_insert(self.base_settings.headers_mut(), ACCEPT_ENCODING, "gzip, deflate")?;
         }
         Ok(())
     }
@@ -215,8 +216,8 @@ impl<B: Body> PreparedRequest<B> {
 
             // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
             match (url.scheme(), &proxy) {
-                ("http", Some(proxy)) => set_host(&mut self.base_settings.headers, proxy)?,
-                _ => set_host(&mut self.base_settings.headers, &url)?,
+                ("http", Some(proxy)) => set_host(self.base_settings.headers_mut(), proxy)?,
+                _ => set_host(self.base_settings.headers_mut(), &url)?,
             };
 
             let info = ConnectInfo {
@@ -276,6 +277,8 @@ fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use http::header::{HeaderMap, HeaderValue, USER_AGENT};
     use http::Method;
     use url::Url;
@@ -333,7 +336,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
-            base_settings: BaseSettings::default(),
+            base_settings: Arc::new(BaseSettings::default()),
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
@@ -352,7 +355,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
-            base_settings: BaseSettings::default(),
+            base_settings: Arc::new(BaseSettings::default()),
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
