@@ -13,7 +13,6 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
-#[cfg(feature = "basic-auth")]
 use base64::Engine;
 
 use url::{Host, Url};
@@ -94,7 +93,6 @@ impl BaseStream {
         write!(stream, "CONNECT {remote_host}:{remote_port} HTTP/1.1\r\n")?;
         write!(stream, "Host: {proxy_host}:{proxy_port}\r\n")?;
         write!(stream, "Connection: close\r\n")?;
-        #[cfg(feature = "basic-auth")]
         if proxy_url.has_authority() {
             let username = proxy_url.username();
             let auth = match proxy_url.password() {

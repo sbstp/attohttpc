@@ -18,7 +18,7 @@ readme = "README.md"
 repository = "https://github.com/sbstp/attohttpc"
 
 [dependencies]
-base64 = { version = "0.22.0", optional = true }
+base64 = { version = "0.22.0" }
 encoding_rs = { version = "0.8.31", optional = true }
 encoding_rs_io = { version = "0.1.7", optional = true }
 flate2 = { version = "1.0.24", default-features = false, optional = true }
@@ -55,7 +55,7 @@ tokio = { version = "1.20.1", features = ["full"] }
 tokio-rustls = "0.26.1"
 
 [features]
-basic-auth = ["base64"]
+basic-auth = []
 charsets = ["encoding_rs", "encoding_rs_io"]
 # The following three compress features are mutually exclusive.
 compress = ["flate2/default"]
