@@ -6,13 +6,12 @@ use http::{HeaderMap, HeaderValue};
 
 #[cfg(feature = "charsets")]
 use crate::charsets::Charset;
+use crate::error::{Error, Result};
 use crate::request::proxy::ProxySettings;
 use crate::skip_debug::SkipDebug;
 use crate::tls::Certificate;
-use crate::error::{Error, Result};
 
 use super::{header_append, header_insert};
-
 
 #[derive(Clone, Debug)]
 pub struct BaseSettings {
@@ -56,7 +55,7 @@ impl Default for BaseSettings {
     }
 }
 
-macro_rules! basic_setter  {
+macro_rules! basic_setter {
     ($name:ident, $param:ident, $type:ty) => {
         #[inline]
         pub(crate) fn $name(self: &mut Arc<Self>, $param: $type) {
@@ -65,13 +64,12 @@ macro_rules! basic_setter  {
     };
 }
 
-
 impl BaseSettings {
     #[inline]
     pub(crate) fn headers_mut(self: &mut Arc<Self>) -> &mut HeaderMap {
         &mut Arc::make_mut(self).headers
     }
-    
+
     #[inline]
     pub(crate) fn try_header<H, V>(self: &mut Arc<Self>, header: H, value: V) -> Result<()>
     where
@@ -111,4 +109,3 @@ impl BaseSettings {
     #[cfg(feature = "flate2")]
     basic_setter!(set_allow_compression, allow_compression, bool);
 }
-

@@ -404,7 +404,8 @@ impl<B> RequestBuilder<B> {
     /// Use this setting with care. This will accept TLS certificates that do not match
     /// the hostname.
     pub fn danger_accept_invalid_hostnames(mut self, accept_invalid_hostnames: bool) -> Self {
-        self.base_settings.set_accept_invalid_hostnames(accept_invalid_hostnames);
+        self.base_settings
+            .set_accept_invalid_hostnames(accept_invalid_hostnames);
         self
     }
 
