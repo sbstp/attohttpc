@@ -13,6 +13,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
+#[cfg(feature = "basic-auth")]
+use base64::Engine;
+
 use url::{Host, Url};
 
 use crate::happy;
@@ -91,6 +94,16 @@ impl BaseStream {
         write!(stream, "CONNECT {remote_host}:{remote_port} HTTP/1.1\r\n")?;
         write!(stream, "Host: {proxy_host}:{proxy_port}\r\n")?;
         write!(stream, "Connection: close\r\n")?;
+        #[cfg(feature = "basic-auth")]
+        if proxy_url.has_authority() {
+            let username = proxy_url.username();
+            let auth = match proxy_url.password() {
+                Some(password) => format!("{username}:{password}"),
+                None => format!("{username}:"),
+            };
+            let basic_auth = base64::engine::general_purpose::STANDARD.encode(auth);
+            write!(stream, "Proxy-Authorization: Basic {basic_auth}\r\n")?;
+        }
         write!(stream, "\r\n")?;
 
         let mut stream = BufReaderWrite::new(stream);
