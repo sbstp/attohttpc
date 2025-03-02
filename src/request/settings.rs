@@ -66,7 +66,7 @@ macro_rules! basic_setter {
 
 impl BaseSettings {
     #[inline]
-    pub(crate) fn headers_mut(self: &mut Arc<Self>) -> &mut HeaderMap {
+    fn headers_mut(self: &mut Arc<Self>) -> &mut HeaderMap {
         &mut Arc::make_mut(self).headers
     }
 
@@ -77,7 +77,7 @@ impl BaseSettings {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        header_insert(&mut Arc::make_mut(self).headers, header, value)
+        header_insert(self.headers_mut(), header, value)
     }
 
     #[inline]
@@ -87,7 +87,7 @@ impl BaseSettings {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        header_append(&mut Arc::make_mut(self).headers, header, value)
+        header_append(self.headers_mut(), header, value)
     }
 
     #[inline]

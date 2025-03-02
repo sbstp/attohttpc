@@ -21,7 +21,7 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::parsing::Response;
 use crate::request::{
     body::{self, Body, BodyKind},
-    header_insert, header_insert_if_missing,
+    header_append, header_insert, header_insert_if_missing,
     proxy::ProxySettings,
     BaseSettings, PreparedRequest,
 };
@@ -39,6 +39,9 @@ pub struct RequestBuilder<B = body::Empty> {
     url: Url,
     method: Method,
     body: B,
+    // Headers are always modified by [Self::try_prepare], it's cheaper to keep them
+    // separate than to clone all of BaseSettings through [Arc::make_mut].
+    headers: HeaderMap,
     base_settings: Arc<BaseSettings>,
 }
 
@@ -86,6 +89,7 @@ impl RequestBuilder {
             url,
             method,
             body: body::Empty,
+            headers: base_settings.headers.clone(),
             base_settings,
         })
     }
@@ -162,6 +166,7 @@ impl<B> RequestBuilder<B> {
             url: self.url,
             method: self.method,
             body,
+            headers: self.headers,
             base_settings: self.base_settings,
         }
     }
@@ -170,8 +175,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `text/plain` and the charset to UTF-8.
     pub fn text<B1: AsRef<str>>(mut self, body: B1) -> RequestBuilder<body::Text<B1>> {
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("text/plain; charset=utf-8"));
         self.body(body::Text(body))
@@ -181,8 +185,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
     pub fn bytes<B1: AsRef<[u8]>>(mut self, body: B1) -> RequestBuilder<body::Bytes<B1>> {
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
         self.body(body::Bytes(body))
@@ -192,8 +195,7 @@ impl<B> RequestBuilder<B> {
     ///
     /// If the `Content-Type` header is unset, it will be set to `application/octet-stream`.
     pub fn file(mut self, body: fs::File) -> RequestBuilder<body::File> {
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/octet-stream"));
         self.body(body::File(body))
@@ -205,8 +207,7 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "json")]
     pub fn json<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_json::to_vec(value)?;
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
         Ok(self.body(body::Bytes(body)))
@@ -217,8 +218,7 @@ impl<B> RequestBuilder<B> {
     /// If the `Content-Type` header is unset, it will be set to `application/json` and the charset to UTF-8.
     #[cfg(feature = "json")]
     pub fn json_streaming<T: serde::Serialize>(mut self, value: T) -> RequestBuilder<body::Json<T>> {
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
         self.body(body::Json(value))
@@ -230,11 +230,20 @@ impl<B> RequestBuilder<B> {
     #[cfg(feature = "form")]
     pub fn form<T: serde::Serialize>(mut self, value: &T) -> Result<RequestBuilder<body::Bytes<Vec<u8>>>> {
         let body = serde_urlencoded::to_string(value)?.into_bytes();
-        self.base_settings
-            .headers_mut()
+        self.headers
             .entry(http::header::CONTENT_TYPE)
             .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
         Ok(self.body(body::Bytes(body)))
+    }
+
+    /// Get a mutable reference to headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    /// Get a mutable reference to headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
     }
 
     //
@@ -282,7 +291,7 @@ impl<B> RequestBuilder<B> {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        self.base_settings.try_header(header, value)?;
+        header_insert(&mut self.headers, header, value)?;
         Ok(self)
     }
 
@@ -295,7 +304,7 @@ impl<B> RequestBuilder<B> {
         V: TryInto<HeaderValue>,
         Error: From<V::Error>,
     {
-        self.base_settings.try_header_append(header, value)?;
+        header_append(&mut self.headers, header, value)?;
         Ok(self)
     }
 
@@ -305,11 +314,6 @@ impl<B> RequestBuilder<B> {
     pub fn max_headers(mut self, max_headers: usize) -> Self {
         self.base_settings.set_max_headers(max_headers);
         self
-    }
-
-    /// Get a mutable reference to headers.
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        self.base_settings.headers_mut()
     }
 
     /// Set the maximum number of redirections this request can perform.
@@ -427,15 +431,16 @@ impl<B: Body> RequestBuilder<B> {
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     pub fn try_prepare(self) -> Result<PreparedRequest<B>> {
+        dbg!(&self.headers);
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
             body: self.body,
+            headers: self.headers,
             base_settings: self.base_settings,
         };
         prepped.set_compression()?;
-
-        let headers = prepped.base_settings.headers_mut();
+        let headers = &mut prepped.headers;
 
         header_insert(headers, CONNECTION, "close")?;
         match prepped.body.kind()? {
@@ -493,7 +498,7 @@ impl<B> RequestInspector<'_, B> {
 
     /// Acess the current headers
     pub fn headers(&self) -> &HeaderMap {
-        &self.0.base_settings.headers
+        &self.0.headers
     }
 }
 

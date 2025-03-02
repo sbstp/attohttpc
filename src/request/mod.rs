@@ -67,6 +67,7 @@ pub struct PreparedRequest<B> {
     url: Url,
     method: Method,
     body: B,
+    headers: HeaderMap,
     pub(crate) base_settings: Arc<BaseSettings>,
 }
 
@@ -80,6 +81,7 @@ impl PreparedRequest<body::Empty> {
             url: Url::parse(base_url.as_ref()).unwrap(),
             method,
             body: body::Empty,
+            headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
         }
     }
@@ -94,7 +96,7 @@ impl<B> PreparedRequest<B> {
     #[cfg(feature = "flate2")]
     fn set_compression(&mut self) -> Result {
         if self.base_settings.allow_compression {
-            header_insert(self.base_settings.headers_mut(), ACCEPT_ENCODING, "gzip, deflate")?;
+            header_insert(&mut self.headers, ACCEPT_ENCODING, "gzip, deflate")?;
         }
         Ok(())
     }
@@ -117,7 +119,7 @@ impl<B> PreparedRequest<B> {
     where
         W: Write,
     {
-        for (key, value) in self.base_settings.headers.iter() {
+        for (key, value) in self.headers.iter() {
             write!(writer, "{}: ", key.as_str())?;
             writer.write_all(value.as_bytes())?;
             write!(writer, "\r\n")?;
@@ -143,7 +145,7 @@ impl<B> PreparedRequest<B> {
 
     /// Get the headers of this request.
     pub fn headers(&self) -> &HeaderMap {
-        &self.base_settings.headers
+        &self.headers
     }
 }
 
@@ -216,8 +218,8 @@ impl<B: Body> PreparedRequest<B> {
 
             // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
             match (url.scheme(), &proxy) {
-                ("http", Some(proxy)) => set_host(self.base_settings.headers_mut(), proxy)?,
-                _ => set_host(self.base_settings.headers_mut(), &url)?,
+                ("http", Some(proxy)) => set_host(&mut self.headers, proxy)?,
+                _ => set_host(&mut self.headers, &url)?,
             };
 
             let info = ConnectInfo {
@@ -336,6 +338,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
+            headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
         };
 
@@ -355,6 +358,7 @@ mod test {
             method: Method::GET,
             url: Url::parse("http://reddit.com/r/rust").unwrap(),
             body: Empty,
+            headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
         };
 
