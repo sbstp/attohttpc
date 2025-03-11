@@ -1,7 +1,6 @@
 use super::body::{Body, BodyKind};
 use super::{Error, ErrorKind, Result};
 use mime::Mime;
-use multipart::client as mp;
 use std::fmt;
 use std::io::{copy, prelude::*, Cursor, Error as IoError, Result as IoResult};
 
@@ -77,7 +76,7 @@ impl<'key, 'data> MultipartBuilder<'key, 'data> {
 
     /// Creates a `Multipart` to be used as a body.
     pub fn build(self) -> Result<Multipart<'data>> {
-        let mut mp = mp::lazy::Multipart::new();
+        let mut mp = crate::multipart_crate::lazy::Multipart::new();
         for (k, v) in self.text {
             mp.add_text(k, v);
         }
@@ -91,7 +90,7 @@ impl<'key, 'data> MultipartBuilder<'key, 'data> {
 
 /// A multipart form created using `MultipartBuilder`.
 pub struct Multipart<'data> {
-    data: mp::lazy::PreparedFields<'data>,
+    data: crate::multipart_crate::lazy::PreparedFields<'data>,
 }
 
 impl Body for Multipart<'_> {

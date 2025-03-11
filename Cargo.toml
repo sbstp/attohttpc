@@ -25,10 +25,9 @@ flate2 = { version = "1.0.24", default-features = false, optional = true }
 http = "1"
 log = "0.4.17"
 mime = { version = "0.3.16", optional = true }
-multipart = { version = "0.18.0", default-features = false, features = [
-    "client",
-], optional = true }
+mime_guess = { version = "2.0.5", optional = true }
 native-tls = { version = "0.2.10", optional = true }
+rand = { version = "0.9.0", optional = true }
 rustls-native-certs = { version = "0.8.1", optional = true }
 rustls = { version = "0.23.22", optional = true }
 serde = { version = "1.0.143", optional = true }
@@ -47,9 +46,6 @@ http-body-util = "0.1.2"
 hyper = { version = "1.6.0", features = ["full"] }
 hyper-util = "0.1.10"
 lazy_static = "1.4.0"
-multipart = { version = "0.18.0", default-features = false, features = [
-    "server",
-] }
 rustls = "0.23.22"
 tokio = { version = "1.20.1", features = ["full"] }
 tokio-rustls = "0.26.1"
@@ -64,7 +60,7 @@ compress-zlib-ng = ["flate2/zlib-ng"]
 default = ["compress", "tls-native"]
 form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
-multipart-form = ["multipart", "mime"]
+multipart-form = ["mime", "mime_guess", "rand"]
 # The following TLS features are mutually exclusive
 tls-native = ["native-tls"]
 tls-rustls-webpki-roots = ["__rustls", "webpki-roots"]
