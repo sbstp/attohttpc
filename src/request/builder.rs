@@ -431,7 +431,6 @@ impl<B: Body> RequestBuilder<B> {
 
     /// Create a `PreparedRequest` from this `RequestBuilder`.
     pub fn try_prepare(self) -> Result<PreparedRequest<B>> {
-        dbg!(&self.headers);
         let mut prepped = PreparedRequest {
             url: self.url,
             method: self.method,
@@ -516,8 +515,6 @@ fn test_accept_invalid_certs_disabled_by_default() {
 
 #[cfg(test)]
 mod tests {
-    use crate::request::header_append;
-
     use super::*;
     use http::header::HeaderMap;
 
