@@ -72,15 +72,17 @@ macro_rules! warn {
 pub mod charsets;
 mod error;
 mod happy;
-#[cfg(feature = "multipart")]
+#[cfg(feature = "multipart-form")]
 mod multipart;
+#[cfg(feature = "multipart-form")]
+mod multipart_crate;
 mod parsing;
 mod request;
 mod streams;
 mod tls;
 
 pub use crate::error::{Error, ErrorKind, InvalidResponseKind, Result};
-#[cfg(feature = "multipart")]
+#[cfg(feature = "multipart-form")]
 pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
 pub use crate::parsing::{Response, ResponseReader};
 pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
