@@ -1,18 +1,20 @@
 use std::io;
 use std::iter::{self, FusedIterator};
 use std::net::{IpAddr, TcpStream, ToSocketAddrs};
-use std::sync::mpsc::channel;
-use std::thread;
 use std::time::{Duration, Instant};
 
 use url::Host;
 
-const RACE_DELAY: Duration = Duration::from_millis(200);
-
 /// This function implements a basic form of the happy eyeballs RFC to quickly connect
 /// to a domain which is available in both IPv4 and IPv6. Connection attempts are raced
 /// against each other and the first to connect successfully wins the race.
+#[cfg(not(feature = "single-threaded"))]
 pub fn connect(host: &Host<&str>, port: u16, timeout: Duration, deadline: Option<Instant>) -> io::Result<TcpStream> {
+    use std::sync::mpsc::channel;
+    use std::thread;
+
+    const RACE_DELAY: Duration = Duration::from_millis(200);
+
     let addrs: Vec<_> = match *host {
         Host::Domain(domain) => (domain, port).to_socket_addrs()?.collect(),
         Host::Ipv4(ip) => return TcpStream::connect_timeout(&(IpAddr::V4(ip), port).into(), timeout),
@@ -90,6 +92,44 @@ pub fn connect(host: &Host<&str>, port: u16, timeout: Duration, deadline: Option
             return Ok(sock);
         }
     }
+
+    debug!(
+        "could not connect to any address, took {}ms",
+        start.elapsed().as_millis()
+    );
+
+    Err(first_err.unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "no DNS entries found")))
+}
+
+#[cfg(feature = "single-threaded")]
+pub fn connect(host: &Host<&str>, port: u16, timeout: Duration, _deadline: Option<Instant>) -> io::Result<TcpStream> {
+    let addrs: Vec<_> = match *host {
+        Host::Domain(domain) => (domain, port).to_socket_addrs()?.collect(),
+        Host::Ipv4(ip) => return TcpStream::connect_timeout(&(IpAddr::V4(ip), port).into(), timeout),
+        Host::Ipv6(ip) => return TcpStream::connect_timeout(&(IpAddr::V6(ip), port).into(), timeout),
+    };
+
+    if let [addr] = &addrs[..] {
+        debug!("DNS returned only one address, using fast path");
+        return TcpStream::connect_timeout(addr, timeout);
+    }
+
+    let ipv4 = addrs.iter().filter(|a| a.is_ipv4());
+    let ipv6 = addrs.iter().filter(|a| a.is_ipv6());
+    let sorted = intertwine(ipv6, ipv4);
+
+    let start = Instant::now();
+
+    for &addr in sorted {
+        debug!("trying to connect to {}", addr);
+        match TcpStream::connect_timeout(&addr, timeout) {
+            Ok(stream) => return Ok(stream),
+            Err(e) => debug!("failed to connect: {}", e),
+        }
+    }
+    let first_err = addrs
+        .first()
+        .map(|a| TcpStream::connect_timeout(a, Duration::ZERO).unwrap_err());
 
     debug!(
         "could not connect to any address, took {}ms",

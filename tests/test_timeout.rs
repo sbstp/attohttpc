@@ -1,3 +1,5 @@
+#![cfg(not(feature = "single-threaded"))]
+
 use std::io;
 use std::net::TcpListener;
 use std::thread;
