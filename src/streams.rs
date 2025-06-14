@@ -2,6 +2,7 @@
 use std::io::Cursor;
 use std::io::{self, Read, Write};
 #[cfg(not(windows))]
+#[cfg(not(feature = "single-threaded"))]
 use std::net::Shutdown;
 use std::net::TcpStream;
 #[cfg(windows)]
@@ -10,6 +11,7 @@ use std::os::{
     windows::{io::AsRawSocket, raw::SOCKET},
 };
 use std::sync::mpsc;
+#[cfg(not(feature = "single-threaded"))]
 use std::thread;
 use std::time::Instant;
 
@@ -133,6 +135,7 @@ impl BaseStream {
         let stream = happy::connect(host, port, info.base_settings.connect_timeout, info.deadline)?;
         #[cfg(not(target_os = "wasi"))]
         stream.set_read_timeout(Some(info.base_settings.read_timeout))?;
+        #[cfg(not(feature = "single-threaded"))]
         let timeout = info
             .deadline
             .map(|deadline| -> Result<mpsc::Sender<()>> {
@@ -168,6 +171,8 @@ impl BaseStream {
                 Ok(tx)
             })
             .transpose()?;
+        #[cfg(feature = "single-threaded")]
+        let timeout: Option<mpsc::Sender<()>> = None;
         Ok((stream, timeout))
     }
 

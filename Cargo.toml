@@ -61,6 +61,7 @@ default = ["compress", "tls-native"]
 form = ["serde", "serde_urlencoded"]
 json = ["serde", "serde_json"]
 multipart-form = ["mime", "mime_guess", "rand"]
+single-threaded = []
 # The following TLS features are mutually exclusive
 tls-native = ["native-tls"]
 tls-rustls-webpki-roots = ["__rustls", "webpki-roots"]
