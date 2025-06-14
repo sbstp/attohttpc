@@ -1,3 +1,5 @@
+#![cfg(not(any(feature = "tls-rustls-webpki-roots-ring", feature = "tls-rustls-native-roots-ring")))]
+
 mod tools;
 
 use url::Url;
