@@ -33,3 +33,5 @@ testwrap --no-default-features --features tls-native
 testwrap --no-default-features --features tls-native,tls-native-vendored
 testwrap --no-default-features --features tls-rustls-webpki-roots
 testwrap --no-default-features --features tls-rustls-native-roots
+testwrap --no-default-features --features tls-rustls-webpki-roots-ring
+testwrap --no-default-features --features tls-rustls-native-roots-ring
