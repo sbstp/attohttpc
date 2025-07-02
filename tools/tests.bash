@@ -29,6 +29,7 @@ testwrap --no-default-features --features compress-zlib-ng
 testwrap --no-default-features --features form
 testwrap --no-default-features --features multipart-form
 testwrap --no-default-features --features json
+testwrap --no-default-features --features single-threaded
 testwrap --no-default-features --features tls-native
 testwrap --no-default-features --features tls-native,tls-native-vendored
 testwrap --no-default-features --features tls-rustls-webpki-roots
