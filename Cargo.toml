@@ -72,7 +72,6 @@ tls-rustls-native-roots-ring = ["__rustls-ring", "rustls-native-certs"]
 tls-native-vendored = ["native-tls/vendored"]
 # These features are provided for backwards compatibility
 tls = ["tls-native"]
-rustls = ["tls-rustls-webpki-roots"]
 tls-rustls = ["tls-rustls-webpki-roots"]
 tls-vendored = ["tls-native-vendored"]
 # Internal feature used to indicate rustls support
