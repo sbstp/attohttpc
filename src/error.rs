@@ -80,17 +80,17 @@ pub enum ErrorKind {
     #[cfg(feature = "tls-native")]
     Tls(native_tls::Error),
     /// TLS error encountered while connecting to an https server.
-    #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+    #[cfg(all(any(feature = "__rustls", feature = "__rustls-ring"), not(feature = "tls-native")))]
     Tls(rustls::Error),
     /// Invalid DNS name used for TLS certificate verification
-    #[cfg(feature = "__rustls")]
+    #[cfg(any(feature = "__rustls", feature = "__rustls-ring"))]
     InvalidDNSName(String),
     /// Invalid mime type in a Multipart form
     InvalidMimeType(String),
     /// TLS was not enabled by features.
     TlsDisabled,
     /// Empty cert store
-    #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+    #[cfg(all(any(feature = "__rustls", feature = "__rustls-ring"), not(feature = "tls-native")))]
     ServerCertVerifier(rustls::client::VerifierBuilderError),
 }
 
@@ -129,13 +129,13 @@ impl Display for Error {
             Json(ref e) => write!(w, "Json Error: {e}"),
             #[cfg(feature = "form")]
             UrlEncoded(ref e) => write!(w, "URL Encoding Error: {e}"),
-            #[cfg(any(feature = "tls-native", feature = "__rustls"))]
+            #[cfg(any(feature = "tls-native", feature = "__rustls", feature = "__rustls-ring"))]
             Tls(ref e) => write!(w, "Tls Error: {e}"),
-            #[cfg(feature = "__rustls")]
+            #[cfg(any(feature = "__rustls", feature = "__rustls-ring"))]
             InvalidDNSName(ref e) => write!(w, "Invalid DNS name: {e}"),
             InvalidMimeType(ref e) => write!(w, "Invalid mime type: {e}"),
             TlsDisabled => write!(w, "TLS is disabled, activate one of the tls- features"),
-            #[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+            #[cfg(all(any(feature = "__rustls", feature = "__rustls-ring"), not(feature = "tls-native")))]
             ServerCertVerifier(ref e) => write!(w, "Invalid certificate: {e}"),
         }
     }
@@ -150,7 +150,7 @@ impl StdError for Error {
             Http(ref e) => Some(e),
             #[cfg(feature = "json")]
             Json(ref e) => Some(e),
-            #[cfg(any(feature = "tls-native", feature = "__rustls"))]
+            #[cfg(any(feature = "tls-native", feature = "__rustls", feature = "__rustls-ring"))]
             Tls(ref e) => Some(e),
             _ => None,
         }
@@ -188,7 +188,7 @@ impl From<native_tls::Error> for Error {
     }
 }
 
-#[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+#[cfg(all(any(feature = "__rustls", feature = "__rustls-ring"), not(feature = "tls-native")))]
 impl From<rustls::Error> for Error {
     fn from(err: rustls::Error) -> Error {
         Error(Box::new(ErrorKind::Tls(err)))
@@ -221,7 +221,7 @@ impl From<InvalidResponseKind> for Error {
     }
 }
 
-#[cfg(all(feature = "__rustls", not(feature = "tls-native")))]
+#[cfg(all(any(feature = "__rustls", feature = "__rustls-ring"), not(feature = "tls-native")))]
 impl From<rustls::client::VerifierBuilderError> for Error {
     fn from(err: rustls::client::VerifierBuilderError) -> Error {
         Error(Box::new(ErrorKind::ServerCertVerifier(err)))
