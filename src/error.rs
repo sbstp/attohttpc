@@ -230,13 +230,13 @@ impl From<rustls::client::VerifierBuilderError> for Error {
 
 impl From<Error> for io::Error {
     fn from(err: Error) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, err)
+        io::Error::other(err)
     }
 }
 
 impl From<InvalidResponseKind> for io::Error {
     fn from(kind: InvalidResponseKind) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, Error(Box::new(ErrorKind::InvalidResponse(kind))))
+        io::Error::other(Error(Box::new(ErrorKind::InvalidResponse(kind))))
     }
 }
 

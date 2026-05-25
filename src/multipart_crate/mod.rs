@@ -10,7 +10,7 @@
 //! Use this when sending POST requests with files to a server.
 #![allow(dead_code)]
 use mime::Mime;
-use rand::Rng;
+use rand::RngExt;
 
 use std::borrow::Cow;
 use std::fs::File;
