@@ -28,9 +28,10 @@ pub async fn start_hello_world_server(tls: bool) -> anyhow::Result<u16> {
 
         tokio::spawn(async move {
             from_tcp_rustls(incoming.into_std().unwrap(), config)
+                .expect("should build server")
                 .serve(app.into_make_service())
                 .await
-                .unwrap();
+                .expect("should serve");
         });
     } else {
         tokio::spawn(async move {
