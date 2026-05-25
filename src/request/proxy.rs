@@ -218,11 +218,9 @@ fn with_reset_proxy_vars<T>(test: T)
 where
     T: FnOnce() + std::panic::UnwindSafe,
 {
-    use std::sync::Mutex;
+    use std::sync::{LazyLock, Mutex};
 
-    lazy_static::lazy_static! {
-        static ref LOCK: Mutex<()> = Mutex::new(());
-    };
+    static LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     let _guard = LOCK.lock().unwrap();
 
