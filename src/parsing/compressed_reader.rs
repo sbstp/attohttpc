@@ -229,4 +229,26 @@ mod tests {
         let sock = BaseStream::mock(buf.to_vec());
         assert!(parse_response(sock, &req, req.url()).is_ok());
     }
+
+    #[test]
+    fn test_bodiless_responses_ignore_framing_headers() {
+        let cases = [
+            (Method::HEAD, "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n"),
+            (Method::GET, "HTTP/1.1 304 Not Modified\r\nContent-Length: 4\r\n\r\n"),
+            (Method::GET, "HTTP/1.1 204 No Content\r\nContent-Length: 4\r\n\r\n"),
+            (
+                Method::GET,
+                "HTTP/1.1 304 Not Modified\r\nTransfer-Encoding: chunked\r\n\r\n",
+            ),
+            (Method::GET, "HTTP/1.1 304 Not Modified\r\n\r\n"),
+        ];
+        for (method, head) in cases {
+            // Bytes after the head belong to whatever comes next on the connection.
+            let buf = format!("{head}NEXT").into_bytes();
+            let req = PreparedRequest::new(method, "http://google.ca");
+            let sock = BaseStream::mock(buf);
+            let response = parse_response(sock, &req, req.url()).unwrap();
+            assert_eq!(response.text().unwrap(), "", "{head:?} must have an empty body");
+        }
+    }
 }

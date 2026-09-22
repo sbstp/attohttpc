@@ -3,7 +3,7 @@ use std::str;
 
 use http::{
     header::{HeaderName, HeaderValue, TRANSFER_ENCODING},
-    HeaderMap, StatusCode,
+    HeaderMap, Method, StatusCode,
 };
 use url::Url;
 
@@ -78,7 +78,17 @@ where
 pub fn parse_response<B>(reader: BaseStream, request: &PreparedRequest<B>, url: &Url) -> Result<Response> {
     let mut reader = BufReader::new(reader);
     let (status, mut headers) = parse_response_head(&mut reader, request.base_settings.max_headers)?;
-    let body_reader = BodyReader::new(&headers, reader)?;
+    // Responses to HEAD, and 1xx, 204 and 304 responses, never have a body, whatever
+    // Content-Length or Transfer-Encoding say (RFC 9112 section 6.3).
+    let body_reader = if request.method() == Method::HEAD
+        || status.is_informational()
+        || status == StatusCode::NO_CONTENT
+        || status == StatusCode::NOT_MODIFIED
+    {
+        BodyReader::Length(reader.take(0))
+    } else {
+        BodyReader::new(&headers, reader)?
+    };
     let compressed_reader = CompressedReader::new(&headers, request, body_reader)?;
     let response_reader = ResponseReader::new(&headers, request, compressed_reader);
 
