@@ -437,6 +437,7 @@ impl<B: Body> RequestBuilder<B> {
             body: self.body,
             headers: self.headers,
             base_settings: self.base_settings,
+            skip_body: false,
         };
         prepped.set_compression()?;
         let headers = &mut prepped.headers;

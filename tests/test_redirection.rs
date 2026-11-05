@@ -1,10 +1,12 @@
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use attohttpc::ErrorKind;
 use axum::body::Body;
 use axum::response::Response;
-use axum::routing::get;
+use axum::routing::{any, get};
 use axum::Router;
+use http::header::{CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING};
 use http::StatusCode;
 
 async fn make_server() -> Result<u16, anyhow::Error> {
@@ -91,6 +93,177 @@ async fn test_redirection_not_redirect() -> Result<(), anyhow::Error> {
         Ok(_) => (),
         _ => panic!(),
     }
+
+    Ok(())
+}
+
+/// Request details captured by the `/capture` endpoint of a test server.
+#[derive(Default)]
+struct CapturedRequest {
+    method: String,
+    body: Vec<u8>,
+    content_length: Option<String>,
+    content_type: Option<String>,
+    transfer_encoding: Option<String>,
+}
+
+type SharedCapturedRequest = Arc<Mutex<CapturedRequest>>;
+
+async fn spawn_server(app: Router) -> Result<u16, anyhow::Error> {
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let incoming = tokio::net::TcpListener::bind(&addr).await?;
+    let port = incoming.local_addr()?.port();
+
+    tokio::spawn(async move {
+        axum::serve(incoming, app).await.unwrap();
+    });
+
+    Ok(port)
+}
+
+/// Spawn a server that answers `POST /redirect` with the given redirect status and a
+/// relative `Location: /capture` header, and captures the request it receives at
+/// `/capture`.
+async fn spawn_redirect_capture_server(status: StatusCode) -> Result<(u16, SharedCapturedRequest), anyhow::Error> {
+    let captured: SharedCapturedRequest = Arc::new(Mutex::new(CapturedRequest::default()));
+    let capture_state = captured.clone();
+
+    let redirect = Router::new().route(
+        "/redirect",
+        any(move || async move {
+            Response::builder()
+                .status(status)
+                .header("Location", "/capture")
+                .body(Body::from(""))
+                .unwrap()
+        }),
+    );
+
+    let capture = Router::new().route(
+        "/capture",
+        any(move |req: axum::extract::Request| {
+            let state = capture_state.clone();
+            async move {
+                let method = req.method().to_string();
+                let content_length = req
+                    .headers()
+                    .get(CONTENT_LENGTH)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                let content_type = req
+                    .headers()
+                    .get(CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                let transfer_encoding = req
+                    .headers()
+                    .get(TRANSFER_ENCODING)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                let body = axum::body::to_bytes(req.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .to_vec();
+
+                let mut captured = state.lock().unwrap();
+                captured.method = method;
+                captured.body = body;
+                captured.content_length = content_length;
+                captured.content_type = content_type;
+                captured.transfer_encoding = transfer_encoding;
+                "ok"
+            }
+        }),
+    );
+
+    let port = spawn_server(redirect.merge(capture)).await?;
+    Ok((port, captured))
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_301_post_becomes_get() -> Result<(), anyhow::Error> {
+    let (port, captured) = spawn_redirect_capture_server(StatusCode::MOVED_PERMANENTLY).await?;
+
+    attohttpc::post(format!("http://localhost:{port}/redirect"))
+        .text("hello")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.method, "GET");
+    assert!(captured.body.is_empty());
+    assert_eq!(captured.content_length, None);
+    assert_eq!(captured.content_type, None);
+    assert_eq!(captured.transfer_encoding, None);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_302_post_becomes_get() -> Result<(), anyhow::Error> {
+    let (port, captured) = spawn_redirect_capture_server(StatusCode::FOUND).await?;
+
+    attohttpc::post(format!("http://localhost:{port}/redirect"))
+        .text("hello")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.method, "GET");
+    assert!(captured.body.is_empty());
+    assert_eq!(captured.content_length, None);
+    assert_eq!(captured.content_type, None);
+    assert_eq!(captured.transfer_encoding, None);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_303_post_becomes_get() -> Result<(), anyhow::Error> {
+    let (port, captured) = spawn_redirect_capture_server(StatusCode::SEE_OTHER).await?;
+
+    attohttpc::post(format!("http://localhost:{port}/redirect"))
+        .text("hello")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.method, "GET");
+    assert!(captured.body.is_empty());
+    assert_eq!(captured.content_length, None);
+    assert_eq!(captured.content_type, None);
+    assert_eq!(captured.transfer_encoding, None);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_307_post_preserved() -> Result<(), anyhow::Error> {
+    let (port, captured) = spawn_redirect_capture_server(StatusCode::TEMPORARY_REDIRECT).await?;
+
+    attohttpc::post(format!("http://localhost:{port}/redirect"))
+        .text("hello")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.method, "POST");
+    assert_eq!(captured.body, b"hello");
+    assert_eq!(captured.content_length.as_deref(), Some("5"));
+    assert_eq!(captured.content_type.as_deref(), Some("text/plain; charset=utf-8"));
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_308_post_preserved() -> Result<(), anyhow::Error> {
+    let (port, captured) = spawn_redirect_capture_server(StatusCode::PERMANENT_REDIRECT).await?;
+
+    attohttpc::post(format!("http://localhost:{port}/redirect"))
+        .text("hello")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.method, "POST");
+    assert_eq!(captured.body, b"hello");
+    assert_eq!(captured.content_length.as_deref(), Some("5"));
+    assert_eq!(captured.content_type.as_deref(), Some("text/plain; charset=utf-8"));
 
     Ok(())
 }

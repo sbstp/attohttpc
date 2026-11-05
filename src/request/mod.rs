@@ -7,7 +7,7 @@ use std::time::Instant;
 #[cfg(feature = "flate2")]
 use http::header::ACCEPT_ENCODING;
 use http::{
-    header::{HeaderValue, IntoHeaderName, HOST},
+    header::{HeaderValue, IntoHeaderName, CONTENT_LENGTH, CONTENT_TYPE, HOST, TRANSFER_ENCODING},
     HeaderMap, Method, StatusCode, Version,
 };
 use url::Url;
@@ -69,6 +69,9 @@ pub struct PreparedRequest<B> {
     body: B,
     headers: HeaderMap,
     pub(crate) base_settings: Arc<BaseSettings>,
+    /// Set when a redirect changed the method to GET and the request body must be dropped
+    /// (RFC 9110, section 15.4).
+    skip_body: bool,
 }
 
 #[cfg(test)]
@@ -83,6 +86,7 @@ impl PreparedRequest<body::Empty> {
             body: body::Empty,
             headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
+            skip_body: false,
         }
     }
 }
@@ -180,17 +184,19 @@ impl<B: Body> PreparedRequest<B> {
 
         self.write_headers(&mut writer)?;
 
-        match self.body.kind()? {
-            BodyKind::Empty => (),
-            BodyKind::KnownLength(len) => {
-                debug!("writing out body of length {}", len);
-                self.body.write(&mut writer)?;
-            }
-            BodyKind::Chunked => {
-                debug!("writing out chunked body");
-                let mut writer = body::ChunkedWriter(&mut writer);
-                self.body.write(&mut writer)?;
-                writer.close()?;
+        if !self.skip_body {
+            match self.body.kind()? {
+                BodyKind::Empty => (),
+                BodyKind::KnownLength(len) => {
+                    debug!("writing out body of length {}", len);
+                    self.body.write(&mut writer)?;
+                }
+                BodyKind::Chunked => {
+                    debug!("writing out chunked body");
+                    let mut writer = body::ChunkedWriter(&mut writer);
+                    self.body.write(&mut writer)?;
+                    writer.close()?;
+                }
             }
         }
 
@@ -260,10 +266,33 @@ impl<B: Body> PreparedRequest<B> {
 
             let location = String::from_utf8_lossy(location.as_bytes());
 
+            // 301 and 302 responses may change the request method from POST to GET, and 303
+            // responses are followed with a GET unless the method is HEAD (RFC 9110, section
+            // 15.4). 307 and 308 responses preserve the method and body.
+            match resp.status() {
+                StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND if self.method == Method::POST => {
+                    self.change_method_to_get();
+                }
+                StatusCode::SEE_OTHER if self.method != Method::HEAD => {
+                    self.change_method_to_get();
+                }
+                _ => (),
+            }
+
             url = self.base_redirect_url(&location, &url)?;
 
             debug!("redirected to {} giving url {}", location, url);
         }
+    }
+    /// Change the method to GET and drop the body and content-specific headers, as required
+    /// when following certain redirects (RFC 9110, section 15.4).
+    fn change_method_to_get(&mut self) {
+        debug!("changing method {} to GET for redirect", self.method);
+        self.method = Method::GET;
+        self.skip_body = true;
+        self.headers.remove(CONTENT_LENGTH);
+        self.headers.remove(CONTENT_TYPE);
+        self.headers.remove(TRANSFER_ENCODING);
     }
 }
 
@@ -340,6 +369,7 @@ mod test {
             body: Empty,
             headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
+            skip_body: false,
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
@@ -360,6 +390,7 @@ mod test {
             body: Empty,
             headers: HeaderMap::new(),
             base_settings: Arc::new(BaseSettings::default()),
+            skip_body: false,
         };
 
         let proxy = Url::parse("http://proxy:3128").unwrap();
