@@ -6,7 +6,7 @@ use axum::body::Body;
 use axum::response::Response;
 use axum::routing::{any, get};
 use axum::Router;
-use http::header::{CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING};
+use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, COOKIE, TRANSFER_ENCODING};
 use http::StatusCode;
 
 async fn make_server() -> Result<u16, anyhow::Error> {
@@ -108,6 +108,15 @@ struct CapturedRequest {
 }
 
 type SharedCapturedRequest = Arc<Mutex<CapturedRequest>>;
+
+/// Headers captured by the `/capture` endpoint of a test server.
+#[derive(Default)]
+struct CapturedHeaders {
+    authorization: Option<String>,
+    cookie: Option<String>,
+}
+
+type SharedCapturedHeaders = Arc<Mutex<CapturedHeaders>>;
 
 async fn spawn_server(app: Router) -> Result<u16, anyhow::Error> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
@@ -264,6 +273,84 @@ async fn test_redirection_308_post_preserved() -> Result<(), anyhow::Error> {
     assert_eq!(captured.body, b"hello");
     assert_eq!(captured.content_length.as_deref(), Some("5"));
     assert_eq!(captured.content_type.as_deref(), Some("text/plain; charset=utf-8"));
+
+    Ok(())
+}
+
+fn capture_route(state: SharedCapturedHeaders) -> Router {
+    Router::new().route(
+        "/capture",
+        get(move |headers: http::HeaderMap| {
+            let state = state.clone();
+            async move {
+                let mut captured = state.lock().unwrap();
+                captured.authorization = headers
+                    .get(AUTHORIZATION)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                captured.cookie = headers.get(COOKIE).and_then(|v| v.to_str().ok()).map(str::to_owned);
+                "ok"
+            }
+        }),
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_cross_origin_strips_credentials() -> Result<(), anyhow::Error> {
+    let captured: SharedCapturedHeaders = Arc::new(Mutex::new(CapturedHeaders::default()));
+
+    // The redirect target is a different origin: same host, different port.
+    let target_port = spawn_server(capture_route(captured.clone())).await?;
+
+    let redirect_app = Router::new().route(
+        "/redirect",
+        get(move || async move {
+            Response::builder()
+                .status(StatusCode::FOUND)
+                .header("Location", format!("http://localhost:{target_port}/capture"))
+                .body(Body::from(""))
+                .unwrap()
+        }),
+    );
+    let redirect_port = spawn_server(redirect_app).await?;
+
+    attohttpc::get(format!("http://localhost:{redirect_port}/redirect"))
+        .bearer_auth("SECRET-TOKEN")
+        .header(COOKIE, "sid=SECRETCOOKIE")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.authorization, None);
+    assert_eq!(captured.cookie, None);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_redirection_same_origin_keeps_credentials() -> Result<(), anyhow::Error> {
+    let captured: SharedCapturedHeaders = Arc::new(Mutex::new(CapturedHeaders::default()));
+
+    let app = Router::new().route(
+        "/redirect",
+        get(|| async {
+            Response::builder()
+                .status(StatusCode::FOUND)
+                .header("Location", "/capture")
+                .body(Body::from(""))
+                .unwrap()
+        }),
+    );
+    let app = app.merge(capture_route(captured.clone()));
+    let port = spawn_server(app).await?;
+
+    attohttpc::get(format!("http://localhost:{port}/redirect"))
+        .bearer_auth("SECRET-TOKEN")
+        .header(COOKIE, "sid=SECRETCOOKIE")
+        .send()?;
+
+    let captured = captured.lock().unwrap();
+    assert_eq!(captured.authorization.as_deref(), Some("Bearer SECRET-TOKEN"));
+    assert_eq!(captured.cookie.as_deref(), Some("sid=SECRETCOOKIE"));
 
     Ok(())
 }

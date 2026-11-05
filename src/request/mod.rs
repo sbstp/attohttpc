@@ -7,7 +7,10 @@ use std::time::Instant;
 #[cfg(feature = "flate2")]
 use http::header::ACCEPT_ENCODING;
 use http::{
-    header::{HeaderValue, IntoHeaderName, CONTENT_LENGTH, CONTENT_TYPE, HOST, TRANSFER_ENCODING},
+    header::{
+        HeaderValue, IntoHeaderName, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, COOKIE, HOST, PROXY_AUTHORIZATION,
+        TRANSFER_ENCODING, WWW_AUTHENTICATE,
+    },
     HeaderMap, Method, StatusCode, Version,
 };
 use url::Url;
@@ -279,7 +282,20 @@ impl<B: Body> PreparedRequest<B> {
                 _ => (),
             }
 
+            let previous_url = url.clone();
             url = self.base_redirect_url(&location, &url)?;
+
+            // Credentials are scoped to the origin they were issued for (RFC 9110, section 11.5),
+            // so they must not be forwarded to a redirect target with a different scheme, host or
+            // port (RFC 9110, section 15.4).
+            if is_cross_origin_redirect(&url, &previous_url) {
+                debug!("redirect crossed origins, removing sensitive headers");
+                self.headers.remove(AUTHORIZATION);
+                self.headers.remove(COOKIE);
+                self.headers.remove("cookie2");
+                self.headers.remove(PROXY_AUTHORIZATION);
+                self.headers.remove(WWW_AUTHENTICATE);
+            }
 
             debug!("redirected to {} giving url {}", location, url);
         }
@@ -294,6 +310,16 @@ impl<B: Body> PreparedRequest<B> {
         self.headers.remove(CONTENT_TYPE);
         self.headers.remove(TRANSFER_ENCODING);
     }
+}
+
+/// Check whether a redirect sends the request to a different origin.
+///
+/// Two URLs are same-origin when they have the same scheme, host and effective port
+/// (using the scheme's default port when none is specified).
+fn is_cross_origin_redirect(next: &Url, previous: &Url) -> bool {
+    next.scheme() != previous.scheme()
+        || next.host_str() != previous.host_str()
+        || next.port_or_known_default() != previous.port_or_known_default()
 }
 
 fn set_host(headers: &mut HeaderMap, url: &Url) -> Result {
@@ -315,7 +341,7 @@ mod test {
     use url::Url;
 
     use super::BaseSettings;
-    use super::{header_append, header_insert, header_insert_if_missing, PreparedRequest};
+    use super::{header_append, header_insert, header_insert_if_missing, is_cross_origin_redirect, PreparedRequest};
     use crate::body::Empty;
 
     #[test]
@@ -359,6 +385,39 @@ mod test {
         for val in vals {
             assert!(val == "hello" || val == "world");
         }
+    }
+
+    #[test]
+    fn test_is_cross_origin_redirect() {
+        let base = Url::parse("https://example.com/path").unwrap();
+
+        // Same origin
+        assert!(!is_cross_origin_redirect(
+            &Url::parse("https://example.com/other").unwrap(),
+            &base
+        ));
+        assert!(!is_cross_origin_redirect(
+            &Url::parse("https://example.com:443/other").unwrap(),
+            &base
+        ));
+
+        // Different host
+        assert!(is_cross_origin_redirect(
+            &Url::parse("https://other.com/path").unwrap(),
+            &base
+        ));
+
+        // Different port
+        assert!(is_cross_origin_redirect(
+            &Url::parse("https://example.com:8443/path").unwrap(),
+            &base
+        ));
+
+        // Different scheme (https -> http downgrade)
+        assert!(is_cross_origin_redirect(
+            &Url::parse("http://example.com/path").unwrap(),
+            &base
+        ));
     }
 
     #[test]
