@@ -168,6 +168,10 @@ impl<B: Body> PreparedRequest<B> {
             debug!("{} {} {:?}", self.method.as_str(), url, version);
 
             write!(writer, "{} {} {:?}\r\n", self.method.as_str(), url, version)?;
+
+            if let Some(auth) = proxy.and_then(proxy::proxy_authorization_value) {
+                write!(writer, "proxy-authorization: {auth}\r\n")?;
+            }
         } else if let Some(query) = url.query() {
             debug!("{} {}?{} {:?}", self.method.as_str(), url.path(), query, version);
 
@@ -225,11 +229,9 @@ impl<B: Body> PreparedRequest<B> {
 
             let proxy = self.base_settings.proxy_settings.for_url(&url).cloned();
 
-            // If there is a proxy and the protocol is HTTP, the Host header will be the proxy's host name.
-            match (url.scheme(), &proxy) {
-                ("http", Some(proxy)) => set_host(&mut self.headers, proxy)?,
-                _ => set_host(&mut self.headers, &url)?,
-            };
+            // RFC 9112 section 3.2: the Host header must be the authority of the target
+            // URI, even when the request is sent through a proxy in absolute-form.
+            set_host(&mut self.headers, &url)?;
 
             let info = ConnectInfo {
                 url: &url,
@@ -341,7 +343,9 @@ mod test {
     use url::Url;
 
     use super::BaseSettings;
-    use super::{header_append, header_insert, header_insert_if_missing, is_cross_origin_redirect, PreparedRequest};
+    use super::{
+        header_append, header_insert, header_insert_if_missing, is_cross_origin_redirect, set_host, PreparedRequest,
+    };
     use crate::body::Empty;
 
     #[test]
@@ -431,6 +435,9 @@ mod test {
             skip_body: false,
         };
 
+        // mimic what send() does before calling write_request
+        set_host(&mut req.headers, &req.url).unwrap();
+
         let proxy = Url::parse("http://proxy:3128").unwrap();
         let mut buf: Vec<u8> = vec![];
         req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
@@ -439,6 +446,9 @@ mod test {
         let lines: Vec<_> = text.split("\r\n").collect();
 
         assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
+        // the Host header must be the authority of the target URI, not the proxy
+        assert!(lines.contains(&"host: reddit.com"));
+        assert!(!text.contains("proxy-authorization"));
     }
 
     #[test]
@@ -460,5 +470,47 @@ mod test {
         let lines: Vec<_> = text.split("\r\n").collect();
 
         assert_eq!(lines[0], "GET http://reddit.com/r/rust HTTP/1.1");
+    }
+
+    #[test]
+    fn test_http_url_with_http_proxy_auth() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            headers: HeaderMap::new(),
+            base_settings: Arc::new(BaseSettings::default()),
+            skip_body: false,
+        };
+
+        let proxy = Url::parse("http://user:p%40ss@proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+
+        // credentials are percent-decoded before being encoded with Basic auth
+        assert!(text.contains("proxy-authorization: Basic dXNlcjpwQHNz\r\n"));
+    }
+
+    #[test]
+    fn test_http_url_with_http_proxy_auth_empty_credentials() {
+        let mut req = PreparedRequest {
+            method: Method::GET,
+            url: Url::parse("http://reddit.com/r/rust").unwrap(),
+            body: Empty,
+            headers: HeaderMap::new(),
+            base_settings: Arc::new(BaseSettings::default()),
+            skip_body: false,
+        };
+
+        let proxy = Url::parse("http://proxy:3128").unwrap();
+        let mut buf: Vec<u8> = vec![];
+        req.write_request(&mut buf, &req.url.clone(), Some(&proxy)).unwrap();
+
+        let text = std::str::from_utf8(&buf).unwrap();
+
+        // no Proxy-Authorization header is sent when the proxy has no credentials
+        assert!(!text.contains("proxy-authorization"));
     }
 }

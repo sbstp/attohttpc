@@ -15,13 +15,12 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
-use base64::Engine;
-
 use url::{Host, Url};
 
 use crate::happy;
 use crate::parsing::buffers::BufReaderWrite;
 use crate::parsing::response::parse_response_head;
+use crate::request::proxy::proxy_authorization_value;
 use crate::request::BaseSettings;
 use crate::tls::{TlsHandshaker, TlsStream};
 use crate::{ErrorKind, Result};
@@ -93,16 +92,10 @@ impl BaseStream {
         );
 
         write!(stream, "CONNECT {remote_host}:{remote_port} HTTP/1.1\r\n")?;
-        write!(stream, "Host: {proxy_host}:{proxy_port}\r\n")?;
+        write!(stream, "Host: {remote_host}:{remote_port}\r\n")?;
         write!(stream, "Connection: close\r\n")?;
-        if proxy_url.has_authority() {
-            let username = proxy_url.username();
-            let auth = match proxy_url.password() {
-                Some(password) => format!("{username}:{password}"),
-                None => format!("{username}:"),
-            };
-            let basic_auth = base64::engine::general_purpose::STANDARD.encode(auth);
-            write!(stream, "Proxy-Authorization: Basic {basic_auth}\r\n")?;
+        if let Some(auth) = proxy_authorization_value(proxy_url) {
+            write!(stream, "Proxy-Authorization: {auth}\r\n")?;
         }
         write!(stream, "\r\n")?;
 

@@ -1,3 +1,5 @@
+use base64::Engine;
+use percent_encoding::percent_decode_str;
 use std::{env, vec};
 
 use url::Url;
@@ -19,29 +21,57 @@ fn get_env(name: &str) -> Option<String> {
 fn get_env_url(name: &str) -> Option<Url> {
     match get_env(name) {
         Some(val) if val.trim().is_empty() => None,
-        Some(val) => match Url::parse(&val) {
-            Ok(url) => match url.scheme() {
-                "http" | "https" => Some(url),
-                _ => {
+        Some(val) => {
+            // curl assumes the http scheme when the proxy URL doesn't have one.
+            let val = val.trim();
+            let val = if val.contains("://") {
+                val.to_owned()
+            } else {
+                format!("http://{val}")
+            };
+            match Url::parse(&val) {
+                Ok(url) => match url.scheme() {
+                    "http" | "https" => Some(url),
+                    _ => {
+                        warn!(
+                            "Environment variable {} contains unsupported proxy scheme: {}",
+                            name.to_ascii_uppercase(),
+                            url.scheme()
+                        );
+                        None
+                    }
+                },
+                Err(err) => {
                     warn!(
-                        "Environment variable {} contains unsupported proxy scheme: {}",
+                        "Environment variable {} contains invalid URL: {}",
                         name.to_ascii_uppercase(),
-                        url.scheme()
+                        err
                     );
                     None
                 }
-            },
-            Err(err) => {
-                warn!(
-                    "Environment variable {} contains invalid URL: {}",
-                    name.to_ascii_uppercase(),
-                    err
-                );
-                None
             }
-        },
+        }
         None => None,
     }
+}
+
+/// Build the value of the `Proxy-Authorization` header for the given proxy URL.
+///
+/// Returns `None` if the proxy URL contains no credentials. The userinfo components
+/// are percent-decoded as described in RFC 3986 before being encoded with Basic auth.
+pub(crate) fn proxy_authorization_value(proxy_url: &Url) -> Option<String> {
+    let username = proxy_url.username();
+    let password = proxy_url.password();
+
+    if username.is_empty() && password.is_none() {
+        return None;
+    }
+
+    let username = percent_decode_str(username).decode_utf8_lossy();
+    let password = percent_decode_str(password.unwrap_or("")).decode_utf8_lossy();
+    let auth = format!("{username}:{password}");
+    let basic_auth = base64::engine::general_purpose::STANDARD.encode(auth);
+    Some(format!("Basic {basic_auth}"))
 }
 
 /// Contains proxy settings and utilities to find which proxy to use for a given URL.
@@ -81,7 +111,8 @@ impl ProxySettings {
                 no_proxy_hosts.extend(
                     no_proxy
                         .split(',')
-                        .map(|s| s.trim().trim_start_matches('.').to_lowercase()),
+                        .map(|s| s.trim().trim_start_matches('.').to_lowercase())
+                        .filter(|s| !s.is_empty()),
                 );
             }
         }
@@ -104,11 +135,14 @@ impl ProxySettings {
         }
 
         if let Some(host) = url.host_str() {
-            if !self
-                .no_proxy_hosts
-                .iter()
-                .any(|x| host.ends_with(x.to_lowercase().as_str()))
-            {
+            let host = host.to_lowercase();
+            if !self.no_proxy_hosts.iter().any(|x| {
+                match host.strip_suffix(x.as_str()) {
+                    // the entry is the whole host or a dot-separated suffix of it
+                    Some(rest) => rest.is_empty() || rest.ends_with('.'),
+                    None => false,
+                }
+            }) {
                 return match url.scheme() {
                     "http" => self.http_proxy.as_ref(),
                     "https" => self.https_proxy.as_ref(),
@@ -297,4 +331,75 @@ fn test_proxy_from_env_no_proxy() {
 
         assert_eq!(s.no_proxy_hosts, vec!["example.com", "www.reddit.com", "google.ca"]);
     });
+}
+
+#[test]
+fn test_proxy_from_env_no_proxy_empty_entries() {
+    with_reset_proxy_vars(|| {
+        env::set_var("HTTPS_PROXY", "http://proxy:3128");
+        env::set_var("NO_PROXY", "localhost,127.0.0.1,");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.no_proxy_hosts, vec!["localhost", "127.0.0.1"]);
+
+        let url = Url::parse("https://example.com").unwrap();
+        assert!(s.for_url(&url).is_some());
+
+        let url = Url::parse("https://localhost").unwrap();
+        assert!(s.for_url(&url).is_none());
+    });
+}
+
+#[test]
+fn test_proxy_for_url_no_proxy_domain_boundary() {
+    let s = ProxySettings {
+        http_proxy: Some("http://proxy1:3128".parse().unwrap()),
+        https_proxy: Some("http://proxy2:3128".parse().unwrap()),
+        disable_proxies: false,
+        no_proxy_hosts: vec!["example.com".into()],
+    };
+
+    assert!(s.for_url(&Url::parse("http://example.com").unwrap()).is_none());
+    assert!(s.for_url(&Url::parse("http://www.example.com").unwrap()).is_none());
+
+    // a suffix that is not on a domain boundary does not match
+    assert!(s.for_url(&Url::parse("http://notexample.com").unwrap()).is_some());
+    assert!(s
+        .for_url(&Url::parse("http://oauth2.googleapis.com").unwrap())
+        .is_some());
+}
+
+#[test]
+fn test_proxy_from_env_no_scheme() {
+    with_reset_proxy_vars(|| {
+        env::set_var("HTTPS_PROXY", "proxy.example:3128");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.https_proxy.unwrap().as_str(), "http://proxy.example:3128/");
+    });
+
+    with_reset_proxy_vars(|| {
+        env::set_var("HTTPS_PROXY", "127.0.0.1:3128");
+
+        let s = ProxySettings::from_env();
+
+        assert_eq!(s.https_proxy.unwrap().as_str(), "http://127.0.0.1:3128/");
+    });
+}
+
+#[test]
+fn test_proxy_authorization_value() {
+    let url = Url::parse("http://user:p%40ss@proxy:3128").unwrap();
+    assert_eq!(proxy_authorization_value(&url).unwrap(), "Basic dXNlcjpwQHNz");
+
+    let url = Url::parse("http://user@proxy:3128").unwrap();
+    assert_eq!(proxy_authorization_value(&url).unwrap(), "Basic dXNlcjo=");
+
+    let url = Url::parse("http://:pass@proxy:3128").unwrap();
+    assert_eq!(proxy_authorization_value(&url).unwrap(), "Basic OnBhc3M=");
+
+    let url = Url::parse("http://proxy:3128").unwrap();
+    assert!(proxy_authorization_value(&url).is_none());
 }
