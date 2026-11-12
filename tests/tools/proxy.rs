@@ -106,9 +106,12 @@ async fn create_proxy(tls: bool, deny: bool) -> anyhow::Result<u16> {
     let port = listener.local_addr().unwrap().port();
 
     if tls {
-        let config = RustlsConfig::from_pem(include_bytes!("cert.pem").to_vec(), include_bytes!("key.pem").to_vec())
-            .await
-            .unwrap();
+        let config = RustlsConfig::from_pem(
+            include_bytes!("../assets/cert.pem").to_vec(),
+            include_bytes!("../assets/key.pem").to_vec(),
+        )
+        .await
+        .unwrap();
         let tls_acceptor = TlsAcceptor::from(config.get_inner());
 
         tokio::spawn(async move {

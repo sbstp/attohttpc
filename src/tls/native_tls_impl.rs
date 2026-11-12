@@ -6,6 +6,7 @@ use native_tls::HandshakeError;
 
 use crate::Result;
 
+/// Certificate type used by `add_root_certificate`.
 pub type Certificate = native_tls::Certificate;
 
 pub struct TlsHandshaker {
