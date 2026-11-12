@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 
 use crate::{ErrorKind, Result};
 
+/// Placeholder certificate type when TLS support is disabled.
 pub type Certificate = ();
 
 pub struct TlsHandshaker {}
