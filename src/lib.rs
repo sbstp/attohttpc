@@ -87,6 +87,11 @@ pub use crate::multipart::{Multipart, MultipartBuilder, MultipartFile};
 pub use crate::parsing::{Response, ResponseReader};
 pub use crate::request::proxy::{ProxySettings, ProxySettingsBuilder};
 pub use crate::request::{body, PreparedRequest, RequestBuilder, RequestInspector, Session};
+/// The certificate type accepted by [`RequestBuilder::add_root_certificate`] and
+/// [`Session::add_root_certificate`]. Its exact representation depends on which
+/// TLS backend feature is enabled.
+#[cfg(any(feature = "tls-native", feature = "__rustls", feature = "__rustls-ring"))]
+pub use crate::tls::Certificate;
 #[cfg(feature = "charsets")]
 pub use crate::{charsets::Charset, parsing::TextReader};
 pub use http::Method;
