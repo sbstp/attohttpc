@@ -19,6 +19,7 @@ use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::{Error, ErrorKind, Result};
 
+/// Certificate type used by `add_root_certificate`.
 pub type Certificate = CertificateDer<'static>;
 
 pub struct TlsHandshaker {
